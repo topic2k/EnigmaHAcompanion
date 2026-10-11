@@ -1,0 +1,7 @@
+{
+  "title": "EnigmaHA Companion",
+  "config": {
+    "step": {"user": {"title": "EnigmaHA Companion", "description": "Create receiver menus using the EnigmaHA Companion sidebar panel after setup."}},
+    "abort": {"already_configured": "EnigmaHA Companion is already configured."}
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "title": "EnigmaHA Companion",
+  "config": {
+    "step": {"user": {"title": "EnigmaHA Companion", "description": "Nach dem Einrichten kannst du in der Seitenleiste unter EnigmaHA Companion deine Receiver-Menüs erstellen."}},
+    "abort": {"already_configured": "EnigmaHA Companion ist bereits eingerichtet."}
+  }
+}

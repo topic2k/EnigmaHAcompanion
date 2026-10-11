@@ -1,0 +1,17 @@
+EnigmaHA Companion branding
+
+The integrated receiver/remote artwork and the System.Drawing export base
+are adapted from Enigma2 Connect.
+Copyright 2026 Enigma2 Connect contributors
+Licensed under the Apache License, Version 2.0.
+Source: https://github.com/topic2k/enigma2-connect
+See LICENSE-enigma2-connect.txt for the license text.
+
+Modifications for EnigmaHA Companion: home cutout, cyan color palette,
+wordmark, social preview, branding overview and export adjustments.
+
+Poppins ExtraBold
+Copyright 2020 The Poppins Project Authors
+Licensed under the SIL Open Font License, Version 1.1.
+Source: https://github.com/google/fonts/tree/main/ofl/poppins
+See assets/branding/source/OFL-Poppins.txt in the repository for the license text.

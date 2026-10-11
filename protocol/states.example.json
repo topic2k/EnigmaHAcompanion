@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "states": {
+    "light.wohnzimmer": {"state": "off", "unit_of_measurement": null, "icon": null},
+    "sensor.wohnzimmer_temperatur": {"state": "22.4", "unit_of_measurement": "°C", "icon": null},
+    "binary_sensor.balkontuer": {"state": "off", "unit_of_measurement": null, "icon": null},
+    "switch.flurlicht": {"state": "unavailable", "unit_of_measurement": null, "icon": null}
+  },
+  "icons": {}
+}

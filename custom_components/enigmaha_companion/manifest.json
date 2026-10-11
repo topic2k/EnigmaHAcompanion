@@ -1,0 +1,14 @@
+{
+  "domain": "enigmaha_companion",
+  "name": "EnigmaHA Companion",
+  "version": "0.1.6",
+  "config_flow": true,
+  "single_config_entry": true,
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "dependencies": ["http", "frontend", "panel_custom"],
+  "requirements": [],
+  "codeowners": ["@topic2k"],
+  "documentation": "https://github.com/topic2k/EnigmaHAcompanion#readme",
+  "issue_tracker": "https://github.com/topic2k/EnigmaHAcompanion/issues"
+}

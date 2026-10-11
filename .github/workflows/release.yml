@@ -1,0 +1,158 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Automatische Versionserhöhung (wenn Version leer)
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: 'Optionale Version MAJOR.MINOR.PATCH (überschreibt die Auswahl)'
+        type: string
+        required: false
+      prerelease:
+        description: Als Vorabversion veröffentlichen (HACS-Beta)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tree: ${{ steps.source.outputs.tree }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require a branch
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        run: test "$REF_TYPE" = branch
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Select and synchronize release version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXPLICIT_VERSION: ${{ inputs.version }}
+        run: python tools/release_version.py --bump "$BUMP" --version "$EXPLICIT_VERSION"
+      - name: Build HA and receiver packages
+        run: python tools/build.py
+      - name: Record tested source tree
+        id: source
+        run: |
+          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py
+          echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements-test.txt
+          npm ci
+      - name: Python tests (including ZIP and IPK contents)
+        run: python -m unittest discover -s tests -v
+      - name: Frontend tests
+        run: npm test
+      - name: Save tested release packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-packages
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            dist/enigmaha_companion.zip
+            dist/enigmaha-companion-ha-${{ steps.version.outputs.version }}.zip
+            dist/enigma2-plugin-extensions-enigmahacompanion_${{ steps.version.outputs.version }}_all.ipk
+            dist/enigmaha-companion-enigma2-${{ steps.version.outputs.version }}.tar.gz
+            dist/SHA256SUMS.txt
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.build.outputs.version }}
+      TESTED_TREE: ${{ needs.build.outputs.tree }}
+      PRERELEASE: ${{ inputs.prerelease }}
+      RELEASE_BRANCH: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-packages
+          path: dist
+      - name: Verify checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Create release with tested assets and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          # Fail rather than replace a published release, draft, or existing tag.
+          gh api "repos/${GH_REPO}/releases" --paginate --slurp > releases.json
+          if jq -e --arg tag "$tag" 'any(.[][]; .tag_name == $tag)' releases.json > /dev/null; then
+            echo "::error::Release ${tag} already exists. Increase the project version."
+            exit 1
+          fi
+          gh api "repos/${GH_REPO}/git/matching-refs/tags/${tag}" --paginate --slurp > tags.json
+          if jq -e --arg ref "refs/tags/${tag}" 'any(.[][]; .ref == $ref)' tags.json > /dev/null; then
+            echo "::error::Tag ${tag} already exists. Increase the project version."
+            exit 1
+          fi
+          # Only publish the exact source snapshot that passed the build job.
+          remote_sha=$(git ls-remote --exit-code origin "refs/heads/${RELEASE_BRANCH}" | cut -f1)
+          if [[ "$remote_sha" != "$GITHUB_SHA" ]]; then
+            echo "::error::Branch changed during the build. Start a new release run."
+            exit 1
+          fi
+          python tools/release_version.py --version "$VERSION"
+          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py
+          if [[ "$(git write-tree)" != "$TESTED_TREE" ]]; then
+            echo "::error::Release source differs from tested source."
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --allow-empty -m "Release ${VERSION}"
+          git tag "$tag"
+          # Update both refs together, without force or overwriting a concurrent push.
+          git push --atomic origin "HEAD:refs/heads/${RELEASE_BRANCH}" "refs/tags/${tag}"
+          options=()
+          latest=true
+          if [[ "$PRERELEASE" == "true" ]]; then
+            options+=(--prerelease)
+            latest=false
+          fi
+          # Upload everything to a draft before exposing the version to HACS.
+          gh release create "$tag" dist/* --verify-tag \
+            --title "EnigmaHA Companion ${VERSION}" --generate-notes --draft "${options[@]}"
+          gh release edit "$tag" --draft=false --latest="$latest"
+          echo "Release: https://github.com/${GH_REPO}/releases/tag/${tag}" >> "$GITHUB_STEP_SUMMARY"

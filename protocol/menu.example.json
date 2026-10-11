@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "display": {"font_family": "Regular", "font_size": 28},
+  "root": {
+    "type": "menu", "id": "home", "label": "Home Assistant",
+    "children": [
+      {
+        "type": "menu", "id": "living-room", "label": "Wohnzimmer",
+        "children": [
+          {"type": "entity", "id": "ceiling", "label": "Deckenlicht", "entity_id": "light.wohnzimmer", "actions": ["toggle"]},
+          {"type": "entity", "id": "temperature", "label": "Temperatur", "entity_id": "sensor.wohnzimmer_temperatur", "actions": []},
+          {"type": "menu", "id": "windows", "label": "Fenster", "children": [
+            {"type": "entity", "id": "balcony", "label": "Balkontür", "entity_id": "binary_sensor.balkontuer", "actions": []}
+          ]}
+        ]
+      },
+      {"type": "menu", "id": "hall", "label": "Flur", "children": [
+        {"type": "entity", "id": "hall-light", "label": "Flurlicht", "entity_id": "switch.flurlicht", "actions": ["toggle"]}
+      ]}
+    ]
+  }
+}

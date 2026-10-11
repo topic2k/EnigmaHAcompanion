@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.env.*
+!.env.example
+secrets.yaml
+dist/
+node_modules/
+
+.work/
+.temp/
