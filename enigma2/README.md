@@ -138,6 +138,13 @@ Keine Neueinrichtung erforderlich; Zugangsdaten bleiben erhalten. Fehlt
 Fehlt `language` in einer vorhandenen Datei, bleibt Deutsch aktiv. Nur ohne
 Konfigurationsdatei wird automatisch die OpenATV-Systemsprache übernommen.
 
+## Lizenz
+
+Das Receiver-Plugin steht unter **GPL-2.0-or-later**, siehe [LICENSE](../LICENSE)
+und [NOTICE](../NOTICE). IPK und TAR-Paket enthalten beide Dateien im
+Plugin-Verzeichnis `EnigmaHACompanion/`. Externe OpenATV-Komponenten und
+Skin-Grafiken behalten ihre eigenen Lizenzen und werden nicht mitgeliefert.
+
 ## Navigation und Einstieg
 
 Auf/Ab bewegt die Auswahl um einen Eintrag. Ch+ blättert eine Seite aufwärts,

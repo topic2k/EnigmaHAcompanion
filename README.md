@@ -31,21 +31,6 @@ Siehe [benutzerabhängige Menüs](docs/Benutzermenues.md).
 
 Hinweise zum Updateablauf und seinen Grenzen findest du in der [Entwicklerdokumentation](docs/Entwicklung.md#updateablauf-und-grenzen).
 
-## Sprache
-
-Neue Installationen verwenden **Automatisch**; bestehende Spracheinstellungen
-bleiben erhalten. Unter **Einstellungen → Geräte & Dienste →
-EnigmaHA Companion → Konfigurieren** wählst du **Deutsch**, **English** oder
-**Automatisch** für den Menüeditor. Automatisch folgt der HA-Profilsprache,
-ersatzweise dem Browser. Die Option gilt für alle Browser. Am Receiver
-unter **Menü/Blau → Sprache** wählen und mit **Grün** speichern. Die Receiver-Sprache
-wird beim nächsten Öffnen des Plugins wirksam; **Automatisch** folgt dort der
-OpenATV-Systemsprache. Beide Einstellungen sind unabhängig. Nicht unterstützte
-Sprachen verwenden Deutsch; bisherige Einstellungen bleiben erhalten.
-Die HA-Einrichtungsdialoge und die internen Bedienelemente nativer HA-Auswahlfelder
-folgen der Sprache deines HA-Benutzerprofils. Eigene Menü- und Entitätsnamen werden
-nicht automatisch übersetzt.
-
 ## Installation
 
 Du installierst eine Integration in Home Assistant und ein Plugin auf dem Receiver.
@@ -106,6 +91,20 @@ und mit **Links/Exit** zurückgehen. **Menü/Blau** öffnet die Einstellungen.
 
 Die [ausführliche Anleitung](docs/Installation.md) erklärt die manuelle
 Installation ohne HACS, alle Tasten, Einstellungen und die Fehlerbehebung.
+
+## Lizenz
+
+Der eigene Projektcode und die Dokumentation stehen unter
+**GNU GPL Version 2 oder später** (`GPL-2.0-or-later`), siehe [LICENSE](LICENSE)
+und [NOTICE](NOTICE).
+
+Branding-Grafiken und das Exportskript behalten **Apache 2.0**; die
+Poppins-Schrift behält **SIL OFL 1.1**. Die vollständigen Herkunfts- und
+Lizenzhinweise stehen in [assets/branding/NOTICE](assets/branding/NOTICE).
+Die Schriftdatei gehört nur zu den Entwicklungsquellen.
+
+Alle Installationspakete enthalten `LICENSE` und `NOTICE`. Die HA-Pakete
+enthalten zusätzlich die Apache-Lizenz und Herkunftshinweise unter `brand/`.
 
 ## Für Entwickler
 

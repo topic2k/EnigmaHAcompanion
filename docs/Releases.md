@@ -27,6 +27,21 @@ einschließlich Protokollmodul, Übersetzungen und Integrationslogo. Entitätssy
 werden zur Laufzeit aus dem installierten HA-Frontend gelesen; ein MDI-Katalog
 gehört nicht zu den Paketen.
 
+## Lizenzen in den Paketen
+
+Alle vier Installationspakete enthalten den GPLv2-Lizenztext als `LICENSE`
+und die Freigabe unter `GPL-2.0-or-later` samt Fremdlizenzübersicht als `NOTICE`
+im jeweiligen Integrations- beziehungsweise Plugin-Verzeichnis.
+Das IPK nennt zusätzlich `License: GPL-2.0-or-later` in seinen Metadaten.
+Die HA-ZIPs enthalten für die separat unter Apache 2.0 lizenzierten
+Branding-Grafiken weiterhin `brand/NOTICE` und `brand/LICENSE-enigma2-connect.txt`.
+Die Poppins-Schrift und ihr OFL-Lizenztext gehören nur zu den Entwicklungsquellen;
+die Schriftdatei wird nicht in den Installationspaketen ausgeliefert.
+
+Der zum Release gehörende Quellcode einschließlich Build- und
+Installationsskripten steht unter dem zugehörigen Tag `v<Version>` im Repository
+bereit. Diese Quellen zusammen mit den Paketen zugänglich halten.
+
 ## Release starten
 
 1. Die zu veröffentlichenden Änderungen committen und pushen. Die Version muss

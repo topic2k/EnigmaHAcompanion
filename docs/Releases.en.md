@@ -22,6 +22,21 @@ Both contain the same complete integration, shared protocol, German and English
 translations, and logo. Entity icons come from the installed HA frontend at
 runtime; no MDI catalog is shipped.
 
+## Package licenses
+
+All four installation packages include the GPLv2 text in `LICENSE` and the
+`GPL-2.0-or-later` grant with a third-party license overview in `NOTICE`, inside
+the integration or plugin directory. The IPK also declares
+`License: GPL-2.0-or-later` in its metadata.
+The HA ZIPs retain `brand/NOTICE` and `brand/LICENSE-enigma2-connect.txt` for
+the separately Apache-2.0-licensed branding artwork.
+The Poppins font and its OFL license text are development sources only;
+the font file is not shipped in the installation packages.
+
+The matching `v<version>` repository tag provides the release's corresponding
+source, including build and installation scripts. Keep this source accessible
+alongside the packages.
+
 ## Start a release
 
 1. Commit and push the changes. You do not need to increase the version manually.

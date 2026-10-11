@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# See NOTICE and LICENSE-enigma2-connect.txt for attribution and license terms.
 param([switch]$SocialOnly)
 # Reproducible vector construction and PNG export; Windows PowerShell 5.1 / System.Drawing.
 # Adapted from topic2k/enigma2-connect's integrated receiver/remote branding.

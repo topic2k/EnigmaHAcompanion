@@ -31,6 +31,37 @@ def read_ar(data):
 
 
 class PackageTests(unittest.TestCase):
+    def test_installation_packages_include_project_and_applicable_third_party_licenses(self):
+        metadata = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(metadata["license"], "GPL-2.0-or-later")
+        self.assertEqual(lock["packages"][""]["license"], metadata["license"])
+        notice = (ROOT / "NOTICE").read_bytes()
+        self.assertIn(b"either version 2 of the License", notice)
+        self.assertIn(b"or (at your option) any later version", notice)
+        project_files = {name: (ROOT / name).read_bytes() for name in ("LICENSE", "NOTICE")}
+        branding_files = {name: (ROOT / "assets/branding" / name).read_bytes()
+                          for name in ("NOTICE", "LICENSE-enigma2-connect.txt")}
+        hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+        for filename, prefix in (
+                (hacs["filename"], ""),
+                ("enigmaha-companion-ha-" + VERSION + ".zip", "custom_components/enigmaha_companion/")):
+            with self.subTest(package=filename), zipfile.ZipFile(DIST / filename) as archive:
+                for name, expected in project_files.items():
+                    self.assertEqual(archive.read(prefix + name), expected)
+                for name, expected in branding_files.items():
+                    self.assertEqual(archive.read(prefix + "brand/" + name), expected)
+                self.assertFalse(any(name.lower().endswith((".ttf", ".otf")) for name in archive.namelist()))
+        receiver_tar = (DIST / ("enigmaha-companion-enigma2-" + VERSION + ".tar.gz")).read_bytes()
+        ipk = read_ar((DIST / ("enigma2-plugin-extensions-enigmahacompanion_" + VERSION + "_all.ipk")).read_bytes())
+        prefix = "usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion/"
+        for filename, data in (("TAR", receiver_tar), ("IPK", ipk["data.tar.gz"])):
+            with self.subTest(package=filename), tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+                for name, expected in project_files.items():
+                    self.assertEqual(archive.extractfile(prefix + name).read(), expected)
+                self.assertFalse(any("/brand/" in name or name.lower().endswith((".ttf", ".otf"))
+                                     for name in archive.getnames()))
+
     def test_ha_and_receiver_ship_the_same_release_identity(self):
         relative = "enigmaha_protocol/compatibility.py"
         root = DIST / "unpacked"
@@ -109,6 +140,7 @@ class PackageTests(unittest.TestCase):
             control = archive.extractfile("control").read().decode()
             self.assertIn("Version: " + VERSION + "\n", control)
             self.assertIn("Architecture: all\n", control)
+            self.assertIn("License: GPL-2.0-or-later\n", control)
             dependencies = next(line[len("Depends: "):] for line in control.splitlines()
                                 if line.startswith("Depends: ")).split(", ")
             # OpenEmbedded: urllib/http -> netclient, ssl/_ssl/tempfile -> io.

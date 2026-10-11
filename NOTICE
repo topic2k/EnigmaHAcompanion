@@ -1,0 +1,52 @@
+EnigmaHA Companion
+Copyright (C) 2026 EnigmaHA Companion contributors
+SPDX-License-Identifier: GPL-2.0-or-later
+
+Except for the separately licensed materials identified below, the project's
+original code and documentation are free software: you can redistribute them
+and/or modify them under the terms of the GNU General Public License as
+published by the Free Software Foundation, either version 2 of the License,
+or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+A copy of version 2 is included in LICENSE.
+
+Project and corresponding source, including build and installation scripts:
+https://github.com/topic2k/EnigmaHAcompanion
+For a published release, use its matching v<version> tag. Package construction
+is defined in tools/build.py in that source tree.
+
+Separately licensed materials
+----------------------------
+The following materials retain their own licenses and are not relicensed
+under the project's GPL grant:
+
+1. Enigma2 Connect branding: Apache License, Version 2.0
+   Copyright 2026 Enigma2 Connect contributors
+   Source: https://github.com/topic2k/enigma2-connect
+   Covers the branding artwork and adapted export script in assets/branding/,
+   including the EnigmaHA Companion artwork modifications, and the artwork in
+   custom_components/enigmaha_companion/brand/. The Poppins font below is an
+   exception. Project documentation in assets/branding/README.md uses the GPL
+   grant above.
+   Source repository: assets/branding/NOTICE and
+   assets/branding/LICENSE-enigma2-connect.txt.
+   HA installation packages: brand/NOTICE and brand/LICENSE-enigma2-connect.txt
+   inside the integration directory.
+   The receiver installation packages do not contain this branding artwork
+   or export script.
+
+2. Poppins ExtraBold: SIL Open Font License, Version 1.1
+   Copyright 2020 The Poppins Project Authors
+   Source: https://github.com/google/fonts/tree/main/ofl/poppins
+   Font: assets/branding/source/Poppins-ExtraBold.ttf
+   License: assets/branding/source/OFL-Poppins.txt
+   The font file is included only in the source repository, not in the HA or
+   receiver installation packages. Artwork rendered with the font does not
+   inherit the font's license.
+
+Development dependencies retain their respective licenses. They are not
+bundled in the HA or receiver installation packages. Home Assistant, Enigma2
+and system-provided skin assets are external components with their own licenses.

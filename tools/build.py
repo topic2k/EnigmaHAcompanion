@@ -85,6 +85,9 @@ def build(output):
     copy_python_tree(ROOT / "enigma2/Plugins/Extensions/EnigmaHACompanion", receiver)
     copy_python_tree(ROOT / "enigma2/companion", receiver / "companion", rewrite=True)
     copy_python_tree(ROOT / "protocol/enigmaha_protocol", receiver / "enigmaha_protocol")
+    for target in (ha, receiver):
+        for name in ("LICENSE", "NOTICE"):
+            shutil.copyfile(ROOT / name, target / name)
 
     ha_zip = output / ("enigmaha-companion-ha-" + VERSION + ".zip")
     with zipfile.ZipFile(ha_zip, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -111,6 +114,7 @@ def build(output):
     control = ("Package: enigma2-plugin-extensions-enigmahacompanion\nVersion: " + VERSION + "\n"
                "Architecture: all\nMaintainer: EnigmaHA Companion contributors\n"
                "Section: extra\nPriority: optional\n"
+               "License: GPL-2.0-or-later\n"
                "Depends: enigma2, python3-core (>= 3.13), python3-json, python3-netclient, python3-io, python3-twisted-core\n"
                "Description: Home Assistant text menu for Enigma2 receivers\n")
     # Payload timestamps are reproducible (zero). A same-size source change can

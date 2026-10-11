@@ -118,6 +118,14 @@ After installing an updated receiver package, restart the GUI. Credentials are
 retained. Missing `skin_profile` uses the default `auto`, and missing `language`
 uses `de`.
 
+## License
+
+The receiver plugin is licensed under **GPL-2.0-or-later**; see
+[LICENSE](../LICENSE) and [NOTICE](../NOTICE). Both the IPK and TAR packages
+include these files in the `EnigmaHACompanion/` plugin directory. External
+OpenATV components and skin artwork retain their own licenses and are not
+bundled.
+
 ## Navigation and entry points
 
 Up/Down moves by one entry. Ch+ pages up and Ch− pages down. **Reverse Ch+/−**

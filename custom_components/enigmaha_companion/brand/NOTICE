@@ -9,9 +9,14 @@ See LICENSE-enigma2-connect.txt for the license text.
 
 Modifications for EnigmaHA Companion: home cutout, cyan color palette,
 wordmark, social preview, branding overview and export adjustments.
+The branding artwork and export.ps1, including these modifications, remain
+licensed under the Apache License, Version 2.0. The project's GPL license
+does not replace this license.
 
 Poppins ExtraBold
 Copyright 2020 The Poppins Project Authors
 Licensed under the SIL Open Font License, Version 1.1.
 Source: https://github.com/google/fonts/tree/main/ofl/poppins
 See assets/branding/source/OFL-Poppins.txt in the repository for the license text.
+The font file is included only in the development sources, not in the HA or
+receiver installation packages. Rendered artwork does not inherit the OFL.
