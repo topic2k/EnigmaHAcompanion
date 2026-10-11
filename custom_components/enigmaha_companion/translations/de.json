@@ -1,7 +1,120 @@
 {
   "title": "EnigmaHA Companion",
   "config": {
-    "step": {"user": {"title": "EnigmaHA Companion", "description": "Nach dem Einrichten kannst du in der Seitenleiste unter EnigmaHA Companion deine Receiver-Menüs erstellen."}},
-    "abort": {"already_configured": "EnigmaHA Companion ist bereits eingerichtet."}
+    "step": {
+      "user": {
+        "title": "EnigmaHA Companion",
+        "description": "Nach dem Einrichten kannst du in der Seitenleiste unter EnigmaHA Companion deine Receiver-Menüs erstellen."
+      }
+    },
+    "abort": {
+      "already_configured": "EnigmaHA Companion ist bereits eingerichtet."
+    }
+  },
+  "issues": {
+    "protocol_mismatch": {
+      "title": "EnigmaHA-Protokolle passen nicht zusammen",
+      "description": "HA verwendet Protokoll {protocol}. Erkannte Receiver (Adresse: Release / Protokoll): {receivers}. Die Verbindung ist gesperrt. Öffne die Reparatur, um einen gemeinsamen Release zu installieren oder den begonnenen Updateauftrag fortzusetzen. Der Hinweis bleibt bei Receiver-Standby bestehen.",
+      "fix_flow": {
+        "step": {
+          "check": {
+            "title": "Updatevoraussetzungen prüfen",
+            "description": "Die Releaseprüfung konnte nicht abgeschlossen werden. Prüfe den Hinweis und versuche es erneut."
+          },
+          "confirm": {
+            "title": "Gemeinsames Update bestätigen",
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. IPK-Installation und GUI-Neustart müssen am Receiver bestätigt werden. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+          },
+          "retry": {
+            "title": "Update erneut anbieten?",
+            "description": "Release {version} für {receivers}: Ein Schritt ist fehlgeschlagen oder wurde abgelehnt. Mit Bestätigung wird derselbe Updateauftrag erneut angeboten. Bereits erfolgreiche Installationen werden nicht wiederholt. Prüfe bei einem Fehler vorher den Updatehinweis im EnigmaHA-Editor."
+          },
+          "restart": {
+            "title": "Home Assistant jetzt neu starten?",
+            "description": "Die Receiver {receivers} verwenden die Zielversion {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Die Reparatur bleibt bis zur bestätigten laufenden Zielversion bestehen."
+          },
+          "manual": {
+            "title": "Paketstatus am Receiver prüfen",
+            "description": "Release {version} für {receivers}: Der Installationsstatus ist unklar. Es wird nicht automatisch erneut installiert. Prüfe den opkg-Paketstatus und das lokale Updatejournal am Receiver. Nach Klärung und gegebenenfalls GUI-Neustart kannst du den Fortschritt erneut prüfen."
+          }
+        },
+        "progress": {
+          "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
+          "receivers": "Release {version}: Installation und GUI-Neustart auf den Receivern {receivers} bestätigen. Der Fortschritt wird automatisch geprüft."
+        },
+        "error": {
+          "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
+          "download_failed": "Release konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.",
+          "invalid_release": "Der Release enthält keine gültigen, vollständigen Updatepakete.",
+          "downgrade_blocked": "Ein beteiligtes System ist neuer als der angebotene Release. Kein Downgrade ausgeführt.",
+          "update_unavailable": "Updatekoordination ist nicht verfügbar. Integration neu laden.",
+          "receiver_update_unavailable": "Receiver kann nicht eindeutig zugeordnet werden. Plugin öffnen und erneut versuchen.",
+          "update_in_progress": "Ein Update läuft bereits. Dialog schließen und die laufende Reparatur erneut öffnen.",
+          "hacs_version_changed": "Die HACS-Installation wurde inzwischen geändert. Updatezustand im Editor prüfen.",
+          "already_current": "Beide Seiten sind bereits aktuell. Zustand erneut prüfen.",
+          "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
+          "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
+          "restart_not_ready": "Der Neustart ist noch nicht bereit. Receiver-Installation und GUI-Neustart zuerst abschließen.",
+          "release_check_required": "Releaseprüfung abgelaufen. Reparatur erneut öffnen."
+        },
+        "abort": {
+          "integration_unavailable": "Integration ist nicht geladen. Integration laden und Reparatur erneut öffnen.",
+          "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
+          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen."
+        }
+      }
+    },
+    "update_incomplete": {
+      "title": "EnigmaHA-Update benötigt einen weiteren Schritt",
+      "description": "Der bestätigte Updateauftrag auf Release {version} ist fehlgeschlagen oder wartet auf einen HA-Neustart. Die Reparatur setzt denselben Auftrag fort. Installationen und Neustarts werden weiterhin bestätigt.",
+      "fix_flow": {
+        "step": {
+          "check": {
+            "title": "Updatevoraussetzungen prüfen",
+            "description": "Die Releaseprüfung konnte nicht abgeschlossen werden. Prüfe den Hinweis und versuche es erneut."
+          },
+          "confirm": {
+            "title": "Gemeinsames Update bestätigen",
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. IPK-Installation und GUI-Neustart müssen am Receiver bestätigt werden. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+          },
+          "retry": {
+            "title": "Update erneut anbieten?",
+            "description": "Release {version} für {receivers}: Ein Schritt ist fehlgeschlagen oder wurde abgelehnt. Mit Bestätigung wird derselbe Updateauftrag erneut angeboten. Bereits erfolgreiche Installationen werden nicht wiederholt. Prüfe bei einem Fehler vorher den Updatehinweis im EnigmaHA-Editor."
+          },
+          "restart": {
+            "title": "Home Assistant jetzt neu starten?",
+            "description": "Die Receiver {receivers} verwenden die Zielversion {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Die Reparatur bleibt bis zur bestätigten laufenden Zielversion bestehen."
+          },
+          "manual": {
+            "title": "Paketstatus am Receiver prüfen",
+            "description": "Release {version} für {receivers}: Der Installationsstatus ist unklar. Es wird nicht automatisch erneut installiert. Prüfe den opkg-Paketstatus und das lokale Updatejournal am Receiver. Nach Klärung und gegebenenfalls GUI-Neustart kannst du den Fortschritt erneut prüfen."
+          }
+        },
+        "progress": {
+          "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
+          "receivers": "Release {version}: Installation und GUI-Neustart auf den Receivern {receivers} bestätigen. Der Fortschritt wird automatisch geprüft."
+        },
+        "error": {
+          "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
+          "download_failed": "Release konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.",
+          "invalid_release": "Der Release enthält keine gültigen, vollständigen Updatepakete.",
+          "downgrade_blocked": "Ein beteiligtes System ist neuer als der angebotene Release. Kein Downgrade ausgeführt.",
+          "update_unavailable": "Updatekoordination ist nicht verfügbar. Integration neu laden.",
+          "receiver_update_unavailable": "Receiver kann nicht eindeutig zugeordnet werden. Plugin öffnen und erneut versuchen.",
+          "update_in_progress": "Ein Update läuft bereits. Dialog schließen und die laufende Reparatur erneut öffnen.",
+          "hacs_version_changed": "Die HACS-Installation wurde inzwischen geändert. Updatezustand im Editor prüfen.",
+          "already_current": "Beide Seiten sind bereits aktuell. Zustand erneut prüfen.",
+          "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
+          "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
+          "restart_not_ready": "Der Neustart ist noch nicht bereit. Receiver-Installation und GUI-Neustart zuerst abschließen.",
+          "release_check_required": "Releaseprüfung abgelaufen. Reparatur erneut öffnen."
+        },
+        "abort": {
+          "integration_unavailable": "Integration ist nicht geladen. Integration laden und Reparatur erneut öffnen.",
+          "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
+          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen."
+        }
+      }
+    }
   }
 }

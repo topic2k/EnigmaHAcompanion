@@ -12,7 +12,7 @@ sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import API_PATH, ClientError, CompanionClient, MAX_RESPONSE_BYTES
 from companion.navigation import Navigator
 from enigmaha_protocol import ActionError, prepare_action
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION
 from enigmaha_protocol.releases import asset_url, ipk_name
 
 
@@ -104,7 +104,7 @@ class ClientTests(unittest.TestCase):
         self.server.menu = json.loads((ROOT / "protocol/menu.example.json").read_text(encoding="utf-8"))
         self.server.snapshot = json.loads((ROOT / "protocol/states.example.json").read_text(encoding="utf-8"))
         self.server.mode = "normal"
-        self.server.peer_headers = {COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION}
+        self.server.peer_headers = {COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
         self.server.update_plan = None
         self.server.request_headers = []
         self.server.requests = []
@@ -130,9 +130,11 @@ class ClientTests(unittest.TestCase):
         headers = {key.lower(): value for key, value in self.server.request_headers[0].items()}
         self.assertEqual(headers[COMPONENT_HEADER.lower()], "receiver")
         self.assertEqual(headers[VERSION_HEADER.lower()], VERSION)
+        self.assertEqual(headers[PROTOCOL_HEADER.lower()], str(PROTOCOL_VERSION))
 
-    def test_only_update_route_allows_an_identified_peer_with_a_different_version(self):
+    def test_only_update_route_allows_an_identified_peer_with_a_different_protocol(self):
         self.server.peer_headers[VERSION_HEADER] = "2.0.0"
+        self.server.peer_headers[PROTOCOL_HEADER] = "2"
         self.assertIsNone(self.client.get_update())
         job = {"id": "b" * 32, "status": "pending", "attempt": 1, "release": {"version": "2.0.0",
             "ipk_url": asset_url("2.0.0", ipk_name("2.0.0")), "ipk_sha256": "a" * 64, "ipk_size": 10}}
@@ -147,7 +149,7 @@ class ClientTests(unittest.TestCase):
 
     def test_wrong_missing_and_invalid_peer_identity(self):
         for headers, reason, version in [({}, "unidentified_peer", None),
-                ({COMPONENT_HEADER: "homeassistant", VERSION_HEADER: "2.0.0"}, "version_mismatch", "2.0.0"),
+                ({COMPONENT_HEADER: "homeassistant", VERSION_HEADER: "2.0.0"}, "protocol_mismatch", "2.0.0"),
                 ({COMPONENT_HEADER: "other", VERSION_HEADER: VERSION}, "unidentified_peer", VERSION),
                 ({COMPONENT_HEADER: "homeassistant", VERSION_HEADER: "token-value"}, "unidentified_peer", None)]:
             self.server.peer_headers = headers
@@ -156,6 +158,24 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, reason)
             self.assertEqual(caught.exception.peer_version, version)
         self.assertEqual(self.server.plans, [])
+
+    def test_different_release_same_protocol_does_not_block_control(self):
+        self.server.peer_headers[VERSION_HEADER] = "9.1.0"
+        self.assertEqual(self.client.execute(self.command()), {"accepted": True})
+        self.assertEqual(self.client.peer_version, "9.1.0")
+        self.assertEqual(self.client.peer_protocol, PROTOCOL_VERSION)
+        self.assertEqual(len(self.server.plans), 1)
+
+    def test_known_published_versions_without_header_and_unknown_protocol_fail_closed(self):
+        for version in ("1.0.0", "1.0.1", "1.0.2"):
+            self.server.peer_headers = {COMPONENT_HEADER: "homeassistant", VERSION_HEADER: version}
+            self.client.get_menu()
+            self.assertEqual(self.client.peer_protocol, 1)
+        for value in ("", "0", "01", "1.0", "true", "999999", "<img src=x>"):
+            self.server.peer_headers[PROTOCOL_HEADER] = value
+            with self.subTest(value=value), self.assertRaises(ClientError) as caught:
+                self.client.get_menu()
+            self.assertEqual(caught.exception.code, "protocol_mismatch")
 
     def test_auth_error_does_not_expose_token(self):
         with self.assertRaises(ClientError) as caught:

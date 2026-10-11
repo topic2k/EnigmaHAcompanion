@@ -15,7 +15,7 @@ from twisted.internet.threads import deferToThread
 from .companion.client import ClientError, CompanionClient
 from .companion.updater import ReceiverUpdater, load_receiver_id
 from .enigmaha_protocol.releases import UpdateError
-from .enigmaha_protocol.compatibility import VERSION
+from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION
 from .companion.navigation import Navigator
 from .companion.i18n import translate
 from .appearance import Appearance
@@ -225,7 +225,12 @@ class CompanionScreen(Screen):
         self.online, self.busy = True, False
         self.peer_notice = None
         self.render()
-        self["status"].setText(self.t("Verbunden") if self.nav.current["children"] else self.t("Menü ist leer. Einträge in Home Assistant hinzufügen."))
+        message = self.t("Verbunden") if self.nav.current["children"] else self.t("Menü ist leer. Einträge in Home Assistant hinzufügen.")
+        peer_version = getattr(getattr(self, "client", None), "peer_version", None)
+        if peer_version and peer_version != VERSION:
+            message = self.t("Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.",
+                            receiver=VERSION, ha=peer_version, protocol=PROTOCOL_VERSION)
+        self["status"].setText(message)
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
 
     def failed(self, failure, generation):
@@ -253,6 +258,9 @@ class CompanionScreen(Screen):
             return None
         code = error.code if isinstance(error, ClientError) else "unknown"
         messages = {"unauthorized": self.t("Token abgelehnt. Menü: Einstellungen"),
+                    "protocol_mismatch": self.t("Protokolle ungleich: Receiver {receiver}, HA {ha}. Reparatur in Home Assistant unter Einstellungen öffnen.",
+                                              receiver=PROTOCOL_VERSION, ha=getattr(error, "peer_protocol", None) or "?"),
+                    "legacy_version_mismatch": self.t("Ältere HA-Integration verlangt denselben Release. HA und Receiver einmal gemeinsam aktualisieren."),
                     "version_mismatch": self.t("Versionen ungleich: Receiver {receiver}, HA {ha}. Beide auf denselben Release aktualisieren.",
                                               receiver=VERSION, ha=getattr(error, "peer_version", None) or "?"),
                     "unidentified_peer": self.t("Gegenstelle nicht als passende EnigmaHA-Integration erkennbar. Installation und Version prüfen."),
@@ -263,13 +271,13 @@ class CompanionScreen(Screen):
                     "connection_failed": self.t("Verbindung fehlgeschlagen. Schaltzustand unklar; keine Wiederholung."),
                     "invalid_menu": self.t("HA hat ein ungültiges Menü geliefert.")}
         self["status"].setText(messages.get(code, self.t("Abruf fehlgeschlagen. Gelb: erneut laden.")))
-        if code in {"version_mismatch", "unidentified_peer"}:
-            notice = (code, error.peer_version)
+        if code in {"version_mismatch", "protocol_mismatch", "legacy_version_mismatch", "unidentified_peer"}:
+            notice = (code, error.peer_version, getattr(error, "peer_protocol", None))
             if notice != self.peer_notice:
                 self.peer_notice = notice
                 self.session.open(MessageBox, messages[code], type=MessageBox.TYPE_ERROR)
             # Keep the status line short; the dialog contains the recovery steps.
-            self["status"].setText(self.t("Versionen ungleich: Receiver {receiver}, HA {ha}.",
+            self["status"].setText(messages[code] if code in {"protocol_mismatch", "legacy_version_mismatch"} else self.t("Versionen ungleich: Receiver {receiver}, HA {ha}.",
                                          receiver=VERSION, ha=error.peer_version or "?")
                                    if code == "version_mismatch" else self.t("EnigmaHA-Gegenstelle nicht erkannt. Installation prüfen."))
         self["heading"].setText("OFFLINE – " + (safe_text(self.nav.breadcrumb) if self.nav else "Home Assistant"))

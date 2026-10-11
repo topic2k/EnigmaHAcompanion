@@ -175,6 +175,18 @@ gemeinsame Liste; das gemeinsame Layout bleibt in `appearance.py`.
 
 ## Updateablauf und Grenzen
 
+`PROTOCOL_VERSION` in `protocol/enigmaha_protocol/compatibility.py` ist unabhängig
+von der Releaseversion und wird nur bei inkompatiblen Protokolländerungen erhöht.
+Beide Pakete erhalten dieselbe Protokollkennung. Gleiche Protokolle mit ungleichen
+Releases erzeugen nur einen Hinweis; die normale Kommunikation bleibt freigegeben.
+
+`repair_issues.py` verwaltet dauerhafte Protokollmeldungen und den Bezug zu einem
+bestätigten Updateauftrag. Der native HA-Assistent in `repairs.py` delegiert
+Installation, Wiederholung und Neustart an die bestehende Updatekoordination.
+Das Schließen des Dialogs beendet nur die Fortschrittsbeobachtung. Die native
+HA-Repair-API verlangt Administratorrechte, übergibt aber keine Benutzer-ID;
+der Assistent verwendet deshalb den Systemkontext für HA-Dienste.
+
 Die Updatekoordination liegt in `updates.py`, die portable Releaseprüfung in
 `protocol/enigmaha_protocol/releases.py` und die OpenATV-Installation in
 `enigma2/companion/updater.py`. Verwendet werden die öffentliche

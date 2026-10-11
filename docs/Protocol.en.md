@@ -9,26 +9,37 @@ of the package version. See [update implementation and limitations](Development.
 ## Component and version checks
 
 Receiver requests to `/menu`, `/states` and `/actions` send
-`X-EnigmaHA-Component: receiver` and `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`.
+`X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
+and `X-EnigmaHA-Protocol: 1`.
 HA checks these headers after authentication and before reading data or executing
 an action. Companion view responses include `X-EnigmaHA-Component: homeassistant`
-and the local `X-EnigmaHA-Version`. The receiver checks successful responses and
-HTTP 426 before processing their payload. Package versions must match exactly;
-matching `schema_version` values alone are insufficient.
+and the local `X-EnigmaHA-Version` and `X-EnigmaHA-Protocol`. The receiver checks
+successful responses and HTTP 426 before processing their payload. Protocol versions
+are independent of releases and increase only for incompatible protocol changes.
+Matching protocols allow different releases; `version_mismatch` is an informational
+notice with release-note links. Matching menu `schema_version` values alone are insufficient.
 
-HTTP 426 reports `version_mismatch` for different versions or `unidentified_peer`
+HTTP 426 reports `protocol_mismatch` for different or unknown protocols or `unidentified_peer`
 for missing/invalid identity or version headers. Its JSON response also includes
-the HA `version`. This identity check does not replace HA authentication or TLS.
+the HA `version` and `protocol_version`. This identity check does not replace HA authentication or TLS.
 
 Administrator-only GET `/compatibility` returns
-`{"version": "1.0.0", "receivers": [], "updates": {...}}` with HA's actually
+`{"version": "1.0.2", "protocol_version": 1, "receivers": [], "updates": {...}}` with HA's actually
 loaded package version. Receiver entries contain `id` (possibly `null`),
-`address`, `version` (possibly `null`) and `status`
-(`compatible`, `version_mismatch`, `unidentified_peer`). HA keeps at most 64 entries
+`address`, `version`, `protocol_version` (each possibly `null`) and `status`
+(`compatible`, `version_mismatch`, `protocol_mismatch`, `unidentified_peer`). HA keeps at most 64 entries
 from the last five minutes in memory, grouped by HA user and
 `X-EnigmaHA-Receiver-ID` (32 lowercase hexadecimal characters), falling back to
 source address without a valid ID. The receiver persists its identity.
 There is no active scan; the recent list is not persisted.
+
+Protocol problems for identified receivers with valid IDs are additionally persisted
+in `.storage/enigmaha_companion.repairs` and offered as native HA repairs. The repair
+flow uses the existing update coordinator, installs only after confirmation and resumes
+unfinished jobs. Release differences alone never create repairs. Published releases
+1.0.0 through 1.0.2 without a protocol header are known to implement protocol 1;
+unknown releases never receive an assumed protocol. Those old components still require
+matching releases themselves; update both sides once to enable the new checks.
 
 ## Confirmed release update
 
@@ -49,12 +60,14 @@ A release descriptor contains exactly `version`, `ipk_url`, `ipk_sha256` and
 `ipk_size`. URLs must match the fixed repository, `v<Version>` tag and expected
 IPK filename. Only published stable releases with HACS ZIP, IPK and checksums
 are offered. HACS receives `update.install` with explicit `version: v<Version>`
-and the confirming administrator's context. The release and participant list
+and the confirming administrator's context. The native administrator-only repair
+flow uses HA's system context. The release and participant list
 remain fixed throughout a transaction.
 
 GET/POST `/receiver_update` require an authenticated active HA user, receiver
 component header, valid version and receiver identity. Different versions are
-explicitly allowed here; normal receiver routes remain blocked. Receivers only
+explicitly allowed here, as are different protocols. Protocol mismatches block
+normal receiver routes. Receivers only
 receive transactions bound to both their identity **and** their HA user.
 
 GET returns `{"job":null}` or `{"job":{"id":"…","release":{...},
@@ -63,7 +76,7 @@ GET returns `{"job":null}` or `{"job":{"id":"…","release":{...},
 Other reports are `declined`, `restart_required` or `failed` with fixed,
 non-sensitive error codes. Success returns `{"accepted":true}`. Stale jobs or
 attempts return `stale_update`. A `completed` report is rejected; only a GET
-reporting the actually loaded target version completes that receiver.
+reporting the actually loaded target version and protocol completes that receiver.
 
 Job phases: `ha_installing`, `receivers`, `ha_restart_required`, `completed`,
 `failed`. Receiver statuses: `pending`, `installing`, `restart_required`,
@@ -72,7 +85,9 @@ The receiver persists local consent before invoking the package manager, checks
 size, SHA-256 and package metadata, then verifies `opkg status`. An uncertain
 installation is never automatically repeated. GitHub downloads and package
 commands never receive the HA token. Restarts require separate confirmation.
-Completion requires HA and every participant to actually run the target version.
+Completion requires HA and every participant to actually run the target version and
+protocol. The target protocol is read from source files installed by HACS, independently
+of the still-running HA process. Repair issues clear only after observed completion.
 
 ## Menu
 
@@ -164,7 +179,7 @@ The receiver blocks further actions while a request or command runs.
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
 | 409 | `stale_menu`, `entity_unavailable`, or `revision_limit` when saving |
-| 426 | `version_mismatch`, `unidentified_peer` |
+| 426 | `protocol_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, or `storage_failed` when saving |
 | 503 | Integration not loaded or already unloaded |
 

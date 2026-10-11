@@ -48,16 +48,24 @@ The separate `enigmaha_companion.zip` is intended for HACS.
 
 ## 2. Build the menu
 
-The HA integration and receiver plugin must use exactly the same release.
-Both sides check the EnigmaHA identity and package version on every receiver
-request. Different versions or a missing/invalid identity block data requests
-and actions. The receiver displays an explanation with the versions; the HA
+Both sides check the EnigmaHA identity, release and protocol version on every
+receiver request. Different releases work when their protocols match; the HA
+editor displays an informational notice and release-note links. Different or
+unknown protocols and missing/invalid identities block requests and actions.
+The receiver displays an explanation; the HA
 editor shows requests from the last five minutes and refreshes this status every
 30 seconds. A receiver must connect before it can be checked.
 
 The [coordinated update](#coordinated-update-through-hacs-and-ipk) brings HA and
 participating receivers to the same release after confirmation. Menus, receiver
 settings and tokens are retained; no reconfiguration is required.
+
+A protocol conflict also creates an issue under **Settings → System → Repairs**.
+The wizard shows the target release and affected receivers and uses the same
+HACS/IPK workflow after confirmation. Issues survive HA restarts and clear only
+after successful verification. Release differences alone never create a repair
+or require an update. Published versions through 1.0.2 still enforce matching
+releases themselves; update both components once to enable independent protocol checks.
 
 Choose **English** under **Sprache**. German is the default and first option.
 The choice is saved in this browser. HA setup dialogs and the internal texts of
@@ -109,7 +117,7 @@ remains enabled; no SSH credentials are required.
    HA page after restarting. Completion requires HA itself to run the target too.
 
 A declined receiver update can be offered again in the HA editor and requires
-another local confirmation. Different versions continue to block menu requests
+another local confirmation. Different protocols continue to block menu requests
 and actions; the update channel remains available. HA stores progress in
 `.storage/enigmaha_companion.update`. Receiver identity and installation journal
 are stored in `/etc/enigma2/enigmaha_companion_receiver_id` and
@@ -119,9 +127,15 @@ Lost connections do not cause a second IPK installation. If an `opkg` result is
 uncertain, inspect package status on the receiver; uncertain installations are
 not retried automatically. A missing GUI restart is offered again. Downgrades
 are blocked. Do not install another version through HACS or `opkg` during the
-transaction. Update receivers not included in the transaction to the same release
-later; otherwise they remain blocked. Manual installation of both packages from
+transaction. Update other receivers later; mismatched protocols keep them blocked.
+Manual installation of both packages from
 the same release remains available.
+
+The repair wizard resumes unfinished update jobs and offers failed steps again
+after renewed confirmation. Uncertain installation results require manual inspection.
+Confirm HA restart separately. Every participant must report the target release
+and its protocol before the repair completes. Additional repair data is kept
+separately from the menu in `.storage/enigmaha_companion.repairs`.
 
 ## Create a long-lived access token
 

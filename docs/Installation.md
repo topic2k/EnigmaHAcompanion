@@ -51,16 +51,25 @@ Das separate ZIP `enigmaha_companion.zip` ist für HACS bestimmt.
 
 ## 2. Menü zusammenstellen
 
-HA-Integration und Receiver-Plugin müssen exakt denselben Release verwenden.
-Bei jeder Receiver-Anfrage prüfen beide Seiten EnigmaHA-Kennung und Paketversion.
-Bei unterschiedlichen Versionen oder fehlender/ungültiger Kennung werden Abrufe
-und Schaltbefehle gesperrt. Der Receiver zeigt einen Hinweis mit den Versionen;
+Bei jeder Receiver-Anfrage prüfen beide Seiten EnigmaHA-Kennung, Release und
+Protokollversion. Bei gleichem Protokoll funktionieren unterschiedliche Releases;
+der HA-Editor zeigt dazu einen Hinweis und Links zu den Release-Informationen.
+Unterschiedliche oder unbekannte Protokolle sowie fehlende/ungültige Kennungen
+sperren Abrufe und Schaltbefehle. Der Receiver zeigt einen entsprechenden Hinweis;
 der HA-Editor zeigt die Anfragen der letzten fünf Minuten und aktualisiert die
 Anzeige alle 30 Sekunden. Ohne Receiver-Anfrage ist noch keine Prüfung möglich.
 
 Das [gemeinsame Update](#gemeinsames-update-über-hacs-und-ipk) bringt HA und die
 beteiligten Receiver nach Bestätigung auf denselben Release. Menü,
 Receiver-Einstellungen und Token bleiben erhalten; eine Neueinrichtung ist nicht nötig.
+
+Bei einem Protokollkonflikt erscheint zusätzlich eine Meldung unter
+**Einstellungen → System → Reparaturen**. Der dortige Assistent zeigt Zielrelease
+und betroffene Receiver und verwendet nach Bestätigung denselben HACS/IPK-Ablauf.
+Die Meldung bleibt über HA-Neustarts erhalten und verschwindet erst nach erfolgreicher
+Prüfung. Reine Release-Unterschiede erzeugen keine Reparatur und erfordern kein Update.
+Veröffentlichte Versionen bis 1.0.2 verlangen selbst noch gleiche Releases; beide
+Komponenten einmal aktualisieren, um die unabhängige Protokollprüfung zu verwenden.
 
 Unter **Sprache** zwischen **Deutsch** (Standard) und **English** wechseln.
 Die Auswahl gilt für diesen Browser und ändert keine Menünamen. HA-eigene
@@ -115,7 +124,7 @@ Die HTTPS-Zertifikatsprüfung bleibt aktiv. Zusätzliche SSH-Zugangsdaten sind n
    der Zielversion läuft, erscheint der Vorgang als abgeschlossen.
 
 Ein abgelehntes Receiver-Update kann im HA-Editor erneut angeboten werden und
-erfordert erneut die lokale Bestätigung. Bei ungleichen Versionen bleiben
+erfordert erneut die lokale Bestätigung. Bei ungleichen Protokollen bleiben
 Menüabruf und Schaltbefehle gesperrt; der Updatekanal funktioniert weiterhin.
 HA speichert den Fortschritt unter `.storage/enigmaha_companion.update`, der
 Receiver seine Kennung und sein Installationsjournal unter
@@ -127,8 +136,15 @@ Verbindungsabbrüche lösen keine zweite IPK-Installation aus. Bei unklarem
 unklarem Ausgang wird nicht automatisch wiederholt. Ein fehlender GUI-Neustart
 wird erneut angeboten. Downgrades sind gesperrt. Während eines Vorgangs keine
 andere Version über HACS oder `opkg` installieren. Nicht beteiligte Receiver
-später auf denselben Release bringen; sie bleiben andernfalls gesperrt.
+später aktualisieren; bei ungleichem Protokoll bleiben sie gesperrt.
 Die manuelle Installation beider Pakete aus demselben Release bleibt möglich.
+
+Der Repair-Assistent setzt offene Updateaufträge fort und bietet fehlgeschlagene
+Schritte nach erneuter Bestätigung an. Bei unklarem Installationsergebnis fordert
+er eine manuelle Prüfung. Den HA-Neustart separat bestätigen. Nach dem Update müssen
+alle Beteiligten den Zielrelease mit dessen Protokoll melden, bevor die Reparatur
+als abgeschlossen gilt. Die zusätzlichen Repair-Daten liegen getrennt vom Menü
+unter `.storage/enigmaha_companion.repairs`.
 
 ## Langlebigen Zugriffstoken erstellen
 

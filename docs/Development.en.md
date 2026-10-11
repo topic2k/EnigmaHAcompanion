@@ -150,6 +150,17 @@ skin interfaces and keys. Register further profiles once in `skin/__init__.py`'s
 
 ## Update implementation and limitations
 
+`PROTOCOL_VERSION` in `protocol/enigmaha_protocol/compatibility.py` is independent
+of the release version and increases only for incompatible protocol changes.
+Both packages receive the same protocol identity. Matching protocols with different
+releases produce only an informational notice; normal communication remains allowed.
+
+`repair_issues.py` manages persistent protocol issues and their confirmed update
+job. The native HA wizard in `repairs.py` delegates installation, retry and restart
+to the existing update coordinator. Closing the dialog only stops its progress
+observer. HA's native repair API requires administrator access but does not pass
+a user ID to flows; the wizard therefore uses the system context for HA services.
+
 Update coordination lives in `updates.py`, portable release verification in
 `protocol/enigmaha_protocol/releases.py`, and OpenATV installation in
 `enigma2/companion/updater.py`. It uses the public

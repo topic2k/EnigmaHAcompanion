@@ -1,6 +1,7 @@
 """Confirmed HACS/IPK update, pinned to one release and persisted across restarts."""
 
 import asyncio
+import ast
 import copy
 import json
 from pathlib import Path
@@ -11,7 +12,7 @@ from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry
 
-from .enigmaha_protocol.compatibility import VERSION, valid_receiver_id
+from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION, protocol_version, valid_receiver_id
 from .enigmaha_protocol.releases import (
     REPOSITORY_URL, UpdateError, fetch_latest_release, validate_release, version_tuple,
 )
@@ -32,6 +33,19 @@ def downloaded_version():
     return json.loads(Path(__file__).with_name("manifest.json").read_text(encoding="utf-8"))["version"]
 
 
+def downloaded_protocol_version():
+    """Read installed source without importing cached or still-running modules."""
+    tree = ast.parse((Path(__file__).parent / "enigmaha_protocol/compatibility.py").read_text(encoding="utf-8"))
+    values = {target.id: ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign)
+              for target in node.targets if isinstance(target, ast.Name) and target.id in {"VERSION", "PROTOCOL_VERSION"}}
+    value = values.get("PROTOCOL_VERSION")
+    if value is None:
+        value = protocol_version(None, values.get("VERSION"))
+    if type(value) is not int or not 1 <= value <= 99999:
+        raise ValueError("invalid installed protocol identity")
+    return value
+
+
 class UpdateManager:
     def __init__(self, hass, store, job=None):
         self.hass, self.store, self.job = hass, store, job
@@ -41,6 +55,7 @@ class UpdateManager:
         self.task = None
         self.restart_task = None
         self.active = True
+        self.on_change = None
         if job is not None:
             validate_release(job["release"])
 
@@ -51,6 +66,8 @@ class UpdateManager:
         except (OSError, HomeAssistantError):
             raise UpdateError("update_storage_failed") from None
         self.job = job
+        if self.on_change is not None:
+            await self.on_change()
 
     def hacs_entity(self):
         registry = entity_registry.async_get(self.hass)
@@ -89,8 +106,12 @@ class UpdateManager:
             return
         try:
             installed = await self.hass.async_add_executor_job(downloaded_version)
+            target_protocol = await self.hass.async_add_executor_job(downloaded_protocol_version)
         except (OSError, ValueError):
             installed = None
+            target_protocol = None
+        if installed == target:
+            job["protocol_version"] = target_protocol
         if job["phase"] == "ha_installing":
             # After a process interruption, inspect the installed files. Never replay the install.
             if installed == target:
@@ -101,7 +122,7 @@ class UpdateManager:
             if installed != target:
                 job["phase"], job["error"] = "failed", "hacs_version_changed"
             elif all(receiver["status"] == "completed" for receiver in job["receivers"]):
-                job["phase"] = "completed" if VERSION == target else "ha_restart_required"
+                job["phase"] = "completed" if VERSION == target and PROTOCOL_VERSION == target_protocol else "ha_restart_required"
         if job != self.job:
             await self.save(job)
 
@@ -147,16 +168,16 @@ class UpdateManager:
                 raise UpdateError("downgrade_blocked")
             if normalized_version(entity.attributes.get("installed_version")) not in (VERSION, target):
                 raise UpdateError("hacs_version_changed")
-            if target == VERSION and all(receiver["version"] == target for receiver in receivers):
+            if target == VERSION and all(receiver["version"] == target and receiver["status"] == "compatible" for receiver in receivers):
                 raise UpdateError("already_current")
             job = {"id": uuid4().hex, "candidate_id": candidate_id, "release": copy.deepcopy(release),
                    "entity_id": entity.entity_id, "phase": "ha_installing", "error": None,
                    "receivers": [{"id": receiver["id"], "user_id": receiver["user_id"],
                                   "address": receiver["address"], "version": receiver["version"],
-                                  "status": "completed" if receiver["version"] == target else "pending",
+                                  "status": "completed" if receiver["version"] == target and receiver["status"] == "compatible" else "pending",
                                   "attempt": 1, "error": None} for receiver in receivers]}
             await self.save(job)
-            self.task = self.hass.async_create_task(self.install_ha(user.id))
+            self.task = self.hass.async_create_task(self.install_ha(user.id if user is not None else None))
 
     async def install_ha(self, user_id):
         try:
@@ -175,6 +196,7 @@ class UpdateManager:
                 raise UpdateError("hacs_install_failed")
             async with self.lock:
                 job = copy.deepcopy(self.job)
+                job["protocol_version"] = await self.hass.async_add_executor_job(downloaded_protocol_version)
                 job["phase"], job["error"] = "receivers", None
                 await self.save(job)
         except (UpdateError, HomeAssistantError, OSError, ValueError) as error:
@@ -189,13 +211,14 @@ class UpdateManager:
                          if receiver["id"] == receiver_id and receiver["user_id"] == user_id), None)
         return None
 
-    async def receiver_plan(self, receiver_id, user_id, version):
+    async def receiver_plan(self, receiver_id, user_id, version, protocol=PROTOCOL_VERSION):
         async with self.lock:
             await self.refresh()
             receiver = self.participant(receiver_id, user_id)
             if receiver is None or self.job["phase"] in {"ha_installing", "failed"}:
                 return {"job": None}
-            if version == self.job["release"]["version"] and receiver["status"] != "completed":
+            if (version == self.job["release"]["version"] and protocol == self.job.get("protocol_version", PROTOCOL_VERSION)
+                    and receiver["status"] != "completed"):
                 job = copy.deepcopy(self.job)
                 next(item for item in job["receivers"] if item["id"] == receiver_id and item["user_id"] == user_id).update(
                     status="completed", version=version, error=None)
@@ -239,7 +262,7 @@ class UpdateManager:
             if job["phase"] == "failed":
                 job["phase"], job["error"] = "ha_installing", None
                 await self.save(job)
-                self.task = self.hass.async_create_task(self.install_ha(user.id))
+                self.task = self.hass.async_create_task(self.install_ha(user.id if user is not None else None))
                 return
             for receiver in job["receivers"]:
                 if receiver["status"] in {"declined", "failed"} and receiver["error"] != "install_uncertain":
@@ -257,7 +280,7 @@ class UpdateManager:
             job = copy.deepcopy(self.job)
             job["error"] = None
             await self.save(job)
-            self.restart_task = self.hass.async_create_task(self.restart_ha(user.id))
+            self.restart_task = self.hass.async_create_task(self.restart_ha(user.id if user is not None else None))
 
     async def restart_ha(self, user_id):
         try:

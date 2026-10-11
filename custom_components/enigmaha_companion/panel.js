@@ -1,5 +1,10 @@
 /* German is the default; English is an explicit browser preference. */
 const ENIGMAHA_EN = {
+  "HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.": "HA integration {version}, protocol {protocol}. Matching protocols allow different releases.",
+  "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben.": "Receiver {address}: Release {version} differs from HA {ha}. Protocol {protocol_version} matches; connection allowed.",
+  "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen.": "Receiver {address}: Protocol {protocol_version} does not match HA {protocol}. Connection blocked; open Repairs in HA.",
+  "Änderungen in Release {version}": "Changes in release {version}",
+  "Reparaturen öffnen": "Open Repairs",
   "Abbrechen": "Cancel",
   "Beteiligte Receiver: {addresses}": "Participating receivers: {addresses}",
   "Auf Updates prüfen": "Check for updates",
@@ -453,17 +458,29 @@ class EnigmaHAPanel extends HTMLElement {
     box.replaceChildren();
     if (this.compatibilityError) box.append(this.el("p", this.t("Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen."), {class: "version-warning"}));
     if (!this.compatibility) return;
-    const {version, receivers} = this.compatibility;
-    box.append(this.el("p", this.t("HA-Integration {version}. Receiver müssen denselben Release verwenden.", {version})));
+    const {version, protocol_version: protocol, receivers} = this.compatibility;
+    box.append(this.el("p", this.t("HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.", {version, protocol: protocol ?? "?"})));
     if (!receivers.length) box.append(this.el("p", this.t("Noch keine Receiver-Anfrage in den letzten 5 Minuten. Die Prüfung erfolgt beim Verbinden.")));
     for (const receiver of receivers) {
       const message = receiver.status === "compatible"
         ? "Receiver {address}: Version {version} passt."
         : receiver.status === "version_mismatch"
-          ? "Receiver {address}: Version {version} passt nicht zu HA {ha}. Beide auf denselben Release aktualisieren; Verbindung gesperrt."
+          ? "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben."
+          : receiver.status === "protocol_mismatch"
+            ? "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen."
           : "Receiver {address}: EnigmaHA-Kennung oder Version fehlt/ist ungültig. Receiver-Plugin prüfen und aktualisieren; Verbindung gesperrt.";
-      box.append(this.el("p", this.t(message, {...receiver, ha: version}),
-        {class: receiver.status === "compatible" ? "" : "version-warning"}));
+      box.append(this.el("p", this.t(message, {...receiver, ha: version, protocol: protocol ?? "?", protocol_version: receiver.protocol_version ?? "?"}),
+        {class: ["compatible", "version_mismatch"].includes(receiver.status) ? "" : "version-warning"}));
+      if (receiver.status === "version_mismatch") {
+        for (const release of [...new Set([version, receiver.version])]) {
+          if (/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(release)) {
+            box.append(this.el("a", this.t("Änderungen in Release {version}", {version: release}), {
+              href: "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v" + release,
+              target: "_blank", rel: "noopener noreferrer", class: "release-link"}));
+          }
+        }
+      }
+      if (receiver.status === "protocol_mismatch") box.append(this.el("a", this.t("Reparaturen öffnen"), {href: "/config/repairs"}));
     }
     this.renderUpdates(box);
   }
@@ -737,6 +754,7 @@ class EnigmaHAPanel extends HTMLElement {
       .intro,.notice{flex-shrink:0}
       .compatibility{flex-shrink:0;max-height:25vh;overflow-y:auto;color:var(--secondary-text-color);overflow-wrap:anywhere;margin-bottom:16px}
       .compatibility p{margin:0 0 8px}.version-warning{color:var(--error-color)}
+      .compatibility a{color:var(--primary-color);display:inline-block;margin:0 12px 8px 0}
       .editor-layout{display:grid;flex:1;min-height:0;grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1.65fr) minmax(320px,1fr);gap:24px}
       .column{display:grid;grid-auto-rows:max-content;align-content:start;gap:24px;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-gutter:stable}ha-card{min-width:0;overflow:hidden}
       .confirmation-dialog{width:calc(100% - 32px);max-width:450px;max-height:calc(100dvh - 32px);margin:auto;padding:24px;border:0;border-radius:var(--ha-dialog-border-radius,28px);background:var(--ha-dialog-surface-background,var(--card-background-color));color:var(--primary-text-color);font:inherit;box-shadow:var(--dialog-box-shadow,0 8px 32px #0005)}

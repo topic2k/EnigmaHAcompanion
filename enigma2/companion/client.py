@@ -9,7 +9,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from enigmaha_protocol.menu import ProtocolError, validate_menu
 from enigmaha_protocol.icons import valid_icon
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, peer_status, valid_version, valid_receiver_id
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, peer_status, protocol_version, valid_version, valid_receiver_id
 from enigmaha_protocol.releases import UpdateError, validate_release
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -17,11 +17,12 @@ API_PATH = "/api/enigmaha_companion/v1"
 
 
 class ClientError(Exception):
-    def __init__(self, code, status=None, peer_version=None):
+    def __init__(self, code, status=None, peer_version=None, peer_protocol=None):
         super().__init__(code)
         self.code = code
         self.status = status
         self.peer_version = peer_version
+        self.peer_protocol = peer_protocol
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -49,12 +50,15 @@ class CompanionClient:
         self.receiver_id = receiver_id or uuid4().hex
         if not valid_receiver_id(self.receiver_id):
             raise ValueError("invalid receiver ID")
+        self.peer_version = self.peer_protocol = None
 
     def _check_peer(self, headers, allow_mismatch=False):
         version = headers.get(VERSION_HEADER)
-        status = peer_status(headers.get(COMPONENT_HEADER), version, "homeassistant")
-        if status != "compatible" and not (allow_mismatch and status == "version_mismatch"):
-            raise ClientError(status, peer_version=version if valid_version(version) else None)
+        protocol = protocol_version(headers.get(PROTOCOL_HEADER), version)
+        status = peer_status(headers.get(COMPONENT_HEADER), version, "homeassistant", headers.get(PROTOCOL_HEADER))
+        if status not in {"compatible", "version_mismatch"} and not (allow_mismatch and status == "protocol_mismatch"):
+            raise ClientError(status, peer_version=version if valid_version(version) else None, peer_protocol=protocol)
+        self.peer_version, self.peer_protocol = version, protocol
 
     def _request(self, method, path, body=None, allow_mismatch=False):
         data = None if body is None else json.dumps(body).encode("utf-8")
@@ -62,6 +66,7 @@ class CompanionClient:
             "Authorization": "Bearer " + self._token,
             "Accept": "application/json", "Content-Type": "application/json",
             COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
+            PROTOCOL_HEADER: str(PROTOCOL_VERSION),
             RECEIVER_HEADER: self.receiver_id,
         })
         try:
@@ -74,6 +79,8 @@ class CompanionClient:
             error.close()
             if status == 426:
                 self._check_peer(headers)
+                if self.peer_version != VERSION:
+                    raise ClientError("legacy_version_mismatch", status, self.peer_version, self.peer_protocol)
                 raise ClientError("unidentified_peer", status)
             code = {401: "unauthorized", 403: "forbidden", 404: "not_found",
                     409: "conflict"}.get(status, "http_error")

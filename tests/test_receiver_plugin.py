@@ -180,6 +180,27 @@ class ReceiverTests(unittest.TestCase):
     def press(self, key):
         self.screen["actions"].actions[key]()
 
+    def test_matching_protocol_with_different_release_stays_connected(self):
+        self.screen.client.peer_version = "9.0.0"
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.assertTrue(self.screen.online)
+        self.assertIn("HA 9.0.0", self.screen["status"].text)
+        self.assertIn("Protokoll 1 passt", self.screen["status"].text)
+        self.assertEqual(self.dialogs, [])
+
+    def test_protocol_conflict_is_explained_once_and_recovery_clears_notice(self):
+        error = PLUGIN.ClientError("protocol_mismatch", peer_version="9.0.0", peer_protocol=2)
+        failure = types.SimpleNamespace(value=error)
+        self.screen.failed(failure, self.screen.generation)
+        self.assertFalse(self.screen.online)
+        self.assertIn("Protokolle ungleich", self.screen["status"].text)
+        self.assertIn("Reparatur", self.dialogs[-1][0][1])
+        self.screen.failed(failure, self.screen.generation)
+        self.assertEqual(len(self.dialogs), 1)
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.assertTrue(self.screen.online)
+        self.assertIsNone(self.screen.peer_notice)
+
     def test_language_setting_defaults_persists_and_rejects_invalid_values(self):
         settings = sys.modules[PLUGIN.__package__ + ".settings"]
         self.assertEqual(settings.validate_settings({})["language"], "de")

@@ -18,7 +18,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                      "homeassistant.helpers", "homeassistant.helpers.storage", "homeassistant.auth",
                      "homeassistant.auth.permissions", "homeassistant.auth.permissions.const",
                      "homeassistant.core", "homeassistant.exceptions", "homeassistant.helpers.icon",
-                     "homeassistant.helpers.entity_registry"):
+                     "homeassistant.helpers.entity_registry", "homeassistant.helpers.issue_registry"):
             fake[name] = types.ModuleType(name)
         panels = []
         async def register_panel(hass, **kwargs):
@@ -34,6 +34,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         fake["homeassistant.core"].Context = lambda **kwargs: kwargs
         fake["homeassistant.exceptions"].HomeAssistantError = RuntimeError
         fake["homeassistant.helpers.icon"].async_get_icons = AsyncMock(return_value={})
+        fake["homeassistant.helpers.issue_registry"].async_delete_issue = lambda *args: None
         store = types.SimpleNamespace(async_load=AsyncMock(return_value=None), async_save=AsyncMock())
         fake["homeassistant.helpers.storage"].Store = lambda *args: store
         views = []

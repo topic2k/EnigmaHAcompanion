@@ -15,7 +15,8 @@ from .const import BASE, DOMAIN
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
 from .enigmaha_protocol.menu import index_nodes
 from .enigmaha_protocol.compatibility import (
-    COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, peer_status, valid_version, valid_receiver_id,
+    COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION,
+    peer_status, protocol_version, valid_version, valid_receiver_id,
 )
 from .enigmaha_protocol.releases import UpdateError
 from .icons import IconResolver
@@ -31,6 +32,7 @@ class CompanionRuntime:
         self.icons = IconResolver(hass)
         self.receivers = {}
         self.updates = None
+        self.repairs = None
 
     def recent_receivers(self):
         cutoff = monotonic() - 300
@@ -39,10 +41,11 @@ class CompanionRuntime:
         return [{key: value for key, value in receiver.items() if key not in {"seen", "user_id"}}
                 for receiver in self.receivers.values()]
 
-    def check_receiver(self, request, user):
+    async def check_receiver(self, request, user):
         self.recent_receivers()
         version = request.headers.get(VERSION_HEADER)
-        status = peer_status(request.headers.get(COMPONENT_HEADER), version, "receiver")
+        protocol = request.headers.get(PROTOCOL_HEADER)
+        status = peer_status(request.headers.get(COMPONENT_HEADER), version, "receiver", protocol)
         receiver_id = request.headers.get(RECEIVER_HEADER)
         receiver_id = receiver_id if valid_receiver_id(receiver_id) else None
         key = (user.id, receiver_id or request.remote)
@@ -51,7 +54,10 @@ class CompanionRuntime:
             del self.receivers[min(self.receivers, key=lambda key: self.receivers[key]["seen"])]
         self.receivers[key] = {"address": request.remote or "?", "id": receiver_id, "user_id": user.id,
                                "version": version if valid_version(version) else None,
+                               "protocol_version": protocol_version(protocol, version),
                                "status": status, "seen": monotonic()}
+        if self.repairs is not None and receiver_id and status != "unidentified_peer":
+            await self.repairs.observe(self.receivers[key])
         return status
 
 
@@ -104,12 +110,13 @@ class CompanionView(HomeAssistantView):
 
     def reply(self, data, status=200):
         return self.json(data, status, headers={"Cache-Control": "no-store",
-                         COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION})
+                         COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION,
+                         PROTOCOL_HEADER: str(PROTOCOL_VERSION)})
 
-    def receiver_error(self, runtime, request, user):
-        status = runtime.check_receiver(request, user)
-        if status != "compatible":
-            return self.reply({"error": status, "version": VERSION}, 426)
+    async def receiver_error(self, runtime, request, user):
+        status = await runtime.check_receiver(request, user)
+        if status not in {"compatible", "version_mismatch"}:
+            return self.reply({"error": status, "version": VERSION, "protocol_version": PROTOCOL_VERSION}, 426)
         return None
 
 
@@ -118,7 +125,7 @@ class MenuView(CompanionView):
 
     async def get(self, request):
         runtime, user = self.access(request)
-        error = self.receiver_error(runtime, request, user)
+        error = await self.receiver_error(runtime, request, user)
         if error is not None:
             return error
         return self.reply(filtered_menu(runtime.menu, user))
@@ -129,7 +136,7 @@ class StatesView(CompanionView):
 
     async def get(self, request):
         runtime, user = self.access(request)
-        error = self.receiver_error(runtime, request, user)
+        error = await self.receiver_error(runtime, request, user)
         if error is not None:
             return error
         states = {}
@@ -160,7 +167,7 @@ class ActionsView(CompanionView):
 
     async def post(self, request):
         runtime, user = self.access(request)
-        error = self.receiver_error(runtime, request, user)
+        error = await self.receiver_error(runtime, request, user)
         if error is not None:
             return error
         command = await read_json(request)
@@ -227,7 +234,7 @@ class CompatibilityView(CompanionView):
 
     async def get(self, request):
         runtime, _ = self.access(request, admin=True)
-        return self.reply({"version": VERSION, "receivers": runtime.recent_receivers(),
+        return self.reply({"version": VERSION, "protocol_version": PROTOCOL_VERSION, "receivers": runtime.recent_receivers(),
                            "updates": await runtime.updates.snapshot() if runtime.updates else None})
 
 
@@ -269,7 +276,7 @@ class UpdateAdminView(CompanionView):
 class ReceiverUpdateView(CompanionView):
     url, name = BASE + "/receiver_update", DOMAIN + ":receiver_update"
 
-    def receiver_access(self, request):
+    async def receiver_access(self, request):
         runtime, user = self.access(request)
         receiver_id = request.headers.get(RECEIVER_HEADER)
         if (request.headers.get(COMPONENT_HEADER) != "receiver" or not valid_receiver_id(receiver_id)
@@ -277,19 +284,20 @@ class ReceiverUpdateView(CompanionView):
             raise web.HTTPBadRequest()
         if runtime.updates is None:
             raise web.HTTPServiceUnavailable()
-        runtime.check_receiver(request, user)
+        await runtime.check_receiver(request, user)
         return runtime, user, receiver_id
 
     async def get(self, request):
-        runtime, user, receiver_id = self.receiver_access(request)
+        runtime, user, receiver_id = await self.receiver_access(request)
         try:
-            result = await runtime.updates.receiver_plan(receiver_id, user.id, request.headers[VERSION_HEADER])
+            result = await runtime.updates.receiver_plan(receiver_id, user.id, request.headers[VERSION_HEADER],
+                protocol_version(request.headers.get(PROTOCOL_HEADER), request.headers[VERSION_HEADER]))
         except UpdateError as error:
             return self.reply({"error": error.code}, 409)
         return self.reply(result)
 
     async def post(self, request):
-        runtime, user, receiver_id = self.receiver_access(request)
+        runtime, user, receiver_id = await self.receiver_access(request)
         try:
             await runtime.updates.report(receiver_id, user.id, await read_json(request))
         except UpdateError as error:

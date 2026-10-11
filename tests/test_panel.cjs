@@ -110,14 +110,21 @@ test("version status refresh warns about all receivers without changing unsaved 
     ui.button("Untermenü hinzufügen").click();
     const field = ui.root.querySelector('[data-field="menu-label"]');
     const model = JSON.stringify(ui.panel.model);
-    ui.panel._hass.callApi = async () => ({version: "1.0.0", receivers: [
-      {address: "192.0.2.1", version: "0.9.0", status: "version_mismatch"},
+    ui.panel._hass.callApi = async () => ({version: "1.0.0", protocol_version: 1, receivers: [
+      {address: "192.0.2.1", version: "0.9.0", protocol_version: 1, status: "version_mismatch"},
       {address: "192.0.2.2", version: "1.0.0", status: "compatible"},
+      {address: "192.0.2.3", version: "1.0.0", protocol_version: 2, status: "protocol_mismatch"},
       {address: "<img src=x>", version: null, status: "unidentified_peer"},
     ]});
     await ui.panel.loadCompatibility();
     const status = ui.root.querySelector(".compatibility");
-    assert.match(status.textContent, /0\.9\.0 passt nicht zu HA 1\.0\.0/);
+    assert.match(status.textContent, /Release 0\.9\.0 unterscheidet sich von HA 1\.0\.0/);
+    assert.match(status.textContent, /Protokoll 1 passt; Verbindung freigegeben/);
+    assert.match(status.textContent, /Protokoll 2 passt nicht zu HA 1/);
+    assert.equal(status.querySelector('a[href="/config/repairs"]').textContent, "Reparaturen öffnen");
+    assert.deepEqual([...status.querySelectorAll(".release-link")].map(a => a.href), [
+      "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v1.0.0",
+      "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v0.9.0"]);
     assert.match(status.textContent, /192\.0\.2\.2: Version 1\.0\.0 passt/);
     assert.equal(status.querySelectorAll(".version-warning").length, 2);
     assert.equal(status.querySelector("img"), null);
@@ -125,7 +132,8 @@ test("version status refresh warns about all receivers without changing unsaved 
     assert.equal(ui.panel.dirty, true);
     assert.equal(ui.root.querySelector('[data-field="menu-label"]'), field);
     ui.panel.setLanguage("en");
-    assert.match(ui.root.querySelector(".compatibility").textContent, /does not match HA/);
+    assert.match(ui.root.querySelector(".compatibility").textContent, /connection allowed/);
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Protocol 2 does not match HA 1/);
     ui.panel._hass.callApi = async () => ({version: "1.0.0", receivers: [
       {address: "192.0.2.1", version: "1.0.0", status: "compatible"},
     ]});

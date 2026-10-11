@@ -9,7 +9,8 @@
   "dependencies": [
     "http",
     "frontend",
-    "panel_custom"
+    "panel_custom",
+    "repairs"
   ],
   "requirements": [],
   "codeowners": [

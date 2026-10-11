@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "dist/unpacked/homeassistant/custom_components/enigmaha_companion"
 sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import CompanionClient, ClientError
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION
 
 
 def load_api():
@@ -131,11 +131,11 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
     async def request(self, method, route, user="admin", body=None, peer_headers=None):
         return await self.session.request(method, self.url + API.BASE + route,
             headers={"Authorization": "Bearer " + user,
-                     **({COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION}
+                     **({COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
                         if peer_headers is None else peer_headers)}, json=body)
 
     async def test_mismatched_or_unidentified_receivers_are_blocked_on_all_routes(self):
-        for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0"}, "version_mismatch"),
+        for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: "99"}, "protocol_mismatch"),
                                 ({}, "unidentified_peer"),
                                 ({COMPONENT_HEADER: "other", VERSION_HEADER: VERSION}, "unidentified_peer"),
                                 ({COMPONENT_HEADER: "receiver", VERSION_HEADER: "invalid"}, "unidentified_peer")]:
@@ -175,7 +175,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         user = self.users["receiver"]
         for index in range(70):
             request = types.SimpleNamespace(remote=str(index), headers={COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION})
-            self.runtime.check_receiver(request, user)
+            await self.runtime.check_receiver(request, user)
         self.assertEqual(len(self.runtime.receivers), 64)
 
     def command(self, **changes):
@@ -192,17 +192,27 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         states = await asyncio.to_thread(client.get_states, menu)
         self.assertEqual(states["light.wohnzimmer"]["icon"]["name"], "mdi:lightbulb")
 
-    async def test_receiver_reports_changed_ha_version_without_sending_an_action(self):
+    async def test_receiver_reports_changed_ha_protocol_without_sending_an_action(self):
         client = CompanionClient(self.url, "receiver")
         await asyncio.to_thread(client.get_menu)
-        with patch.object(API, "VERSION", "99.0.0"), patch.object(API, "peer_status", return_value="version_mismatch"):
+        with patch.object(API, "VERSION", "99.0.0"), patch.object(API, "PROTOCOL_VERSION", 99), patch.object(API, "peer_status", return_value="protocol_mismatch"):
             for operation, args in [(client.get_menu, ()), (client.get_states, (self.menu,)),
                                     (client.execute, (self.command(),))]:
                 with self.assertRaises(ClientError) as caught:
                     await asyncio.to_thread(operation, *args)
-                self.assertEqual(caught.exception.code, "version_mismatch")
+                self.assertEqual(caught.exception.code, "protocol_mismatch")
                 self.assertEqual(caught.exception.peer_version, "99.0.0")
+                self.assertEqual(caught.exception.peer_protocol, 99)
         self.assertEqual(self.calls, [])
+
+    async def test_different_release_same_protocol_allows_menu_states_and_action(self):
+        headers = {COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
+        for method, route in [("GET", "/menu"), ("GET", "/states"), ("POST", "/actions")]:
+            async with await self.request(method, route, "receiver", self.command() if method == "POST" else None,
+                                          peer_headers=headers) as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.runtime.recent_receivers()[0]["status"], "version_mismatch")
 
     async def test_current_entity_icons_follow_overrides_platform_states_and_device_class(self):
         entry = types.SimpleNamespace(icon=None, platform="test_lamp", translation_key="ceiling")

@@ -22,7 +22,7 @@ from enigmaha_protocol.releases import UpdateError
 from companion import updater
 from companion.client import ClientError
 from companion.client import CompanionClient
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, PROTOCOL_HEADER, PROTOCOL_VERSION
 import test_ha_plugin as ha_tests
 
 API, Store = ha_tests.API, ha_tests.Store
@@ -431,6 +431,7 @@ class UpdateRouteTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(manager.close)
         client = CompanionClient(self.url, "receiver", receiver_id="a" * 32)
         with patch.object(UPDATES, "downloaded_version", side_effect=lambda: disk[0]), \
+             patch.object(UPDATES, "downloaded_protocol_version", return_value=2), \
              patch.object(UPDATES, "fetch_latest_release", return_value=release()):
             self.assertIsNone(await asyncio.to_thread(client.get_update))
             async with await self.request("POST", "/updates", body={"action": "check"}) as response:
@@ -446,7 +447,7 @@ class UpdateRouteTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.to_thread(client.report_update, job, "installing")
             await asyncio.to_thread(client.report_update, job, "restart_required")
             # A second user cannot report progress for this receiver, even with its UUID.
-            foreign = {COMPONENT_HEADER: "receiver", VERSION_HEADER: "2.0.0", RECEIVER_HEADER: "a" * 32}
+            foreign = {COMPONENT_HEADER: "receiver", VERSION_HEADER: "2.0.0", RECEIVER_HEADER: "a" * 32, PROTOCOL_HEADER: "2"}
             async with await self.request("GET", "/receiver_update", "reader", peer_headers=foreign) as response:
                 self.assertEqual(await response.json(), {"job": None})
             async with await self.request("GET", "/receiver_update", "receiver", peer_headers=foreign) as response:
@@ -455,7 +456,7 @@ class UpdateRouteTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status, 426)
             async with await self.request("GET", "/compatibility") as response:
                 self.assertEqual((await response.json())["updates"]["job"]["phase"], "ha_restart_required")
-            with patch.object(UPDATES, "VERSION", "2.0.0"):
+            with patch.object(UPDATES, "VERSION", "2.0.0"), patch.object(UPDATES, "PROTOCOL_VERSION", 2):
                 async with await self.request("GET", "/compatibility") as response:
                     self.assertEqual((await response.json())["updates"]["job"]["phase"], "completed")
 

@@ -42,6 +42,11 @@ class PackageTests(unittest.TestCase):
                        if isinstance(node, ast.Assign)
                        and any(isinstance(target, ast.Name) and target.id == "VERSION" for target in node.targets))
         self.assertEqual(version, VERSION)
+        protocol = next(ast.literal_eval(node.value) for node in constants.body
+                        if isinstance(node, ast.Assign)
+                        and any(isinstance(target, ast.Name) and target.id == "PROTOCOL_VERSION" for target in node.targets))
+        self.assertIs(type(protocol), int)
+        self.assertGreater(protocol, 0)
 
     def test_hacs_release_installs_complete_component_without_extra_directory(self):
         hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
@@ -84,7 +89,7 @@ class PackageTests(unittest.TestCase):
             names = archive.namelist()
             prefix = "custom_components/enigmaha_companion/"
             for filename in ("__init__.py", "manifest.json", "config_flow.py", "api.py", "panel.js",
-                             "icons.py", "updates.py", "enigmaha_protocol/releases.py",
+                             "icons.py", "updates.py", "repairs.py", "repair_issues.py", "enigmaha_protocol/releases.py",
                              "translations/de.json", "translations/en.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertFalse(any("__pycache__" in name or name.endswith(".pyc") for name in names))

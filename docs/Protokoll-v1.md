@@ -10,27 +10,40 @@ stehen in der [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen)
 ## Komponenten- und Versionsprüfung
 
 Receiver-Anfragen an `/menu`, `/states` und `/actions` senden
-`X-EnigmaHA-Component: receiver` und `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`.
+`X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
+und `X-EnigmaHA-Protocol: 1`.
 HA prüft die Header nach der Authentifizierung und vor dem Abruf bzw. Schalten.
 Antworten der Companion-Views enthalten `X-EnigmaHA-Component: homeassistant`
-und die eigene `X-EnigmaHA-Version`. Der Receiver prüft sie vor dem Verarbeiten
-erfolgreicher Antworten sowie bei HTTP 426. Die Paketversionen müssen exakt
-übereinstimmen. Eine bloß gleiche `schema_version` reicht nicht aus.
+und die eigene `X-EnigmaHA-Version` sowie `X-EnigmaHA-Protocol`. Der Receiver
+prüft sie vor dem Verarbeiten erfolgreicher Antworten sowie bei HTTP 426.
+Die Protokollversion ist unabhängig vom Release und wird nur bei inkompatiblen
+Protokolländerungen erhöht. Gleiche Protokolle erlauben unterschiedliche Releases;
+`version_mismatch` ist dann lediglich ein Hinweis mit Links zu den Release-Informationen.
+Eine bloß gleiche Menü-`schema_version` ersetzt diese Prüfung nicht.
 
-HTTP 426 meldet `version_mismatch` bei unterschiedlichen Versionen oder
+HTTP 426 meldet `protocol_mismatch` bei unterschiedlichem oder unbekanntem Protokoll oder
 `unidentified_peer` bei fehlender/ungültiger Kennung oder Version; die JSON-Antwort
-enthält zusätzlich die HA-`version`. Die Kennung dient der Kompatibilitätsprüfung,
+enthält zusätzlich die HA-`version` und `protocol_version`. Die Kennung dient der Kompatibilitätsprüfung,
 nicht als Ersatz für HA-Authentifizierung oder TLS.
 
 GET `/compatibility` ist Administratoren vorbehalten und liefert
-`{"version": "1.0.0", "receivers": [], "updates": {...}}` mit der tatsächlich
+`{"version": "1.0.2", "protocol_version": 1, "receivers": [], "updates": {...}}` mit der tatsächlich
 geladenen HA-Paketversion. Receiver-Einträge enthalten `id` (ggf. `null`),
-`address`, `version` (ggf. `null`) und `status`
-(`compatible`, `version_mismatch`, `unidentified_peer`). HA hält höchstens 64
+`address`, `version`, `protocol_version` (jeweils ggf. `null`) und `status`
+(`compatible`, `version_mismatch`, `protocol_mismatch`, `unidentified_peer`). HA hält höchstens 64
 Einträge der letzten fünf Minuten im Arbeitsspeicher, gruppiert nach HA-Benutzer
 und `X-EnigmaHA-Receiver-ID` (32 kleingeschriebene Hex-Zeichen); ohne gültige ID
 wird die Quelladresse verwendet. Die ID liegt dauerhaft auf dem Receiver.
 Es findet kein aktiver Scan statt; die Liste bleibt im Arbeitsspeicher.
+
+Protokollprobleme identifizierter Receiver mit gültiger ID werden zusätzlich unter
+`.storage/enigmaha_companion.repairs` gespeichert und als native HA-Reparatur
+angeboten. Der Repair-Flow verwendet die bestehende Updatekoordination; er startet
+erst nach Bestätigung und setzt offene Vorgänge fort. Reine Release-Unterschiede
+erzeugen keine Reparatur. Alte veröffentlichte Releases 1.0.0 bis 1.0.2 ohne
+Protokollheader sind als Protokoll 1 bekannt; für andere Releases wird kein
+Protokoll angenommen. Diese alten Komponenten verlangen selbst weiterhin gleiche
+Releases und müssen für die neue Prüfung einmal auf beiden Seiten aktualisiert werden.
 
 ## Bestätigtes Release-Update
 
@@ -52,11 +65,13 @@ Ein Release-Deskriptor enthält exakt `version`, `ipk_url`, `ipk_sha256` und
 IPK-Dateinamen passen. Nur veröffentlichte stabile Releases mit HACS-ZIP, IPK und
 Prüfsummendatei werden angeboten. HACS erhält `update.install` mit explizitem
 `version: v<Version>` und dem bestätigenden Administrator als Benutzerkontext.
+Der native, nur Administratoren zugängliche Repair-Flow verwendet den HA-Systemkontext.
 Der Release und die Receiverliste wechseln innerhalb eines Vorgangs nicht.
 
 GET/POST `/receiver_update` verlangen einen aktiven authentifizierten HA-Benutzer,
 Receiver-Kennung, gültige Version und Receiver-ID. Hier sind ungleiche Versionen
-ausdrücklich erlaubt. Andere Receiver-Routen bleiben gesperrt. Ein Receiver
+ausdrücklich erlaubt, ebenso unterschiedliche Protokolle. Bei Protokollproblemen
+bleiben andere Receiver-Routen gesperrt. Ein Receiver
 erhält nur den an seine ID **und** seinen HA-Benutzer gebundenen Vorgang.
 
 GET liefert `{"job":null}` oder `{"job":{"id":"…","release":{...},
@@ -65,7 +80,7 @@ GET liefert `{"job":null}` oder `{"job":{"id":"…","release":{...},
 weitere Meldungen sind `declined`, `restart_required` oder `failed` mit festen,
 nicht sensitiven Fehlercodes. Erfolg ist `{"accepted":true}`. Veraltete
 Vorgänge/Versuche werden mit `stale_update` abgewiesen. Eine `completed`-Meldung
-wird nicht akzeptiert: Erst ein GET mit tatsächlich geladener Zielversion
+wird nicht akzeptiert: Erst ein GET mit tatsächlich geladener Zielversion und Zielprotokoll
 schließt den Receiver ab.
 
 Vorgangsphasen: `ha_installing`, `receivers`, `ha_restart_required`, `completed`,
@@ -76,7 +91,9 @@ SHA-256, Paketmetadaten sowie anschließend `opkg status`. Bei unklarem
 Installationsergebnis wird nicht automatisch erneut installiert. Weder
 GitHub-Downloads noch Paketaufrufe erhalten den HA-Token. Neustarts verlangen
 separate Bestätigung. `completed` setzt die tatsächlich laufende Zielversion
-auf HA und allen beteiligten Receivern voraus.
+und das Zielprotokoll auf HA und allen beteiligten Receivern voraus. Das Zielprotokoll
+wird aus den durch HACS installierten Quelldateien gelesen, unabhängig vom noch
+laufenden HA-Prozess. Erst der beobachtete Abschluss entfernt die Repair-Meldung.
 
 ## Menü
 
@@ -171,7 +188,7 @@ blockiert das Receiver-UI weitere Schaltaktionen.
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
 | 409 | `stale_menu`, `entity_unavailable`, beim Speichern `revision_limit` |
-| 426 | `version_mismatch`, `unidentified_peer` |
+| 426 | `protocol_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, beim Speichern `storage_failed` |
 | 503 | Integration nicht geladen oder bereits entladen |
 

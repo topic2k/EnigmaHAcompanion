@@ -3,6 +3,9 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English")]
 
 ENGLISH = {
+    "Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.": "Connected · Receiver {receiver}, HA {ha} · Protocol {protocol} matches.",
+    "Protokolle ungleich: Receiver {receiver}, HA {ha}. Reparatur in Home Assistant unter Einstellungen öffnen.": "Protocols differ: receiver {receiver}, HA {ha}. Open Repairs in Home Assistant Settings.",
+    "Ältere HA-Integration verlangt denselben Release. HA und Receiver einmal gemeinsam aktualisieren.": "The older HA integration requires matching releases. Update HA and receiver together once.",
     "IPK konnte nicht geladen werden. Internetverbindung prüfen.": "Could not download the IPK. Check the internet connection.",
     "IPK-Prüfsumme stimmt nicht. Keine Installation ausgeführt.": "IPK checksum does not match. Nothing was installed.",
     "IPK passt nicht zu diesem Release oder Receiver.": "The IPK does not match this release or receiver.",
