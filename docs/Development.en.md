@@ -162,13 +162,7 @@ reproduces this failure and verifies the fix.
 Update tests cover pinned HACS versions, user/receiver binding, confirmation,
 declines, checksums, package metadata, lost responses, storage failures,
 interrupted installations and completion only after both sides run the target.
-These automated tests replace HACS services and `opkg`. The complete HACS/IPK
-cycle from 1.0.1 to 1.0.2 passed on 11 October 2026 with HA 2026.10.1/HAOS 18.3
-and an Octagon SF8008 running OpenATV 7.6, including confirmations, decline,
-retry, GUI and HA restarts and preservation of configuration. The
-[live update report](Update-Test-2026-10-11.md) documents the checks and the
-bytecode cache issue fixed during testing. GUI restart during an active
-recording was not tested.
+These automated tests replace HACS services and `opkg`. 
 
 Automated tests cover menu validation, commands, real HTTP requests against test
 servers, HA lifecycle and permissions, icon resolution, navigation, layouts,
