@@ -52,15 +52,18 @@ change. Tests prefer root `node_modules/`, falling back to `.work/node_modules/`
 
 ## Development rules
 
-[AGENTS.md](../AGENTS.md) contains the project rules. The project is under active
-development; backward compatibility with earlier project versions is not required.
-APIs, menus, stored configuration and internal interfaces may change. Do not add
-legacy adapters, migrations or parallel old implementations solely for previous
-development versions.
+[AGENTS.md](../AGENTS.md) contains the project rules. The project is published.
+Consider backward compatibility with published versions and existing installations
+when changing APIs, menu formats, stored configuration or internal interfaces.
+Provide required migrations and briefly document them and any necessary
+reconfiguration. Do not delete user data without authorization. Maintain support
+for the current OpenATV and HA targets.
 
-Document required reconfiguration briefly. Do not delete user data without
-authorization. Support for current OpenATV and HA targets still applies.
 Do not commit credentials, `.work/` or `.temp/`. Run appropriate tests before delivery.
+Store update and functional test reports under `.work/`. Do not include reports
+of executed tests or their results in changelogs, documentation or release notes.
+Release notes describe user-visible changes first, followed by a brief account
+of other changes without extensive technical detail.
 Use native HA selectors with filters for entity selection.
 
 ## Home Assistant integration
@@ -142,7 +145,7 @@ Local configuration is stored outside the plugin directory in
 skin interfaces and keys. Register further profiles once in `skin/__init__.py`'s
 `PROFILES`; `skin/base.py` provides the common interface and `appearance.py` the layout.
 
-## Test status and limitations
+## Update implementation and limitations
 
 Update coordination lives in `updates.py`, portable release verification in
 `protocol/enigmaha_protocol/releases.py`, and OpenATV installation in
@@ -156,8 +159,9 @@ Existing Python package dependencies also cover hashing, UUID and subprocesses;
 The IPK's `postinst` recompiles the plugin's Python files with checked source
 hashes at all optimization levels. Reproducible tar timestamps alone cannot
 invalidate cached bytecode when a source change keeps the same file size:
-the next GUI start can otherwise load the previous release. A package test
-reproduces this failure and verifies the fix.
+the next GUI start can otherwise load the previous release.
+
+### Testing guidance
 
 Update tests cover pinned HACS versions, user/receiver binding, confirmation,
 declines, checksums, package metadata, lost responses, storage failures,
@@ -171,15 +175,14 @@ Receiver packages are checked for Python 3.13 syntax. Profile tests cover automa
 and manual selection, persistence, cancellation, reopening and missing resources.
 
 Language tests check German defaults, English text, placeholders, persisted
-preferences, state display and preservation of unsaved edits. Language selection
-was also checked in a full HA installation and on OpenATV hardware on 11 October 2026.
+preferences, state display and preservation of unsaved edits.
 
 Frontend tests use jsdom and native-component doubles. They cover filters,
 model changes, sorting, scroll calls and dialogs. They do not replace browser
 checks for rendering, gestures and modal focus handling.
 
 Before release, run the [functional check](Installation.en.md#functional-check)
-on the OpenATV targets with HA.
+on the OpenATV targets with HA. Record the steps and results under `.work/`.
 
 ## Separate HA test instance
 

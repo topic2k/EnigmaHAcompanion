@@ -21,8 +21,8 @@ switches and `input_boolean` helpers. No additional server or MQTT broker is req
 - An Enigma2 receiver running OpenATV with Python 3.13 or newer.
 - A network connection from the receiver to Home Assistant.
 
-See [development and testing](docs/Development.en.md#test-status-and-limitations)
-for tested hardware and known limitations.
+See [development](docs/Development.en.md#update-implementation-and-limitations)
+for the update implementation and its limitations.
 
 ## Language
 

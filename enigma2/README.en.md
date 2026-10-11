@@ -6,7 +6,7 @@ The extension displays the menu configured in HA on your receiver.
 `Plugins/Extensions/EnigmaHACompanion/` contains screens, keys, settings and layout;
 `companion/` contains GUI-independent navigation, translations and the HTTP client.
 See [installation](../docs/Installation.en.md), [development](../docs/Development.en.md)
-and [test status](../docs/Development.en.md#test-status-and-limitations).
+and [update implementation and limitations](../docs/Development.en.md#update-implementation-and-limitations).
 
 ## Language
 

@@ -27,17 +27,17 @@ runtime; no MDI catalog is shipped.
 1. Commit and push the changes. You do not need to increase the version manually.
 2. Open **GitHub → Actions → Release → Run workflow**.
 3. Select the branch and automatic version increment: `patch` (default), `minor`
-   or `major`. Optionally enter an explicit version such as `0.1.6` or `1.0.0`;
+   or `major`. Optionally enter an explicit version such as `1.0.3` or `1.1.0`;
    this overrides the increment. Optionally enable prerelease publishing.
 4. Choose **Run workflow**.
 
 Automatic versioning uses the highest version from `package.json` and existing
-`vMAJOR.MINOR.PATCH` release tags. Starting at `0.1.6`, patch gives `0.1.7`, minor
-`0.2.0` and major `1.0.0`. Minor resets patch; major resets minor and patch.
+`vMAJOR.MINOR.PATCH` release tags. Starting at `1.0.2`, patch gives `1.0.3`, minor
+`1.1.0` and major `2.0.0`. Minor resets patch; major resets minor and patch.
 The maintainer selects the increment; the workflow does not classify changes.
 
 An explicit version must be at least the project version and higher than every
-existing release tag, allowing the first release to use the current version.
+existing release tag.
 Only `MAJOR.MINOR.PATCH` without `v` or suffix is accepted. The prerelease checkbox
 sets GitHub/HACS's beta flag and also requires a new version number.
 
@@ -62,8 +62,8 @@ not marked Latest.
 | `enigmaha-companion-enigma2-<Version>.tar.gz` | Alternative receiver installation |
 | `SHA256SUMS.txt` | Checksums for the four packages |
 
-Users add the repository once as a HACS custom **Integration**. Installation
-requires the first published release. The development branch is hidden because
+Users add the repository once as a HACS custom **Integration** and install a
+published release. The development branch is hidden because
 the build bundles the shared protocol. Enable beta versions in HACS to see
 prereleases. Inclusion in HACS's default catalog is a separate process.
 
@@ -76,7 +76,7 @@ prereleases. Inclusion in HACS's default catalog is a separate process.
 - **Branch changed during build:** Rerun the workflow.
 - **Tag/release already exists:** Increase the version. After a failed publish,
   inspect any remaining draft under Releases. Clean up only a confirmed
-  unpublished failed attempt; leave published releases unchanged. If the commit
+  unpublished failed attempt; leave published tags and packages unchanged. If the commit
   and tag were already written, the number is reserved and the next automatic run
   chooses the next number.
 - **403 publishing:** Check Actions/repository policies for `GITHUB_TOKEN` and
@@ -93,10 +93,18 @@ Keep published assets and checksums unchanged: a started transaction pins its
 receivers and target version. Both components must first be installed with the
 update feature before the coordinated workflow becomes available.
 
-Describe features, requirements and limitations. State required reconfiguration
-explicitly and report only systems actually tested. Refer to
-[test status](Development.en.md#test-status-and-limitations). The bilingual update
-requires no reconfiguration; existing menus and credentials are retained.
+Revise the automatically generated release notes after the workflow completes.
+Describe user-visible changes first, followed by a brief account of other changes
+without extensive technical detail. Include requirements, known issues and
+limitations that affect usage. Do not include reports of executed tests, test
+results or links to test reports. Store update and functional test reports only
+under `.work/` and do not publish them.
+
+The project is published. Consider backward compatibility with published versions
+and provide required migrations. Briefly describe migrations and any necessary
+reconfiguration in the release notes. Do not delete existing user data without
+authorization. Continue installing the HA integration and receiver plugin from
+the same release.
 
 References: [HACS integration structure](https://www.hacs.xyz/docs/publish/integration/),
 [HACS release ZIPs](https://www.hacs.xyz/docs/publish/start/),

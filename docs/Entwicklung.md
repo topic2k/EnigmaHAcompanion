@@ -57,16 +57,20 @@ verwendet andernfalls `.work/node_modules/`.
 
 ## Entwicklungsregeln
 
-Die [Projektregeln](../AGENTS.md) gelten für alle Änderungen. Das Projekt befindet
-sich in aktiver Entwicklung; Rückwärtskompatibilität zu früheren Projektständen
-ist nicht erforderlich. APIs, Menüformat, Speicherformate und interne
-Schnittstellen dürfen geändert werden. Keine Legacy-Adapter, Migrationen oder
-parallelen Implementierungen allein für alte Entwicklungsstände vorsehen.
+Die [Projektregeln](../AGENTS.md) gelten für alle Änderungen. Das Projekt ist
+veröffentlicht. Rückwärtskompatibilität zu veröffentlichten Versionen beachten
+und bei Änderungen an APIs, Menüformat, gespeicherter Konfiguration oder internen
+Schnittstellen bestehende Installationen berücksichtigen. Erforderliche
+Migrationen bereitstellen und ebenso wie eine gegebenenfalls notwendige
+Neueinrichtung kurz dokumentieren. Gespeicherte Nutzerdaten nicht ungefragt löschen.
+Die Unterstützung der Zielsysteme OpenATV und Home Assistant beibehalten.
 
-Eine erforderliche Neueinrichtung kurz dokumentieren und gespeicherte Nutzerdaten
-nicht ungefragt löschen. Die Unterstützung der Zielsysteme OpenATV und
-Home Assistant bleibt davon unberührt. Zugangsdaten, `.work/` und `.temp/` nicht
-committen. Vor Übergabe die zur Änderung passenden Tests ausführen.
+Zugangsdaten, `.work/` und `.temp/` nicht committen. Vor Übergabe die zur Änderung
+passenden Tests ausführen. Protokolle ausgeführter Update- oder Funktionstests
+unter `.work/` speichern. Informationen zu ausgeführten Tests und deren Ergebnissen
+gehören nicht in Changelogs, Dokumentation oder Release-Informationen.
+Release-Informationen nennen zuerst benutzersichtbare Änderungen und danach
+weitere Änderungen kurz und ohne ausführliche technische Details.
 
 ## Home-Assistant-Integration
 
@@ -166,7 +170,7 @@ Weitere Skin-Profile werden unter `skin/<Skinname>/` implementiert und einmal in
 in `skin/base.py`. Erkennung, manuelle Auswahl und Konfigurationsprüfung verwenden diese
 gemeinsame Liste; das gemeinsame Layout bleibt in `appearance.py`.
 
-## Teststand und Grenzen
+## Updateablauf und Grenzen
 
 Die Updatekoordination liegt in `updates.py`, die portable Releaseprüfung in
 `protocol/enigmaha_protocol/releases.py` und die OpenATV-Installation in
@@ -181,7 +185,9 @@ Das IPK kompiliert im `postinst` die Python-Dateien des Plugins mit geprüften
 Quellcode-Hashes für alle Optimierungsstufen neu. Die reproduzierbaren
 Tar-Zeitstempel allein reichen zur Cacheprüfung nicht: Bei gleicher Dateigröße
 kann sonst Bytecode des vorherigen Releases nach einem GUI-Neustart gültig
-erscheinen. Ein Pakettest reproduziert genau diesen Fall.
+erscheinen.
+
+### Prüfhinweise
 
 Update-Tests prüfen feste HACS-Zielversionen, Benutzer-/Receiverbindung,
 Bestätigungen, Ablehnung, Prüfsummen und Paketmetadaten, verlorene Antworten,
@@ -206,7 +212,8 @@ Gesten und modaler Fokusführung.
 
 Vor einer Veröffentlichung die Schritte im Abschnitt „Funktionsprüfung“ der
 [Installationsanleitung](Installation.md) auf den OpenATV-Zielreceivern mit
-Home Assistant durchführen.
+Home Assistant durchführen. Den Ablauf und die Ergebnisse unter `.work/`
+protokollieren.
 
 ## Eigene HA-Testinstanz
 

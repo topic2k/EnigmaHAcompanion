@@ -4,7 +4,7 @@
 
 The HA integration and Enigma2 extension use this protocol for menus, state
 retrieval and actions. `schema_version: 1` identifies the data format independently
-of the package version. See [test status](Development.en.md#test-status-and-limitations).
+of the package version. See [update implementation and limitations](Development.en.md#update-implementation-and-limitations).
 
 ## Component and version checks
 

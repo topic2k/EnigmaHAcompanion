@@ -19,7 +19,7 @@ project-specific modules; no additional server or MQTT broker is required.
   permissions for the selected entities. A regular user is sufficient for the
   receiver; the menu editor requires an administrator.
 
-See [test status and limitations](Development.en.md#test-status-and-limitations).
+See [update implementation and limitations](Development.en.md#update-implementation-and-limitations).
 
 ## 1. Install Home Assistant integration
 
@@ -300,7 +300,8 @@ repeated, even if their response was lost.
 
 Use the [coordinated update](#coordinated-update-through-hacs-and-ipk), or install
 the HA and receiver packages from the same release manually and restart both.
-Check release notes for required reconfiguration and back up configuration before changes.
+Check release notes for migrations and any required reconfiguration. Back up
+configuration before changes.
 
 The bilingual update requires no reconfiguration. Without a saved preference,
 the editor and receiver start in German. Existing menus and credentials remain.

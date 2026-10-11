@@ -20,8 +20,8 @@ ein zusätzlicher Server oder MQTT-Broker ist nicht erforderlich.
   Steuerungsrechten auf die ausgewählten Entitäten. Für den Receiver genügt ein
   normaler Benutzer; der Menüeditor erfordert einen Administrator.
 
-Die [Entwicklerdokumentation](Entwicklung.md#teststand-und-grenzen) nennt die
-geprüften Geräte und noch offenen Tests.
+Die [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen) beschreibt
+den Updateablauf und seine Grenzen.
 
 ## 1. Home Assistant installieren
 
@@ -328,8 +328,8 @@ starten Menüeditor und Receiver auf Deutsch. Menüs und Zugangsdaten bleiben er
 
 Die HA-Integration über HACS oder das manuelle ZIP aktualisieren und HA neu
 starten. Das Receiver-Paket aus demselben Release installieren und die
-Receiver-GUI neu starten. Erforderliche Schritte zur Neueinrichtung stehen
-gegebenenfalls in den Release-Hinweisen. Vor Änderungen die Konfiguration sichern.
+Receiver-GUI neu starten. Hinweise zu Migrationen und gegebenenfalls erforderlicher
+Neueinrichtung stehen in den Release-Informationen. Vor Änderungen die Konfiguration sichern.
 
 ## Fehlerbehebung und Entfernung
 

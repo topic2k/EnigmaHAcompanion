@@ -24,7 +24,7 @@ ist nicht nötig.
 - Ein Enigma2-Receiver mit OpenATV und Python 3.13 oder neuer.
 - Der Receiver muss Home Assistant im Netzwerk erreichen können.
 
-Hinweise zu getesteten Geräten und bekannten Grenzen findest du in der [Entwicklerdokumentation](docs/Entwicklung.md#teststand-und-grenzen).
+Hinweise zum Updateablauf und seinen Grenzen findest du in der [Entwicklerdokumentation](docs/Entwicklung.md#updateablauf-und-grenzen).
 
 ## Sprache
 

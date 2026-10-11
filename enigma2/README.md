@@ -9,7 +9,7 @@ Navigationskern und HTTP-Client.
 
 Für die Einrichtung siehe [Installation und Bedienung](../docs/Installation.md).
 Build und Tests stehen in der [Entwicklerdokumentation](../docs/Entwicklung.md),
-ebenso der [Teststand und bekannte Grenzen](../docs/Entwicklung.md#teststand-und-grenzen).
+ebenso der [Updateablauf und seine Grenzen](../docs/Entwicklung.md#updateablauf-und-grenzen).
 
 ## Sprache
 

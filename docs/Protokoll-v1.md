@@ -4,8 +4,8 @@
 
 Die HA-Integration und die Enigma2-Extension verwenden dieses Protokoll für
 Menüdefinition, Zustandsabruf und Schaltaktionen. `schema_version: 1` bezeichnet
-das Datenformat unabhängig von der Paketversion. Teststand und bekannte Grenzen
-stehen in der [Entwicklerdokumentation](Entwicklung.md#teststand-und-grenzen).
+das Datenformat unabhängig von der Paketversion. Updateablauf und Grenzen
+stehen in der [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen).
 
 ## Komponenten- und Versionsprüfung
 

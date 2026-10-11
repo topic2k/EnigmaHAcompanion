@@ -49,7 +49,7 @@ Für einen Receiver-Test muss die Erreichbarkeit gesondert geplant werden.
 
 Der Container eignet sich für API-, Berechtigungs-, Editor- und Integrationstests.
 Er ersetzt weder OpenATV-Hardwaretests noch HAOS-/Supervisor-/Add-on-Tests.
-Docker Desktop wurde hier für lokale Softwaretests verwendet; die offizielle
+Unter Windows Docker Desktop mit Linux-Containern verwenden; die offizielle
 [Container-Installationsanleitung](https://www.home-assistant.io/installation/linux/)
 bezieht sich auf Docker Engine. Eine IDE-Devcontainer-Hülle ist für die
 Custom-Integration nicht erforderlich.
