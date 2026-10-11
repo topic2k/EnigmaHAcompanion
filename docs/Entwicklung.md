@@ -65,9 +65,12 @@ Migrationen bereitstellen und ebenso wie eine gegebenenfalls notwendige
 Neueinrichtung kurz dokumentieren. Gespeicherte Nutzerdaten nicht ungefragt löschen.
 Die Unterstützung der Zielsysteme OpenATV und Home Assistant beibehalten.
 
-Zugangsdaten, `.work/` und `.temp/` nicht committen. Vor Übergabe die zur Änderung
-passenden Tests ausführen. Protokolle ausgeführter Update- oder Funktionstests
-unter `.work/` speichern. Informationen zu ausgeführten Tests und deren Ergebnissen
+Zugangsdaten, `.local_info/`, `.work/` und `.temp/` nicht committen. `.local_info/`
+enthält dauerhaft aufzubewahrende lokale Dateien; vorhandene Dateien dort belassen.
+Während der Arbeit erzeugte, löschbare Dateien gehören nach `.work/`, auch neu
+erstellte Update- oder Funktionstestprotokolle. Dauerhaft aufzubewahrende lokale
+Protokolle gehören nach `.local_info/`. Vor Übergabe die zur Änderung passenden
+Tests ausführen. Informationen zu ausgeführten Tests und deren Ergebnissen
 gehören nicht in Changelogs, Dokumentation oder Release-Informationen.
 Release-Informationen nennen zuerst benutzersichtbare Änderungen und danach
 weitere Änderungen kurz und ohne ausführliche technische Details.

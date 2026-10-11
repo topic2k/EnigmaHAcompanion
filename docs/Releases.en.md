@@ -97,8 +97,9 @@ Revise the automatically generated release notes after the workflow completes.
 Describe user-visible changes first, followed by a brief account of other changes
 without extensive technical detail. Include requirements, known issues and
 limitations that affect usage. Do not include reports of executed tests, test
-results or links to test reports. Store update and functional test reports only
-under `.work/` and do not publish them.
+results or links to test reports. Store new update and functional test reports
+under `.work/`. Use `.local_info/` for files intended for permanent local retention
+and leave existing files there. Do not publish either directory.
 
 The project is published. Consider backward compatibility with published versions
 and provide required migrations. Briefly describe migrations and any necessary

@@ -111,8 +111,9 @@ Zuerst benutzersichtbare Änderungen beschreiben, danach weitere Änderungen kur
 und knapp, ohne ausführliche technische Details. Voraussetzungen, bekannte Fehler
 und Grenzen nennen, soweit sie die Nutzung betreffen. Keine Informationen zu
 ausgeführten Tests, Testergebnissen oder Links auf Testprotokolle aufnehmen.
-Protokolle ausgeführter Update- oder Funktionstests ausschließlich unter `.work/`
-speichern und nicht veröffentlichen.
+Neu erstellte Update- oder Funktionstestprotokolle unter `.work/` speichern;
+dauerhaft aufzubewahrende lokale Dateien gehören nach `.local_info/`.
+Vorhandene Dateien in `.local_info/` belassen. Beide Ordner nicht veröffentlichen.
 
 Das Projekt ist veröffentlicht. Bei Änderungen Rückwärtskompatibilität zu
 veröffentlichten Versionen beachten und erforderliche Migrationen bereitstellen.

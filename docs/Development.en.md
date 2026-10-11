@@ -59,8 +59,11 @@ Provide required migrations and briefly document them and any necessary
 reconfiguration. Do not delete user data without authorization. Maintain support
 for the current OpenATV and HA targets.
 
-Do not commit credentials, `.work/` or `.temp/`. Run appropriate tests before delivery.
-Store update and functional test reports under `.work/`. Do not include reports
+Do not commit credentials, `.local_info/`, `.work/` or `.temp/`. Keep files intended
+for permanent local retention in `.local_info/` and leave existing files there.
+Use `.work/` for disposable files created during work, including new update and
+functional test reports. Reports intended for permanent local retention belong
+in `.local_info/`. Run appropriate tests before delivery. Do not include reports
 of executed tests or their results in changelogs, documentation or release notes.
 Release notes describe user-visible changes first, followed by a brief account
 of other changes without extensive technical detail.
