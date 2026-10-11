@@ -8,7 +8,7 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from aiohttp import ClientSession, web
 
@@ -26,7 +26,7 @@ def load_api():
     fake = {}
     for name in ("homeassistant", "homeassistant.auth", "homeassistant.auth.permissions",
                  "homeassistant.auth.permissions.const", "homeassistant.components",
-                 "homeassistant.components.http", "homeassistant.core", "homeassistant.exceptions",
+                 "homeassistant.components.http", "homeassistant.components.persistent_notification", "homeassistant.core", "homeassistant.exceptions",
                  "homeassistant.helpers", "homeassistant.helpers.entity_registry", "homeassistant.helpers.icon"):
         fake[name] = types.ModuleType(name)
     fake["homeassistant.auth.permissions.const"].POLICY_READ = "read"
@@ -37,6 +37,8 @@ def load_api():
         def json(data, status=200, headers=None):
             return web.json_response(data, status=status, headers=headers)
     fake["homeassistant.components.http"].HomeAssistantView = View
+    fake["homeassistant.components.persistent_notification"].async_create = Mock()
+    fake["homeassistant.components.persistent_notification"].async_dismiss = Mock()
     fake["homeassistant.core"].Context = lambda **kwargs: types.SimpleNamespace(**kwargs)
     fake["homeassistant.exceptions"].HomeAssistantError = type("HomeAssistantError", (Exception,), {})
     fake["homeassistant.helpers.entity_registry"].async_get = lambda hass: hass.registry
@@ -73,6 +75,8 @@ class Permissions:
 
 class HAPluginTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        API.persistent_notification.async_create.reset_mock()
+        API.persistent_notification.async_dismiss.reset_mock()
         # Tiny stand-in for HA's installed frontend assets, not a shipped catalogue.
         self.frontend_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.frontend_dir.cleanup)
@@ -104,6 +108,12 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             "reader": types.SimpleNamespace(id="reader-id", is_admin=False, is_active=True, permissions=Permissions(control=False)),
             "denied": types.SimpleNamespace(id="denied-id", is_admin=False, is_active=True, permissions=Permissions(read=False, control=False)),
         }
+        for name, user in self.users.items():
+            user.name, user.system_generated = name, False
+        self.hass.auth = types.SimpleNamespace(
+            async_get_users=AsyncMock(side_effect=lambda: list(self.users.values())),
+            async_get_user=AsyncMock(side_effect=lambda user_id: next(
+                (user for user in self.users.values() if user.id == user_id), None)))
         @web.middleware
         async def test_auth(request, handler):
             token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -111,7 +121,8 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
                 request["hass_user"] = self.users[token]
             return await handler(request)
         app = web.Application(middlewares=[test_auth])
-        for cls in (API.MenuView, API.StatesView, API.ActionsView, API.ConfigView, API.CompatibilityView, API.UpdateAdminView, API.ReceiverUpdateView):
+        for cls in (API.MenuView, API.StatesView, API.ActionsView, API.ConfigView, API.ConfigurationView,
+                    API.UsersView, API.PreviewView, API.CompatibilityView, API.UpdateAdminView, API.ReceiverUpdateView):
             view = cls(self.hass)
             self.assertTrue(view.requires_auth)
             for method in ("get", "post", "put"):
@@ -133,22 +144,6 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             headers={"Authorization": "Bearer " + user,
                      **({COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
                         if peer_headers is None else peer_headers)}, json=body)
-
-    async def test_editor_language_reads_live_options_without_changing_menu(self):
-        original = copy.deepcopy(self.runtime.menu)
-        async with await self.request("GET", "/compatibility") as response:
-            self.assertIsNone((await response.json())["editor_language"])
-        entry = self.runtime.config_entry = types.SimpleNamespace(options={})
-        for options, expected in [({}, None), ({"language": "en"}, "en"),
-                                  ({"language": "de"}, "de"), ({"language": "auto"}, "auto"),
-                                  ({"language": "fr"}, None)]:
-            with self.subTest(options=options):
-                entry.options = options
-                async with await self.request("GET", "/compatibility") as response:
-                    self.assertEqual(response.status, 200)
-                    self.assertEqual((await response.json())["editor_language"], expected)
-                self.assertEqual(self.runtime.menu, original)
-                self.assertIsNone(self.store.data)
 
     async def test_mismatched_or_unidentified_receivers_are_blocked_on_all_routes(self):
         for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: "99"}, "protocol_mismatch"),
@@ -186,6 +181,106 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             receiver["seen"] -= 301
         async with await self.request("GET", "/compatibility") as response:
             self.assertEqual((await response.json())["receivers"], [])
+
+    async def test_editor_language_reads_live_options_without_changing_menu(self):
+        original = copy.deepcopy(self.runtime.menu)
+        async with await self.request("GET", "/compatibility") as response:
+            self.assertIsNone((await response.json())["editor_language"])
+        entry = self.runtime.config_entry = types.SimpleNamespace(options={})
+        for options, expected in [({}, None), ({"language": "en"}, "en"),
+                                  ({"language": "de"}, "de"), ({"language": "auto"}, "auto"),
+                                  ({"language": "fr"}, None)]:
+            with self.subTest(options=options):
+                entry.options = options
+                async with await self.request("GET", "/compatibility") as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual((await response.json())["editor_language"], expected)
+                self.assertEqual(self.runtime.menu, original)
+                self.assertIsNone(self.store.data)
+
+    async def test_appearance_options_preserve_menus_and_invalidate_stale_editor_saves(self):
+        self.runtime.menu = API.validate_configuration(self.runtime.menu)
+        before = copy.deepcopy(self.runtime.menu)
+        display = {"font_family": "MySkinFont", "font_size": 36}
+        await self.runtime.async_set_display(display)
+        self.assertEqual(self.runtime.menu["menus"], before["menus"])
+        self.assertEqual(self.runtime.menu["revision"], before["revision"] + 1)
+        self.assertEqual(self.store.data, self.runtime.menu)
+        async with await self.request("GET", "/menu", "receiver") as response:
+            self.assertEqual((await response.json())["display"], display)
+        async with await self.request("PUT", "/configuration", body=before) as response:
+            self.assertEqual(response.status, 409)
+            self.assertEqual((await response.json())["error"], "stale_menu")
+        after = copy.deepcopy(self.runtime.menu)
+        await self.runtime.async_set_display(display)
+        self.assertEqual(self.runtime.menu, after, "Unchanged options do not increment the revision")
+
+    async def test_appearance_option_failures_do_not_change_live_or_stored_configuration(self):
+        self.runtime.menu = API.validate_configuration(self.runtime.menu)
+        before = copy.deepcopy(self.runtime.menu)
+        await self.runtime.async_set_display(before["display"])
+        self.assertIsNone(self.store.data)
+        self.store.fail = True
+        with self.assertRaises(OSError):
+            await self.runtime.async_set_display({"font_family": "Fixed", "font_size": 36})
+        self.assertEqual(self.runtime.menu, before)
+        self.assertIsNone(self.store.data)
+        self.store.fail = False
+        self.runtime.menu["revision"] = 2147483647
+        with self.assertRaisesRegex(API.HomeAssistantError, "revision_limit"):
+            await self.runtime.async_set_display({"font_family": "Fixed", "font_size": 36})
+        self.runtime.active = False
+        with self.assertRaisesRegex(API.HomeAssistantError, "integration_unavailable"):
+            await self.runtime.async_set_display({"font_family": "Fixed", "font_size": 36})
+        self.assertEqual(self.runtime.menu["display"], before["display"])
+        self.assertIsNone(self.store.data)
+    async def test_editor_status_is_debug_only_deduplicated_and_removes_old_notices(self):
+        create = API.persistent_notification.async_create
+        dismiss = API.persistent_notification.async_dismiss
+        self.runtime.updates = types.SimpleNamespace(snapshot=AsyncMock(return_value={"hacs": None}))
+        with patch.object(API._LOGGER, "isEnabledFor", return_value=False):
+            self.runtime.log_editor_status([], {"hacs": None}, "de")
+        self.assertEqual(self.runtime.editor_status_messages, {}, "Enabling DEBUG later must still log the current status")
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(logs.records), 3)
+        self.assertTrue(all(record.levelname == "DEBUG" for record in logs.records))
+        self.assertIn("HA-Integration", logs.records[0].getMessage())
+        self.assertIn("Noch keine Receiver-Anfrage", logs.records[1].getMessage())
+        self.assertIn("HACS-Update nicht verfügbar", logs.records[2].getMessage())
+        self.assertEqual({call.args[1] for call in dismiss.call_args_list},
+                         {"enigmaha_companion_version", "enigmaha_companion_no_receiver", "enigmaha_companion_hacs"})
+        with self.assertNoLogs(API._LOGGER, level="DEBUG"):
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(dismiss.call_count, 3, "Old notices are cleaned only once per runtime")
+        async with await self.request("GET", "/menu", "receiver") as response:
+            self.assertEqual(response.status, 200)
+        self.runtime.updates.snapshot.return_value = {"hacs": {"entity_id": "update.enigmaha"}}
+        with self.assertNoLogs(API._LOGGER, level="DEBUG"):
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.runtime.config_entry = types.SimpleNamespace(options={"language": "en"})
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("HA integration", logs.records[0].getMessage())
+        create.assert_not_called()
+
+    async def test_automatic_debug_language_follows_ha_system_language(self):
+        self.runtime.config_entry = types.SimpleNamespace(options={"language": "auto"})
+        self.hass.config = types.SimpleNamespace(language="en-GB")
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual((await response.json())["editor_language"], "auto")
+        self.assertIn("HA integration", logs.records[0].getMessage())
+        self.hass.config.language = "de_DE"
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertIn("HA-Integration", logs.records[0].getMessage())
 
     async def test_receiver_tracking_is_bounded(self):
         user = self.users["receiver"]
@@ -304,7 +399,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
     async def test_menu_and_states_filter_permissions(self):
         async with await self.request("GET", "/menu", "denied") as response:
             menu = await response.json()
-            self.assertEqual(menu["root"]["children"][0]["children"][0]["type"], "menu")
+            self.assertEqual(menu["root"]["children"], [])
         async with await self.request("GET", "/states", "denied") as response:
             self.assertEqual((await response.json())["states"], {})
         async with await self.request("GET", "/menu", "reader") as response:
@@ -320,7 +415,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 200)
             saved = await response.json()
         self.assertEqual(saved["revision"], 2)
-        self.assertEqual(self.store.data, saved)
+        self.assertEqual(self.store.data, API.validate_configuration(saved))
         async with await self.request("POST", "/actions", "receiver", self.command()) as response:
             self.assertEqual(response.status, 409)
         async with await self.request("PUT", "/config", body=changed) as response:
@@ -352,6 +447,173 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         async with await self.request("POST", "/actions", "receiver", self.command()) as response:
             self.assertEqual(response.status, 409)
         self.assertEqual(self.calls, [])
+
+
+    async def test_collection_filters_ancestors_states_actions_and_admin_tokens(self):
+        config = API.validate_configuration(self.menu)
+        root = config["menus"][0]
+        root["access"] = {"mode": "users", "users": ["receiver-id", "reader-id"]}
+        root["children"][0]["access"] = {"mode": "users", "users": ["reader-id"]}
+        # A child cannot grant access through a denied ancestor.
+        root["children"][0]["children"][0]["access"] = {"mode": "users", "users": ["receiver-id"]}
+        self.runtime.menu = API.validate_configuration(config)
+        for token in ("receiver", "admin", "reader"):
+            async with await self.request("GET", "/states", token) as response:
+                self.assertEqual((await response.json())["states"], {})
+            async with await self.request("POST", "/actions", token, self.command()) as response:
+                self.assertEqual(response.status, 404)
+        async with await self.request("GET", "/menu", "admin") as response:
+            self.assertEqual((await response.json())["root"]["id"], "__enigmaha_no_menu")
+        self.assertEqual(self.calls, [])
+
+    async def test_multiple_menus_duplicate_entity_and_same_user_tokens(self):
+        config = API.validate_configuration(self.menu)
+        first = config["menus"][0]
+        first["access"] = {"mode": "users", "users": ["reader-id"]}
+        second = {"type": "menu", "id": "shared", "label": "Gemeinsam", "access": {"mode": "all"},
+                  "children": [{"type": "entity", "id": "shared-light", "label": "Licht",
+                                "entity_id": "light.wohnzimmer", "actions": ["toggle"]}]}
+        config["menus"].append(second)
+        self.runtime.menu = API.validate_configuration(config)
+        self.users["another-token"] = self.users["receiver"]
+        for token in ("receiver", "another-token"):
+            async with await self.request("GET", "/menu", token) as response:
+                body = await response.json()
+                self.assertEqual(body["root"]["id"], "shared")
+                self.assertNotIn("access", json.dumps(body))
+                self.assertNotIn("reader-id", json.dumps(body))
+            async with await self.request("POST", "/actions", token, self.command(entry_id="ceiling")) as response:
+                self.assertEqual(response.status, 404)
+            async with await self.request("POST", "/actions", token, self.command(entry_id="shared-light")) as response:
+                self.assertEqual(response.status, 200)
+        async with await self.request("GET", "/menu", "reader") as response:
+            body = await response.json()
+            self.assertEqual([node["id"] for node in body["root"]["children"]], ["home", "shared"])
+            self.assertEqual(body["root"]["children"][1]["children"][0]["actions"], [])
+        self.assertEqual(len(self.calls), 2)
+
+    async def test_configuration_saving_and_legacy_editor_cannot_erase_acl(self):
+        async with await self.request("GET", "/configuration") as response:
+            config = await response.json()
+        config["menus"][0]["access"] = {"mode": "users", "users": ["receiver-id", "deleted-user"]}
+        async with await self.request("PUT", "/configuration", body=config) as response:
+            self.assertEqual(response.status, 200)
+            saved = await response.json()
+        self.assertEqual(saved["revision"], 2)
+        self.assertEqual(self.store.data, saved)
+        for method in ("GET", "PUT"):
+            async with await self.request(method, "/config", body=self.menu if method == "PUT" else None) as response:
+                self.assertEqual(response.status, 409)
+                self.assertEqual((await response.json())["error"], "configuration_upgrade_required")
+        async with await self.request("PUT", "/configuration", body=config) as response:
+            self.assertEqual(response.status, 409)
+        async with await self.request("POST", "/actions", "receiver", self.command()) as response:
+            self.assertEqual(response.status, 409)
+        self.store.fail = True
+        async with await self.request("PUT", "/configuration", body=saved) as response:
+            self.assertEqual(response.status, 500)
+        self.assertEqual(self.runtime.menu, saved)
+
+    async def test_preview_uses_unsaved_configuration_without_writing_and_rejects_missing_users(self):
+        config = API.validate_configuration(self.menu)
+        config["menus"][0]["access"] = {"mode": "users", "users": []}
+        body = {"configuration": config, "user_id": "receiver-id"}
+        async with await self.request("POST", "/preview", body=body) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual((await response.json())["root"]["children"], [])
+        config["menus"][0]["access"]["users"] = ["receiver-id"]
+        async with await self.request("POST", "/preview", body=body) as response:
+            self.assertEqual(await response.json(), API.filtered_menu(config, self.users["receiver"]))
+        for user_id in ("deleted-user", "reader-id"):
+            self.users["reader"].is_active = False
+            async with await self.request("POST", "/preview", body=dict(body, user_id=user_id)) as response:
+                self.assertEqual(response.status, 404)
+        self.assertEqual(self.runtime.menu, self.menu)
+        self.assertIsNone(self.store.data)
+        self.assertEqual(self.calls, [])
+
+    async def test_user_list_and_new_routes_are_admin_only(self):
+        self.users["reader"].is_active = False
+        self.users["denied"].system_generated = True
+        async with await self.request("GET", "/users") as response:
+            self.assertEqual(await response.json(), {"users": [{"id": "admin-id", "name": "admin"},
+                                                              {"id": "receiver-id", "name": "receiver"}]})
+        for method, route in (("GET", "/users"), ("GET", "/configuration"),
+                              ("PUT", "/configuration"), ("POST", "/preview")):
+            for token, status in (("receiver", 403), ("none", 401)):
+                async with await self.request(method, route, token, {}) as response:
+                    self.assertEqual(response.status, status)
+
+    async def test_revoked_menu_rejects_cached_action_and_hides_states(self):
+        config = API.validate_configuration(self.menu)
+        self.runtime.menu = config
+        async with await self.request("GET", "/menu", "receiver") as response:
+            self.assertTrue((await response.json())["root"]["children"])
+        config["menus"][0]["access"] = {"mode": "none"}
+        async with await self.request("POST", "/actions", "receiver", self.command()) as response:
+            self.assertEqual(response.status, 404)
+        async with await self.request("GET", "/states", "receiver") as response:
+            self.assertEqual((await response.json())["states"], {})
+        self.assertEqual(self.calls, [])
+
+
+class MenuConfigurationTests(unittest.TestCase):
+    def setUp(self):
+        self.legacy = json.loads((ROOT / "protocol/menu.example.json").read_text(encoding="utf-8"))
+        self.config = API.validate_configuration(self.legacy)
+
+    def test_migration_is_lossless_detached_and_idempotent(self):
+        self.assertEqual(API.legacy_menu(self.config), self.legacy)
+        self.assertEqual(API.validate_configuration(self.config), self.config)
+        self.config["menus"][0]["children"].clear()
+        self.assertTrue(self.legacy["root"]["children"])
+
+    def test_empty_selected_users_and_missing_users_never_grant_access(self):
+        for access in ({"mode": "none"}, {"mode": "users", "users": []},
+                       {"mode": "users", "users": ["deleted-user"]}):
+            self.config["menus"][0]["access"] = access
+            user = types.SimpleNamespace(id="receiver-id", permissions=Permissions())
+            self.assertEqual(API.filtered_menu(self.config, user)["root"]["children"], [])
+            self.assertIsNone(API.legacy_menu(self.config))
+
+    def test_invalid_access_payloads_and_unknown_fields_are_rejected(self):
+        for access in ({"mode": "inherit"}, {"mode": []}, {"mode": "users"},
+                       {"mode": "users", "users": ["a", "a"]}, {"mode": "users", "users": [None]},
+                       {"mode": "users", "users": "a"}, {"mode": "all", "users": []},
+                       {"mode": "all", "extra": True}):
+            with self.subTest(access=access):
+                self.config["menus"][0]["access"] = access
+                with self.assertRaises(API.ProtocolError):
+                    API.validate_configuration(self.config)
+        self.config = API.validate_configuration(self.legacy)
+        self.config["menus"][0]["children"][0]["access"] = {"mode": "all"}
+        with self.assertRaises(API.ProtocolError):
+            API.validate_configuration(self.config)
+
+    def test_cross_menu_ids_and_receiver_depth_limits_are_enforced(self):
+        self.config["menus"].append(copy.deepcopy(self.config["menus"][0]))
+        with self.assertRaises(API.ProtocolError):
+            API.validate_configuration(self.config)
+        self.config = API.validate_configuration(self.legacy)
+        root = self.config["menus"][0]
+        root["children"] = []
+        for i in range(8):
+            child = {"type": "menu", "id": "deep" + str(i), "label": "Deep", "children": []}
+            root["children"].append(child)
+            root = child
+        API.validate_configuration(self.config)
+        self.config["menus"].append({"type": "menu", "id": "extra", "label": "Extra", "children": []})
+        with self.assertRaises(API.ProtocolError):
+            API.validate_configuration(self.config)
+
+    def test_selection_root_collision_and_empty_collection(self):
+        self.config["menus"][0]["id"] = "__enigmaha_menus"
+        self.config["menus"].append({"type": "menu", "id": "extra", "label": "Extra", "children": []})
+        user = types.SimpleNamespace(id="receiver-id", permissions=Permissions())
+        menu = API.filtered_menu(self.config, user)
+        self.assertEqual(menu["root"]["id"], "__enigmaha_menus_1")
+        self.config["menus"] = []
+        self.assertEqual(API.filtered_menu(self.config, user)["root"]["id"], "__enigmaha_no_menu")
 
 
 if __name__ == "__main__":

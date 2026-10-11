@@ -121,6 +121,53 @@ UI languages are local presentation choices. Labels are user content and are
 not translated. Entity IDs, raw states, action names and error codes remain
 language-independent; switching languages does not change the menu or revision.
 
+## Menu collections and user access
+
+Admin/storage configuration uses `schema_version: 2`, `revision`, `display` and
+`menus`, an ordered array of complete menu roots. Receiver transport remains
+`schema_version: 1` with `root`. Each menu or entity node may additionally
+contain `access`:
+
+| Rule | Meaning |
+| --- | --- |
+| `{"mode":"all"}` | All users; complete menu roots only |
+| `{"mode":"inherit"}` | Inherit from parent; child nodes only |
+| `{"mode":"users","users":["ha-user-id"]}` | Listed users; an empty list grants nobody access |
+| `{"mode":"none"}` | Disabled for all users |
+
+Missing `access` defaults to `all` on roots and `inherit` on children. Only
+`users` mode can contain `users`. User IDs are unique and contain 1–64 ASCII
+letters, digits, `_` or `-`. Missing/inactive user IDs may remain stored. Every
+ancestor restriction and HA entity permissions also apply, including to
+administrator receiver tokens. These rules do not change other HA API permissions.
+
+Entry IDs are unique across the collection. Existing receiver size/depth limits
+include the additional selection root for multiple menus: at most 500 nodes
+and eight levels below the receiver root. Display settings and revision are
+shared by all menus. Empty collections are valid.
+
+PUT `/configuration` shares the action lock, increments the revision and returns
+the saved collection. A stale revision returns HTTP 409 `stale_menu`; an exhausted
+counter returns `revision_limit`. Invalid input returns HTTP 400 `invalid_menu`;
+storage failures return HTTP 500 `storage_failed` without changing live data.
+v1 documents are also accepted and converted into a collection. Stored v1 menus
+are automatically converted on load under the same storage key, preserving IDs,
+appearance and revision. No reconfiguration is required. GET/PUT `/config` remain
+available only for exactly one unrestricted menu; otherwise they return HTTP 409
+`configuration_upgrade_required`.
+
+POST `/preview` accepts `{"configuration": {...}, "user_id": "…"}` and filters
+the draft using the active user's current HA permissions without saving it.
+Missing, inactive or system-generated users return HTTP 404 `user_not_found`.
+
+Menus, previews, states and actions use the same user projection. One available
+root is returned directly; multiple roots are grouped beneath a generated
+selection root. With no available menu, an empty root with ID
+`__enigmaha_no_menu` is returned. Menus emptied by filtering disappear;
+originally empty menus remain. Access rules and user IDs are never sent to
+receivers. Invisible action IDs return HTTP 404 `entry_not_found`.
+See the [user guide](User-menus.en.md) for editor instructions.
+
 ## HTTP contract
 
 Base: configured HA origin plus `/api/enigmaha_companion/v1`.
@@ -134,8 +181,12 @@ transmits the token without encryption. Store credentials only on the receiver.
 | GET `/menu` | Validated menu including `revision` |
 | GET `/states` | `schema_version`, `revision`, `states`, `icons` as in the example |
 | POST `/actions` | Validate entry/action and call the corresponding HA service |
-| GET `/config` | Complete menu; administrators only |
-| PUT `/config` | Validate and save menu; administrators only |
+| GET `/config` | Unrestricted single menu in the original format; administrators only |
+| PUT `/config` | Save an unrestricted single menu; administrators only |
+| GET `/configuration` | Complete menu collection with access rules; administrators only |
+| PUT `/configuration` | Validate and save the collection; administrators only |
+| GET `/users` | Active, non-system HA users as `{"users":[{"id":"…","name":"…"}]}`; administrators only |
+| POST `/preview` | Draft user view as a v1 menu; administrators only |
 | GET `/compatibility` | HA version and recently checked receivers; administrators only |
 
 PUT `/config` accepts the complete menu with its current revision. Validation

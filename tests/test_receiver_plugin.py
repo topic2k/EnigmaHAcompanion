@@ -307,7 +307,8 @@ class ReceiverTests(unittest.TestCase):
         self.assertIn("Ch+ down / − up", self.dialogs[-1][0][1])
         screen.failed(types.SimpleNamespace(value=PLUGIN.ClientError("unauthorized")), screen.generation)
         self.assertEqual(screen["status"].text, "Token rejected. Menu: Settings")
-        self.assertEqual(screen["heading"].text, "OFFLINE – " + screen.nav.breadcrumb)
+        self.assertIsNone(screen.nav)
+        self.assertEqual(screen["heading"].text, "OFFLINE – Home Assistant")
 
     def test_skin_xml_and_all_required_keys(self):
         ET.fromstring(self.screen.skin)
@@ -788,6 +789,42 @@ class ReceiverTests(unittest.TestCase):
             for invalid in ("false", 0, 1, None):
                 with self.assertRaises(ValueError):
                     settings.validate_settings(dict(self.screen.config, show_in_mainmenu=invalid))
+
+
+    def test_token_or_server_change_clears_previous_user_data_before_connecting(self):
+        old_generation = self.screen.generation
+        old_client = self.screen.client
+        with patch.object(self.screen, "connect") as connect:
+            self.screen.settings_done(dict(self.screen.config, token="different-user-token"))
+        connect.assert_called_once()
+        self.assertIsNone(self.screen.nav)
+        self.assertEqual(self.screen.states, {})
+        self.assertEqual(self.screen["list"].rows, [])
+        self.screen.loaded((self.menu, self.states), old_generation)
+        self.assertIsNone(self.screen.nav)
+        self.screen.client = old_client
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.assertIsNotNone(self.screen.nav)
+        with patch.object(self.screen, "connect"):
+            self.screen.settings_done(dict(self.screen.config, url="http://another-ha.test:8123"))
+        self.assertIsNone(self.screen.nav)
+        self.assertEqual(self.screen.states, {})
+
+    def test_revoked_token_clears_menu_and_states(self):
+        self.screen.failed(types.SimpleNamespace(value=PLUGIN.ClientError("unauthorized")), self.screen.generation)
+        self.assertIsNone(self.screen.nav)
+        self.assertEqual(self.screen.states, {})
+        self.assertEqual(self.screen["list"].rows, [])
+
+    def test_menu_access_removed_refresh_resets_path_and_explains_empty_menu(self):
+        self.screen.nav.activate(self.screen.states)
+        menu = dict(self.menu, revision=2, root={"type": "menu", "id": "__enigmaha_no_menu",
+                                               "label": "Home Assistant", "children": []})
+        self.screen.loaded((menu, {}), self.screen.generation)
+        self.assertEqual(self.screen.nav.stack, [("__enigmaha_no_menu", 0)])
+        self.assertEqual(self.screen.states, {})
+        self.assertIn("kein Menü freigegeben", self.screen["status"].text)
+        self.assertEqual(self.screen["list"].rows, [])
 
 
 if __name__ == "__main__":

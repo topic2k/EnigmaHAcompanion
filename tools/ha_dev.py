@@ -139,10 +139,14 @@ def bootstrap():
             flow = client.request("/api/config/config_entries/flow/" + flow["flow_id"], {})
         if flow.get("type") != "create_entry":
             raise RuntimeError("Integration setup failed: " + str(flow.get("type")))
-    path = "/api/" + DOMAIN + "/v1/config"
+    path = "/api/" + DOMAIN + "/v1/configuration"
     menu = client.wait(path)
     # Only seed a pristine menu; reruns preserve edited or deliberately emptied menus.
-    if menu["revision"] == 1 and not menu["root"]["children"]:
+    pristine = {"schema_version": 2, "revision": 1,
+                "display": {"font_family": "Regular", "font_size": 28},
+                "menus": [{"type": "menu", "id": "home", "label": "Home Assistant",
+                           "children": [], "access": {"mode": "all"}}]}
+    if menu == pristine:
         fixture = json.loads((ROOT / "dev/ha/menu.json").read_text(encoding="utf-8"))
         client.request(path, dict(fixture, revision=menu["revision"]), method="PUT")
     print("HA onboarding and EnigmaHA integration ready; login: " + access["username"])

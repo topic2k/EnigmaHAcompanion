@@ -3,7 +3,7 @@
 [Deutsch](Entwicklung.md) · **English**
 
 The project consists of a Home Assistant integration with a menu editor and
-an Enigma2 extension. HA stores the shared menu and exposes states and actions
+an Enigma2 extension. HA stores shared and personal menus and exposes states and actions
 through authenticated HTTP routes. The receiver displays a remote-controlled menu.
 
 Development and receiver testing target **OpenATV only**.
@@ -71,16 +71,21 @@ Use native HA selectors with filters for entity selection.
 
 ## Home Assistant integration
 
-The domain is `enigmaha_companion`. One configuration entry manages the menu for
+The domain is `enigmaha_companion`. One configuration entry manages menus and access rules for
 all receivers. HA's `Store` persists it in `.storage/enigmaha_companion.menu`.
-Saving validates the menu and permanently increments its revision.
+Saving validates the configuration and permanently increments its shared revision.
+`menus.py` validates configuration schema 2 and automatically converts saved v1
+menus without losing data. Receiver menu transport remains v1.
 
 Receiver access and administration are separate. Menu and state responses are
-filtered by the authenticated user's read permissions. Missing control
+filtered by menu access rules and the authenticated user's read permissions. Missing control
 permissions remove actions from an entry. Each command is checked again for
 revision, entry, action, state and permissions, then executed with HA user context.
 Menu updates and actions share a lock. Failed storage preserves the current
-menu and revision. The editor and GET/PUT `/config` require administrator access.
+menu and revision. The editor, `/configuration`, `/users`, `/preview` and the
+compatible single-menu `/config` route require administrator access. Previews
+use the same projection as menu, state and action requests. See
+[user-specific menus](User-menus.en.md) for access rules and migration.
 Receiver credentials are not stored in the editor.
 
 ### Translations
@@ -97,7 +102,8 @@ new config entries. Existing options remain unchanged; entries without a languag
 retain the legacy browser choice and the options dialog still suggests German.
 `auto` uses the effective HA profile language (`hass.language`), then the first
 supported browser language, then German. Regional codes map to `de` or `en`.
-HA/browser language changes apply in the open editor.
+HA/browser language changes apply in the open editor. Shared persistent HA
+notices follow the HA system language in automatic mode.
 
 HA config dialogs use `translations/de.json` and `translations/en.json`,
 following the HA profile language. Both catalogs are present in source and
@@ -200,7 +206,7 @@ package contents and metadata. HA services and receiver APIs use test doubles.
 Receiver packages are checked for Python 3.13 syntax. Profile tests cover automatic
 and manual selection, persistence, cancellation, reopening and missing resources.
 
-Language tests check German defaults, English text, placeholders, persisted
+Language tests check new defaults, preservation of existing settings, English text, placeholders, persisted
 preferences, state display and preservation of unsaved edits.
 
 Frontend tests use jsdom and native-component doubles. They cover filters,

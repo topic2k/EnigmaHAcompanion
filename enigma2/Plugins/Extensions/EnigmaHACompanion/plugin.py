@@ -226,8 +226,11 @@ class CompanionScreen(Screen):
         self.peer_notice = None
         self.render()
         message = self.t("Verbunden") if self.nav.current["children"] else self.t("Menü ist leer. Einträge in Home Assistant hinzufügen.")
+        no_menu = menu["root"]["id"] == "__enigmaha_no_menu" and not menu["root"]["children"]
+        if no_menu:
+            message = self.t("Für diesen Benutzer ist kein Menü freigegeben.")
         peer_version = getattr(getattr(self, "client", None), "peer_version", None)
-        if peer_version and peer_version != VERSION:
+        if peer_version and peer_version != VERSION and not no_menu:
             message = self.t("Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.",
                             receiver=VERSION, ha=peer_version, protocol=PROTOCOL_VERSION)
         self["status"].setText(message)
@@ -257,6 +260,9 @@ class CompanionScreen(Screen):
             self.timer.start(self.config["refresh_seconds"] * 1000, True)
             return None
         code = error.code if isinstance(error, ClientError) else "unknown"
+        if code == "unauthorized":
+            self.nav, self.states = None, {}
+            self.render()
         messages = {"unauthorized": self.t("Token abgelehnt. Menü: Einstellungen"),
                     "protocol_mismatch": self.t("Protokolle ungleich: Receiver {receiver}, HA {ha}. Reparatur in Home Assistant unter Einstellungen öffnen.",
                                               receiver=PROTOCOL_VERSION, ha=getattr(error, "peer_protocol", None) or "?"),
@@ -359,6 +365,8 @@ class CompanionScreen(Screen):
 
     def render(self):
         if not self.nav:
+            self["list"].setList([])
+            self["heading"].setText("Home Assistant")
             return
         face, font_size, self.row_height = self.appearance.menu_font(
             self.nav.display["font_family"], self.nav.display["font_size"])
@@ -401,9 +409,13 @@ class CompanionScreen(Screen):
         if self.closed:
             return
         if values is not None:
+            identity_changed = any(values.get(key) != self.config.get(key) for key in ("url", "token"))
             self.config = values
             self.generation += 1
             self.online = False
+            if identity_changed:
+                self.nav, self.states = None, {}
+                self.render()
             self.connect()
         elif hasattr(self, "client"):
             self.refresh()

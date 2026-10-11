@@ -1,5 +1,37 @@
 /* Fixed languages override HA/browser language detection; legacy preferences remain usable. */
 const ENIGMAHA_EN = {
+  "Menüs verwalten": "Manage menus",
+  "Zur Menüverwaltung": "Back to menu management",
+  "Menü auswählen": "Select menu",
+  "Neues Menü": "New menu",
+  "Menü anlegen": "Create menu",
+  "Menü duplizieren": "Duplicate menu",
+  "Menü entfernen": "Remove menu",
+  "Menü mit allen Einträgen entfernen?": "Remove the menu and all its entries?",
+  "Kopie von {label}": "Copy of {label}",
+  "Freigabe": "Access",
+  "Alle Benutzer": "All users",
+  "Vom übergeordneten Menü übernehmen": "Inherit from parent menu",
+  "Ausgewählte Benutzer": "Selected users",
+  "{count} ausgewählter Benutzer": "{count} selected user",
+  "{count} ausgewählte Benutzer": "{count} selected users",
+  "Menü deaktiviert": "Menu disabled",
+  "Benutzer": "Users",
+  "Benutzer ohne Namen": "Unnamed user",
+  "Benutzereinstellungen": "User settings",
+  "Übernehmen": "Apply",
+  "Fehlender oder inaktiver Benutzer ({number})": "Missing or inactive user ({number})",
+  "Übergeordnete Freigaben und HA-Entitätsrechte gelten zusätzlich. Eine leere Benutzerauswahl sperrt den Eintrag.": "Parent access rules and HA entity permissions also apply. An empty user selection grants nobody access.",
+  "Ansicht für Benutzer": "View for user",
+  "Vorschau öffnen": "Open preview",
+  "Vorschau": "Preview",
+  "Schließen": "Close",
+  "Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.": "Could not load the preview. Check the user and menu structure.",
+  "Für diesen Benutzer ist kein Menü freigegeben.": "No menu is shared with this user.",
+  "Gemeinsame Schrift für alle Menüs; der Titel gehört zum ausgewählten Menü.": "Shared font for all menus; the title belongs to the selected menu.",
+  "Keine Menüs vorhanden. Lege ein Menü an.": "No menus available. Create a menu.",
+  "Menüs werden in dieser Reihenfolge auf dem Receiver angeboten.": "Menus appear in this order on the receiver.",
+  "Freigaben gelten für den HA-Benutzer des Receiver-Tokens.": "Access rules apply to the HA user of the receiver token.",
   "HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.": "HA integration {version}, protocol {protocol}. Matching protocols allow different releases.",
   "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben.": "Receiver {address}: Release {version} differs from HA {ha}. Protocol {protocol_version} matches; connection allowed.",
   "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen.": "Receiver {address}: Protocol {protocol_version} does not match HA {protocol}. Connection blocked; open Repairs in HA.",
@@ -78,7 +110,6 @@ const ENIGMAHA_EN = {
   "Speichern": "Save",
   "Receiver-Menü": "Receiver menu",
   "Gestalte das Menü für deine Enigma2-Receiver.": "Build the menu for your Enigma2 receivers.",
-  "Alle Änderungen gespeichert": "All changes saved",
   "Menüeinträge bearbeiten": "Edit menu entries",
   "Menüeinstellungen": "Menu settings",
   "Menüpfad": "Menu path",
@@ -122,6 +153,7 @@ class EnigmaHAPanel extends HTMLElement {
     super();
     this.attachShadow({mode: "open"});
     this.path = [];
+    this.view = "menus";
     this.dirty = false;
     this.loading = false;
     this.message = "";
@@ -234,7 +266,246 @@ class EnigmaHAPanel extends HTMLElement {
     const prepare = node => node.type === "menu"
       ? {...node, children: node.children.map(prepare)}
       : {...node, actions: this.entityActions(node.entity_id)};
-    return {...this.model, root: prepare(this.model.root)};
+    return {...this.configuration, revision: this.model.revision, display: {...this.model.display},
+      menus: this.configuration.menus.map(node => prepare(node.id === this.model.root?.id ? this.model.root : node))};
+  }
+
+  useConfiguration(configuration, selectedId) {
+    this.configuration = configuration;
+    const root = configuration.menus.find(node => node.id === selectedId) || configuration.menus[0];
+    this.model = {schema_version: 1, revision: configuration.revision, display: configuration.display, root};
+    this.path = root ? [root] : [];
+    this.selectedEntity = undefined;
+    this.menuDraft = "";
+  }
+
+  selectMenu(id) {
+    if (this.loading || this.confirmation) return;
+    if (!this.configuration.menus.some(node => node.id === id)) return;
+    if (this.model.root?.id !== id) this.useConfiguration(this.configuration, id);
+    this.view = "entries";
+    this.render();
+  }
+
+  showMenus() {
+    if (this.loading || this.confirmation) return;
+    this.view = "menus";
+    this.render();
+  }
+
+  moveMenu(menus, oldIndex, newIndex) {
+    if (this.loading || this.confirmation || this.view !== "menus" || menus !== this.configuration.menus ||
+        !Number.isInteger(oldIndex) || !Number.isInteger(newIndex) || oldIndex === newIndex ||
+        oldIndex < 0 || newIndex < 0 || oldIndex >= menus.length || newIndex >= menus.length) return;
+    const [node] = menus.splice(oldIndex, 1);
+    menus.splice(newIndex, 0, node);
+    this.markDirty(); this.render(); this.revealEntry(node.id);
+  }
+
+  maxPathLength() {
+    // Multiple complete menus require an extra receiver selection level.
+    return this.configuration?.menus.length > 1 ? 8 : 9;
+  }
+
+  renderAccess(parent, node, top = false) {
+    const access = node.access || {mode: top ? "all" : "inherit"};
+    const summary = this.el("div", null, {class: "access-summary"});
+    const button = this.iconButton(this.t("Benutzereinstellungen"), "account-edit", () => this.editAccess(node, top));
+    button.dataset.accessNode = node.id;
+    let missing = 0;
+    const names = (access.users || []).map(id => {
+      const user = this.users.find(candidate => candidate.id === id);
+      return user ? user.name || this.t("Benutzer ohne Namen")
+        : this.t("Fehlender oder inaktiver Benutzer ({number})", {number: ++missing});
+    });
+    const label = access.mode === "users" ? names.join(", ") || this.t("Menü deaktiviert") : this.accessLabel(access.mode);
+    summary.append(button, this.el("span", label));
+    parent.append(summary);
+  }
+
+  accessLabel(mode) {
+    const labels = {all: "Alle Benutzer", inherit: "Vom übergeordneten Menü übernehmen",
+      users: "Ausgewählte Benutzer", none: "Menü deaktiviert"};
+    return this.t(labels[mode]);
+  }
+
+  userOptions() {
+    return this.users.map(user => ({value: user.id, label: user.name || this.t("Benutzer ohne Namen")}));
+  }
+
+  async editAccess(node, top = false) {
+    if (this.loading || this.confirmation) return;
+    const original = node.access || {mode: top ? "all" : "inherit"};
+    let draft = JSON.parse(JSON.stringify(original));
+    let selectedUsers = [...(draft.users || [])];
+    const content = this.el("div", null, {class: "access-fields fields", id: "confirmation-text"});
+    const users = this.el("div", null);
+    const renderUsers = () => {
+      users.replaceChildren();
+      users.hidden = draft.mode !== "users";
+      if (users.hidden) return;
+      const options = this.userOptions();
+      for (const id of selectedUsers) {
+        if (!options.some(option => option.value === id)) options.push({value: id,
+          label: this.t("Fehlender oder inaktiver Benutzer ({number})", {number: options.length - this.users.length + 1})});
+      }
+      // HA has no dedicated user selector. Use its native multi-select with
+      // the active users supplied by our admin API, retaining unavailable IDs.
+      users.append(this.selector("users-" + node.id, this.t("Benutzer"),
+        {select: {multiple: true, options}}, [...selectedUsers], value => {
+          if (!Array.isArray(value) || value.some(id => !options.some(option => option.value === id))) return;
+          selectedUsers = [...new Set(value)];
+          draft = {mode: "users", users: [...selectedUsers]};
+        }));
+    };
+    const modeSelector = this.selector("access-" + node.id, this.t("Freigabe"), {select: {mode: "dropdown",
+        options: [top ? "all" : "inherit", "users", "none"].map(value => ({value, label: this.accessLabel(value)}))}},
+      draft.mode, mode => {
+        if (![top ? "all" : "inherit", "users", "none"].includes(mode) || mode === draft.mode) return;
+        draft = mode === "users" ? {mode, users: [...selectedUsers]} : {mode};
+        renderUsers();
+      });
+    modeSelector.required = true;
+    content.append(this.el("p", node.label, {class: "access-node-label"}), modeSelector, users,
+      this.el("p", this.t("Übergeordnete Freigaben und HA-Entitätsrechte gelten zusätzlich. Eine leere Benutzerauswahl sperrt den Eintrag.")));
+    renderUsers();
+    if (!await this.confirmAction(this.t("Benutzereinstellungen"), "", this.t("Übernehmen"), content,
+      {cancel: true, danger: false})) return;
+    if (!this.isConnected || this.loading || JSON.stringify(original) === JSON.stringify(draft)) return;
+    node.access = draft;
+    this.markDirty(); this.render();
+  }
+
+  renderMenuManagement(parent) {
+    const card = this.card(this.t("Menüs verwalten"), this.t("Menüs werden in dieser Reihenfolge auf dem Receiver angeboten."));
+    const menus = this.configuration.menus;
+    if (!menus.length) {
+      const empty = this.el("div", null, {class: "empty"});
+      empty.append(this.icon("file-tree"), this.el("p", this.t("Keine Menüs vorhanden. Lege ein Menü an.")));
+      card.append(empty);
+    }
+    const entries = this.el("ul", null, {class: "entry-list", "aria-label": this.t("Menüs verwalten")});
+    const sortable = this.sortableList(parent, (oldIndex, newIndex) => this.moveMenu(menus, oldIndex, newIndex));
+    menus.forEach((node, index) => {
+      const row = this.el("li", null, {class: "row", "data-node-id": node.id});
+      const handle = this.el("div", null, {class: "drag-handle", role: "img",
+        "aria-label": this.t("Zum Sortieren ziehen"), title: this.t("Zum Sortieren ziehen"), "aria-disabled": String(this.loading)});
+      handle.append(this.icon("drag-horizontal-variant"));
+      const icon = this.icon("file-tree");
+      icon.className = "entry-icon";
+      const content = this.el("div", null, {class: "entry-content"});
+      const name = this.field(content, "menu-label-" + node.id, this.t("Menütitel"), node.label, value => { node.label = value; });
+      const userCount = node.access?.users?.length || 0;
+      const access = node.access?.mode === "users"
+        ? this.t(userCount === 1 ? "{count} ausgewählter Benutzer" : "{count} ausgewählte Benutzer", {count: userCount})
+        : this.accessLabel(node.access?.mode || "all");
+      name.hint = this.t(node.children.length === 1 ? "{count} Eintrag" : "{count} Einträge", {count: node.children.length}) +
+        " · " + access;
+      const actions = this.el("div", null, {class: "entry-actions"});
+      const edit = this.iconButton(this.t("Menüeinträge bearbeiten"), "pencil", () => this.selectMenu(node.id));
+      edit.dataset.editMenu = node.id;
+      const duplicate = this.iconButton(this.t("Menü duplizieren"), "content-copy", () => {
+        const clone = JSON.parse(JSON.stringify(node));
+        const renew = item => { item.id = this.id(); if (item.children) item.children.forEach(renew); };
+        renew(clone);
+        clone.label = this.t("Kopie von {label}", {label: clone.label}).slice(0, 120);
+        menus.splice(menus.indexOf(node) + 1, 0, clone);
+        this.useConfiguration(this.configuration, clone.id);
+        this.markDirty(); this.render(); this.revealEntry(clone.id);
+      });
+      const remove = this.iconButton(this.t("Menü entfernen"), "delete-outline", async () => {
+        if (!await this.confirmAction(this.t("Menü mit allen Einträgen entfernen?"),
+          this.t("„{label}“ und alle enthaltenen Einträge werden aus dem Receiver-Menü entfernt.", {label: node.label}),
+          this.t("Menü entfernen"))) return;
+        if (!this.isConnected || this.loading || menus !== this.configuration.menus || !menus.includes(node)) return;
+        menus.splice(menus.indexOf(node), 1);
+        if (this.model.root === node) this.useConfiguration(this.configuration);
+        this.markDirty(); this.render();
+      });
+      remove.className = "danger";
+      actions.append(edit, duplicate,
+        this.iconButton(this.t("Nach oben"), "arrow-up", () => this.moveMenu(menus, index, index - 1), index === 0),
+        this.iconButton(this.t("Nach unten"), "arrow-down", () => this.moveMenu(menus, index, index + 1), index === menus.length - 1),
+        remove);
+      row.append(handle, icon, content, actions);
+      entries.append(row);
+    });
+    sortable.append(entries);
+    const body = this.el("div", null, {class: "card-body menu-add menu-create"});
+    body.append(this.button(this.t("Menü anlegen"), () => {
+      const node = {type: "menu", id: this.id(), label: this.t("Neues Menü"), children: [], access: {mode: "all"}};
+      menus.push(node);
+      this.useConfiguration(this.configuration, node.id);
+      this.markDirty(); this.render(); this.revealEntry(node.id);
+    }, false, "filled"));
+    card.append(sortable, body);
+    parent.append(card);
+  }
+
+  renderPreview(parent) {
+    const card = this.card(this.t("Vorschau"), this.t("Freigaben gelten für den HA-Benutzer des Receiver-Tokens."));
+    const body = this.el("div", null, {class: "card-body menu-add"});
+    body.append(this.selector("preview-user", this.t("Ansicht für Benutzer"), {select: {mode: "dropdown",
+      options: this.userOptions()}},
+    this.previewUser, id => { this.previewUser = this.users.some(user => user.id === id) ? id : undefined; this.render(); }));
+    body.append(this.button(this.t("Vorschau öffnen"), () => this.preview(), !this.previewUser || this.previewBusy));
+    card.append(body);
+    parent.append(card);
+  }
+
+  sortableList(menuColumn, moveItem) {
+    const sortable = this.el("ha-sortable", null);
+    sortable.disabled = this.loading;
+    sortable.rollback = true;
+    sortable.handleSelector = ".drag-handle";
+    sortable.draggableSelector = ".row";
+    // Shadow DOM hides the actual viewport from Sortable's parent detection.
+    sortable.options = {scroll: false};
+    sortable.addEventListener("drag-start", event => {
+      if (event.target === sortable && !this.loading && !this.confirmation) this.startDragScroll(sortable, menuColumn);
+    });
+    let pendingMove;
+    sortable.addEventListener("item-moved", event => {
+      event.stopPropagation();
+      if (event.target === sortable) pendingMove = event.detail;
+    });
+    sortable.addEventListener("drag-end", event => {
+      event.stopPropagation();
+      if (event.target !== sortable) return;
+      this.stopDragScroll?.();
+      const move = pendingMove;
+      pendingMove = undefined;
+      // Native HA rolls the DOM back after drag-end before we render the model.
+      if (move) queueMicrotask(() => {
+        if (sortable.isConnected) moveItem(move.oldIndex, move.newIndex);
+      });
+    });
+    return sortable;
+  }
+
+  async preview() {
+    if (this.loading || this.confirmation || this.previewBusy || !this.previewUser) return;
+    this.previewBusy = true;
+    this.render();
+    try {
+      const menu = await this._hass.callApi("POST", "enigmaha_companion/v1/preview",
+        {configuration: this.menuForSave(), user_id: this.previewUser});
+      if (!this.isConnected) return;
+      const content = this.el("div", null, {class: "preview-tree", id: "confirmation-text"});
+      const branch = node => {
+        const item = this.el("li", node.label);
+        if (node.type === "menu" && node.children.length) {
+          const list = this.el("ul", null);
+          list.append(...node.children.map(branch)); item.append(list);
+        }
+        return item;
+      };
+      if (menu.root.id === "__enigmaha_no_menu") content.append(this.el("p", this.t("Für diesen Benutzer ist kein Menü freigegeben.")));
+      else { const list = this.el("ul", null); list.append(branch(menu.root)); content.append(list); }
+      await this.confirmAction(this.t("Vorschau"), "", this.t("Schließen"), content);
+    } catch (_) {
+      this.message = "Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.";
+    } finally { this.previewBusy = false; if (this.isConnected) this.render(); }
   }
 
   iconButton(label, icon, action, disabled = false) {
@@ -246,7 +517,7 @@ class EnigmaHAPanel extends HTMLElement {
     return button;
   }
 
-  confirmAction(title, text, confirmText) {
+  confirmAction(title, text, confirmText, content = null, options = {}) {
     if (this.confirmation) return Promise.resolve(false);
     // A modal HTML dialog supplies focus trapping, Escape and a top-layer
     // backdrop. Its surface uses HA theme tokens and native HA action buttons.
@@ -264,24 +535,26 @@ class EnigmaHAPanel extends HTMLElement {
       if (previousFocus?.isConnected) previousFocus.focus();
       resolve(accepted);
     };
-    const cancel = this.button(this.t("Abbrechen"), () => finish(false));
+    const cancel = (options.cancel ?? !content) ? this.button(this.t("Abbrechen"), () => finish(false)) : null;
     const confirm = this.button(confirmText, () => finish(true), false, "filled");
     // Dialog actions remain usable while background editor actions are blocked.
-    cancel.onclick = () => finish(false);
+    if (cancel) cancel.onclick = () => finish(false);
     confirm.onclick = () => finish(true);
-    cancel.setAttribute("autofocus", "");
-    confirm.setAttribute("variant", "danger");
+    const initialFocus = cancel || confirm;
+    initialFocus.setAttribute("autofocus", "");
+    if (options.danger ?? !content) confirm.setAttribute("variant", "danger");
     const actions = this.el("div", null, {class: "dialog-actions"});
-    actions.append(cancel, confirm);
+    if (cancel) actions.append(cancel);
+    actions.append(confirm);
     dialog.append(this.el("h2", title, {id: "confirmation-title"}),
-      this.el("p", text, {id: "confirmation-text"}), actions);
+      content || this.el("p", text, {id: "confirmation-text"}), actions);
     dialog.addEventListener("cancel", event => { event.preventDefault(); finish(false); });
     dialog.addEventListener("close", () => finish(false));
     this.confirmation = {element: dialog, cancel: () => finish(false)};
     this.shadowRoot.append(dialog);
     dialog.showModal();
-    Promise.resolve(cancel.updateComplete).then(() => {
-      if (dialog.open) cancel.focus();
+    Promise.resolve(initialFocus.updateComplete).then(() => {
+      if (dialog.open && initialFocus.isConnected) initialFocus.focus();
     });
     return result;
   }
@@ -440,13 +713,13 @@ class EnigmaHAPanel extends HTMLElement {
     this.message = "Menü wird geladen …";
     this.render();
     try {
-      const [model] = await Promise.all([
-        this._hass.callApi("GET", "enigmaha_companion/v1/config"),
+      const [configuration, users] = await Promise.all([
+        this._hass.callApi("GET", "enigmaha_companion/v1/configuration"),
+        this._hass.callApi("GET", "enigmaha_companion/v1/users"),
         this.ensureSelectors(),
       ]);
-      this.model = model;
-      this.selectedEntity = undefined;
-      this.path = [model.root];
+      this.users = users.users;
+      this.useConfiguration(configuration, this.model?.root?.id);
       this.dirty = false;
       this.message = "";
     } catch (_) {
@@ -480,8 +753,6 @@ class EnigmaHAPanel extends HTMLElement {
     if (this.compatibilityError) box.append(this.el("p", this.t("Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen."), {class: "version-warning"}));
     if (!this.compatibility) return;
     const {version, protocol_version: protocol, receivers} = this.compatibility;
-    box.append(this.el("p", this.t("HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.", {version, protocol: protocol ?? "?"})));
-    if (!receivers.length) box.append(this.el("p", this.t("Noch keine Receiver-Anfrage in den letzten 5 Minuten. Die Prüfung erfolgt beim Verbinden.")));
     for (const receiver of receivers) {
       const message = receiver.status === "compatible"
         ? "Receiver {address}: Version {version} passt."
@@ -510,9 +781,6 @@ class EnigmaHAPanel extends HTMLElement {
     const updates = this.compatibility.updates;
     if (!updates) return;
     if (this.updateMessage) box.append(this.el("p", this.t(this.updateMessage), {class: "version-warning"}));
-    if (!updates.hacs) {
-      box.append(this.el("p", this.t("HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.")));
-    }
     const {job, candidate} = updates;
     if (job) {
       if (job.error === "ha_restart_failed") box.append(this.el("p", this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."), {class: "version-warning"}));
@@ -594,15 +862,17 @@ class EnigmaHAPanel extends HTMLElement {
     this.render();
     try {
       const ids = this.path.map(node => node.id);
-      this.model = await this._hass.callApi("PUT", "enigmaha_companion/v1/config", this.menuForSave());
-      this.path = [this.model.root];
+      const configuration = await this._hass.callApi("PUT", "enigmaha_companion/v1/configuration", this.menuForSave());
+      this.useConfiguration(configuration, ids[0]);
       for (const id of ids.slice(1)) {
         const child = this.path[this.path.length - 1].children.find(n => n.id === id);
         if (!child) break;
         this.path.push(child);
       }
       this.dirty = false;
-      this.message = "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.";
+      this.message = "";
+      this.dispatchEvent(new CustomEvent("hass-notification", {bubbles: true, composed: true,
+        detail: {message: this.t("Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.")}}));
     } catch (error) {
       this.message = Number(error.status_code || error.status) === 409
         ? "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen."
@@ -687,7 +957,7 @@ class EnigmaHAPanel extends HTMLElement {
     selector.selector = this.entityDefinition();
     selector.value = this.selectedEntity;
     const add = this.shadowRoot.querySelector('[data-action="add-entity"]');
-    if (add) add.disabled = this.loading || !this.selectorsReady || !this.selectedEntity || this.path.length >= 9;
+    if (add) add.disabled = this.loading || !this.selectorsReady || !this.selectedEntity || this.path.length >= this.maxPathLength();
   }
 
   setFilter(name, value) {
@@ -741,7 +1011,7 @@ class EnigmaHAPanel extends HTMLElement {
       this.markDirty();
       this.render();
       this.revealEntry(node.id);
-    }, !this.selectedEntity || !this.selectorsReady || this.path.length >= 9, "filled");
+    }, !this.selectedEntity || !this.selectorsReady || this.path.length >= this.maxPathLength(), "filled");
     button.dataset.action = "add-entity";
     add.append(picker, button);
     section.append(add);
@@ -800,6 +1070,10 @@ class EnigmaHAPanel extends HTMLElement {
       .empty ha-icon{--mdc-icon-size:40px;margin-bottom:8px}.empty strong{font-size:16px;font-weight:500;color:var(--primary-text-color)}.empty p{margin:0;max-width:320px}
       .filter-details{margin-bottom:20px}summary{cursor:pointer;color:var(--primary-text-color);padding:4px 0;min-height:32px}summary:focus-visible{outline:2px solid var(--primary-color);outline-offset:4px}
       .filters{display:grid;gap:16px;margin:16px 0 8px}ha-selector{display:block;min-width:0;width:100%}
+      .access-summary{display:flex;align-items:center;gap:12px}.access-summary span{min-width:0;font-size:12px;color:var(--secondary-text-color);overflow-wrap:anywhere}
+      .access-summary ha-icon-button{flex:none;color:var(--primary-color)}.access-fields{min-width:0}.access-fields ha-selector{display:block;min-width:0}.access-fields .access-node-label{color:var(--primary-text-color);font-weight:500}
+      .menu-actions{display:flex;flex-wrap:wrap;gap:8px}.preview-tree{max-height:60vh;overflow:auto;overflow-wrap:anywhere}
+      .menu-create{padding-top:16px;border-top:1px solid var(--divider-color)}
       .entity-add,.menu-add{display:grid;gap:16px}.entity-add ha-button,.menu-add ha-button{justify-self:end}
       .depth-notice{margin:0 0 16px;color:var(--secondary-text-color)}
       @media(max-width:900px){:host{display:block;overflow:auto}main{display:block;min-height:auto}.editor-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.column{display:contents;overflow:visible;scrollbar-gutter:auto}.row{scroll-margin-block:calc(var(--header-height,64px) + 16px) 16px}.save-state{max-width:150px}}
@@ -822,7 +1096,7 @@ class EnigmaHAPanel extends HTMLElement {
     const title = this.el("div", null);
     title.append(this.el("h2", this.t("Receiver-Menü")),
       this.el("p", this.t("Gestalte das Menü für deine Enigma2-Receiver.")));
-    intro.append(title, this.el("span", this.dirty ? this.t("Ungespeicherte Änderungen") : this.model ? this.t("Alle Änderungen gespeichert") : "", {class: "save-state", role: "status"}));
+    intro.append(title, this.el("span", this.dirty ? this.t("Ungespeicherte Änderungen") : "", {class: "save-state", role: "status"}));
     main.append(intro, this.el("p", this.t(this.message), {class: "notice", role: "status", "aria-live": "polite"}));
     main.append(this.el("div", null, {class: "compatibility", role: "status", "aria-live": "polite"}));
     this.renderCompatibility();
@@ -833,10 +1107,22 @@ class EnigmaHAPanel extends HTMLElement {
     const toolsColumn = this.el("div", null, {class: "column tools-column", tabindex: "0", role: "region", "aria-label": this.t("Menüeinstellungen")});
     layout.append(menuColumn, toolsColumn);
     main.append(layout);
+    if (this.view === "menus" || !this.model.root) {
+      this.view = "menus";
+      menuColumn.setAttribute("aria-label", this.t("Menüs verwalten"));
+      toolsColumn.setAttribute("aria-label", this.t("Vorschau"));
+      menuColumn.dataset.menuId = "__menus";
+      this.renderMenuManagement(menuColumn);
+      this.renderPreview(toolsColumn);
+      if (previousMenu?.dataset.menuId === "__menus") menuColumn.scrollTop = menuScroll;
+      toolsColumn.scrollTop = previousMenu?.dataset.menuId === "__menus" ? toolsScroll : 0;
+      return;
+    }
     const current = this.path[this.path.length - 1];
     menuColumn.dataset.menuId = current.id;
     const menu = this.el("ha-card", null);
     const crumbs = this.el("nav", null, {class: "breadcrumbs", "aria-label": this.t("Menüpfad")});
+    crumbs.append(this.button(this.t("Zur Menüverwaltung"), () => this.showMenus()), this.icon("chevron-right"));
     this.path.forEach((node, index) => {
       if (index) crumbs.append(this.icon("chevron-right"));
       if (index === this.path.length - 1) {
@@ -848,6 +1134,11 @@ class EnigmaHAPanel extends HTMLElement {
     const heading = this.el("div", null, {class: "section-heading"});
     heading.append(this.el("h2", this.t("Menüeinträge")), this.el("p", this.t("Einträge in „{label}“ bearbeiten und sortieren.", {label: current.label})));
     menu.append(crumbs, heading);
+    {
+      const access = this.el("div", null, {class: "card-body"});
+      this.renderAccess(access, current, current === this.model.root);
+      menu.append(access);
+    }
     if (!current.children.length) {
       const empty = this.el("div", null, {class: "empty"});
       empty.append(this.icon("format-list-bulleted"), this.el("strong", this.t("Dieses Menü ist noch leer")),
@@ -855,40 +1146,13 @@ class EnigmaHAPanel extends HTMLElement {
       menu.append(empty);
     }
     const entries = this.el("ul", null, {class: "entry-list", "aria-label": this.t("Menüeinträge")});
-    const sortable = this.el("ha-sortable", null);
-    sortable.disabled = this.loading;
-    sortable.rollback = true;
-    sortable.handleSelector = ".drag-handle";
-    sortable.draggableSelector = ".row";
-    // Document hit testing sees the shadow host, so Sortable's automatic parent
-    // detection misses the list. Scroll its actual viewport ourselves, including
-    // while the pointer is held still; disable the competing library timer.
-    sortable.options = {scroll: false};
-    sortable.addEventListener("drag-start", event => {
-      if (event.target === sortable && !this.loading && !this.confirmation) this.startDragScroll(sortable, menuColumn);
-    });
-    let pendingMove;
-    sortable.addEventListener("item-moved", event => {
-      event.stopPropagation();
-      if (event.target === sortable) pendingMove = event.detail;
-    });
-    sortable.addEventListener("drag-end", event => {
-      event.stopPropagation();
-      if (event.target !== sortable) return;
-      this.stopDragScroll?.();
-      const move = pendingMove;
-      pendingMove = undefined;
-      // HA rolls the DOM back after drag-end; update the model/render afterwards.
-      if (move) queueMicrotask(() => {
-        if (sortable.isConnected) this.moveEntry(current, move.oldIndex, move.newIndex);
-      });
-    });
+    const sortable = this.sortableList(menuColumn, (oldIndex, newIndex) => this.moveEntry(current, oldIndex, newIndex));
     current.children.forEach((node, index) => {
       const row = this.el("li", null, {class: "row", "data-node-id": node.id});
       const handle = this.el("div", null, {class: "drag-handle", role: "img",
         "aria-label": this.t("Zum Sortieren ziehen"), title: this.t("Zum Sortieren ziehen"), "aria-disabled": String(this.loading)});
       handle.append(this.icon("drag-horizontal-variant"));
-      const icon = node.type === "menu" ? this.icon("folder-outline")
+      const icon = node.type === "menu" ? this.icon("file-tree")
         : this.el("ha-state-icon", null, {"aria-hidden": "true", "data-entity-id": node.entity_id});
       icon.className = "entry-icon";
       const content = this.el("div", null, {class: "entry-content"});
@@ -910,8 +1174,10 @@ class EnigmaHAPanel extends HTMLElement {
         current.children.splice(position, 1); this.markDirty(); this.render();
       });
       remove.className = "danger";
+      const access = this.iconButton(this.t("Benutzereinstellungen"), "account-edit", () => this.editAccess(node));
+      access.dataset.accessNode = node.id;
       rowActions.append(this.iconButton(this.t("Nach oben"), "arrow-up", () => move(-1), index === 0),
-        this.iconButton(this.t("Nach unten"), "arrow-down", () => move(1), index === current.children.length - 1), remove);
+        this.iconButton(this.t("Nach unten"), "arrow-down", () => move(1), index === current.children.length - 1), access, remove);
       row.append(handle, icon, content, rowActions);
       entries.append(row);
     });
@@ -919,33 +1185,6 @@ class EnigmaHAPanel extends HTMLElement {
     menu.append(sortable);
     menuColumn.append(menu);
     this.updateEntryEntities();
-
-    const display = this.card(this.t("Darstellung auf dem Receiver"), this.t("Titel und Schrift für das Receiver-Menü festlegen."));
-    display.className = "receiver-display";
-    const fields = this.el("div", null, {class: "card-body fields"});
-    this.field(fields, "menu-title", this.t("Menütitel"), this.model.root.label, value => { this.model.root.label = value; });
-    const fontOptions = [
-      {value: "Regular", label: this.t("Regular (Standard)")},
-      {value: "Fixed", label: this.t("Fixed (feste Zeichenbreite)")},
-      {value: "Console", label: "Console"},
-      {value: "Italic", label: this.t("Italic (Skin-Schrift)")},
-      {value: "Gradient_Font", label: "Gradient_Font (GradientFHD)"},
-    ];
-    const family = this.model.display.font_family;
-    if (!fontOptions.some(option => option.value === family)) {
-      fontOptions.push({value: family, label: family});
-    }
-    const font = this.selectionField(fields, "font-family", this.t("Schriftfamilie"), family, fontOptions,
-      value => { this.model.display.font_family = value; });
-    font.helper = this.t("Verfügbarkeit abhängig vom Receiver-Skin. Ersatzschrift: Regular.");
-    const sizes = Array.from({length: 49}, (_, index) => {
-      const value = String(index + 16);
-      return {value, label: value === "28" ? this.t("28 (Standard)") : value};
-    });
-    const size = this.selectionField(fields, "font-size", this.t("Schriftgröße"), this.model.display.font_size, sizes,
-      value => { this.model.display.font_size = Number(value); });
-    size.helper = this.t("Kann in den Receiver-Einstellungen überschrieben werden.");
-    display.append(fields);
 
     const entity = this.card(this.t("Entität hinzufügen"), this.t("Wähle eine Entität aus Home Assistant aus."));
     const entityBody = this.el("div", null, {class: "card-body"});
@@ -958,9 +1197,9 @@ class EnigmaHAPanel extends HTMLElement {
     const menuName = this.textField("new-menu", this.t("Name des Untermenüs"), this.menuDraft,
       value => {
         this.menuDraft = typeof value === "string" ? value : "";
-        addMenuButton.disabled = this.loading || this.path.length >= 9 || !this.menuDraft.trim();
+        addMenuButton.disabled = this.loading || this.path.length >= this.maxPathLength() || !this.menuDraft.trim();
       }, {required: false});
-    menuName.disabled = this.loading || this.path.length >= 9;
+    menuName.disabled = this.loading || this.path.length >= this.maxPathLength();
     const addMenuButton = this.button(this.t("Untermenü hinzufügen"), () => {
       if (!this.menuDraft.trim()) return;
       const node = {type: "menu", id: this.id(), label: this.menuDraft.trim(), children: []};
@@ -968,17 +1207,17 @@ class EnigmaHAPanel extends HTMLElement {
       this.menuDraft = "";
       this.markDirty(); this.render();
       this.revealEntry(node.id);
-    }, this.path.length >= 9 || !this.menuDraft.trim(), "filled");
+    }, this.path.length >= this.maxPathLength() || !this.menuDraft.trim(), "filled");
     addMenu.append(menuName, addMenuButton);
     submenu.append(addMenu);
-    if (this.path.length >= 9) {
+    if (this.path.length >= this.maxPathLength()) {
       entityBody.prepend(this.el("p", this.t("Die maximale Menütiefe ist erreicht. Wechsle zum Hinzufügen eine Ebene zurück."), {class: "depth-notice"}));
     }
-    toolsColumn.append(submenu, display);
+    toolsColumn.append(submenu);
     // Refreshes (filters, save, deletion) must not reset either scroll region.
     // Entering another menu starts at its first entry.
     if (previousMenu?.dataset.menuId === current.id) menuColumn.scrollTop = menuScroll;
-    toolsColumn.scrollTop = toolsScroll;
+    if (previousMenu?.dataset.menuId !== "__menus") toolsColumn.scrollTop = toolsScroll;
   }
 }
 if (!customElements.get("enigmaha-panel")) customElements.define("enigmaha-panel", EnigmaHAPanel);

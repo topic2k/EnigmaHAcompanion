@@ -88,14 +88,20 @@ Sprache im HA-Benutzerprofil.
    Die Filter für Entitätstyp, Bereich und Geräteklasse grenzen die Auswahl ein.
 3. Anzeigenamen bearbeiten und die Reihenfolge mit dem Ziehgriff oder ↑/↓ ändern.
    Beim Ziehen an den Listenrand scrollt die Liste automatisch.
-4. Unter **Darstellung auf dem Receiver** Schriftfamilie und Schriftgröße wählen.
+4. Schriftfamilie und Schriftgröße bei Bedarf unter **Einstellungen → Geräte &
+   Dienste → EnigmaHA Companion → Optionen** wählen. Menütitel lassen sich direkt
+   in der Menüübersicht bearbeiten.
 5. **Speichern** wählen.
 
 Lampen, Schalter und `input_boolean` werden automatisch als schaltbar eingerichtet.
 Andere Entitäten dienen der Anzeige. Der angemeldete Receiver-Benutzer benötigt
 auch bei schaltbaren Einträgen die passenden HA-Berechtigungen.
 
-Alle Receiver verwenden dasselbe Menü. Die Menüdatei
+Über **Menüs verwalten** können gemeinsame und persönliche Menüs angelegt werden.
+**Freigabe** begrenzt ganze Menüs, Untermenüs und einzelne Einträge auf ausgewählte
+HA-Benutzer. Maßgeblich ist der Benutzer des Receiver-Tokens. Die
+[Anleitung für Benutzer-Menüs](Benutzermenues.md) erklärt Einrichtung, Vorschau
+und die automatische Übernahme bestehender Menüs. Die Menüdatei
 `.storage/enigmaha_companion.menu` wird von Home Assistant verwaltet und sollte
 nicht bei laufendem HA manuell bearbeitet werden.
 

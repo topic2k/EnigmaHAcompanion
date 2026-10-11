@@ -3,6 +3,7 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
+    "Für diesen Benutzer ist kein Menü freigegeben.": "No menu is shared with this user.",
     "Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.": "Connected · Receiver {receiver}, HA {ha} · Protocol {protocol} matches.",
     "Protokolle ungleich: Receiver {receiver}, HA {ha}. Reparatur in Home Assistant unter Einstellungen öffnen.": "Protocols differ: receiver {receiver}, HA {ha}. Open Repairs in Home Assistant Settings.",
     "Ältere HA-Integration verlangt denselben Release. HA und Receiver einmal gemeinsam aktualisieren.": "The older HA integration requires matching releases. Update HA and receiver together once.",

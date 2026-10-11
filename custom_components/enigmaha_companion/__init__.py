@@ -9,7 +9,7 @@ from homeassistant.helpers.storage import Store
 
 from .api import CompanionRuntime, register_views
 from .const import DOMAIN, VERSION, empty_menu
-from .enigmaha_protocol import validate_menu
+from .menus import validate_configuration
 from .updates import UpdateManager
 from .repair_issues import RepairCoordinator
 
@@ -31,7 +31,11 @@ async def async_setup(hass, config):
 async def async_setup_entry(hass, entry):
     store = Store(hass, 1, DOMAIN + ".menu")
     saved = await store.async_load()
-    menu = validate_menu(saved if saved is not None else empty_menu())
+    menu = validate_configuration(saved if saved is not None else empty_menu())
+    if saved is not None and saved.get("schema_version") == 1:
+        # Keep the storage envelope/key; the payload migration is idempotent and
+        # preserves menu IDs, display settings and the persisted revision.
+        await store.async_save(menu)
     runtime = CompanionRuntime(hass, store, menu, entry)
     update_store = Store(hass, 1, DOMAIN + ".update")
     runtime.updates = UpdateManager(hass, update_store, await update_store.async_load())
@@ -59,6 +63,7 @@ async def async_unload_entry(hass, entry):
     if runtime is not None:
         await runtime.updates.close()
         runtime.repairs.close()
+        runtime.clear_editor_notifications()
         async with runtime.lock:
             runtime.active = False
             hass.data[DOMAIN].pop("runtime", None)

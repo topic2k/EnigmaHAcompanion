@@ -26,8 +26,9 @@ class BootstrapTests(unittest.TestCase):
         client.start()
         self.addCleanup(client.stop)
         self.fixture = json.loads((ROOT / "dev/ha/menu.json").read_text(encoding="utf-8"))
-        self.empty = copy.deepcopy(self.fixture)
-        self.empty["root"]["children"] = []
+        self.empty = {"schema_version": 2, "revision": 1, "display": copy.deepcopy(self.fixture["display"]),
+                      "menus": [{"type": "menu", "id": "home", "label": "Home Assistant", "children": [],
+                                 "access": {"mode": "all"}}]}
         self.tokens = {"access_token": "test-access", "refresh_token": "test-refresh"}
 
     def prepare(self, done=(), menu=None, entries=None):
@@ -64,7 +65,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(json.loads(ha_dev.ACCESS.read_text())["refresh_token"], "test-refresh")
         for step in ("users", "core_config", "analytics", "integration"):
             self.assertIn("/api/onboarding/" + step, self.paths())
-        self.client.request.assert_any_call("/api/enigmaha_companion/v1/config",
+        self.client.request.assert_any_call("/api/enigmaha_companion/v1/configuration",
                                             self.fixture, method="PUT")
 
     def test_rerun_preserves_existing_login_integration_and_edited_menu(self):
@@ -97,7 +98,16 @@ class BootstrapTests(unittest.TestCase):
     def test_new_integration_does_not_overwrite_existing_menu(self):
         self.prepare(menu=self.fixture)
         ha_dev.bootstrap()
-        self.assertNotIn("/api/enigmaha_companion/v1/config", self.paths())
+        self.assertNotIn("/api/enigmaha_companion/v1/configuration", self.paths())
+
+    def test_multiple_or_restricted_menus_are_never_seeded(self):
+        for menus in ([], [dict(self.empty["menus"][0], access={"mode": "none"})],
+                      [self.empty["menus"][0], dict(self.empty["menus"][0], id="second")]):
+            with self.subTest(menus=menus):
+                self.client.reset_mock()
+                self.prepare(menu=dict(self.empty, menus=menus))
+                ha_dev.bootstrap()
+                self.assertNotIn("/api/enigmaha_companion/v1/configuration", self.paths())
 
     def test_rejects_credentials_from_another_url(self):
         ha_dev.save_access(dict(ha_dev.TEST_LOGIN, url="http://another-instance"))

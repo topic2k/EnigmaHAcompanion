@@ -13,7 +13,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 async function createPanel({lazySelectors = false, lazySortable = false, brokenSelectors = false,
   savedLanguage, integrationLanguage, haLanguage, haLocale, browserLanguages,
-  blockedStorage = false, hassBeforeConnect = false} = {}) {
+  blockedStorage = false, hassBeforeConnect = false, overview = false} = {}) {
   const dom = new JSDOM("<!doctype html><body></body>", {url: "http://ha.test", runScripts: "outside-only"});
   if (browserLanguages !== undefined) {
     Object.defineProperty(dom.window.navigator, "languages", {configurable: true, value: browserLanguages});
@@ -64,9 +64,11 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   const panel = dom.window.document.createElement("enigmaha-panel");
   if (!hassBeforeConnect) dom.window.document.body.append(panel);
   let saved;
+  const notifications = [];
+  dom.window.document.addEventListener("hass-notification", event => notifications.push(event));
   let failSave = false;
-  const model = {schema_version: 1, revision: 1, display: {font_family: "Regular", font_size: 28},
-    root: {type: "menu", id: "home", label: "Home Assistant", children: []}};
+  const model = {schema_version: 2, revision: 1, display: {font_family: "Regular", font_size: 28},
+    menus: [{type: "menu", id: "home", label: "Home Assistant", children: [], access: {mode: "all"}}]};
   const requests = [];
   const compatibilityRequests = [];
   panel.hass = {
@@ -85,6 +87,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
       compatibilityRequests.push(route);
       return {version: "1.0.0", receivers: [], editor_language: integrationLanguage};
     }
+    if (route.endsWith("/users")) return {users: [{id: "anna", name: "Anna"}, {id: "ben", name: "Ben"}]};
     requests.push(route);
     if (method === "PUT") {
       if (failSave) throw {status_code: 409};
@@ -97,6 +100,8 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   await tick();
   const root = panel.shadowRoot;
   const button = text => [...root.querySelectorAll("ha-button, ha-icon-button")].find(node => (node.label || node.textContent) === text);
+  // Existing entry-editor cases enter through the new overview's pencil action.
+  if (!overview) button(panel.t("Menüeinträge bearbeiten"))?.click();
   const select = (name, value) => {
     const control = root.querySelector(`[data-selector="${name}"], [data-field="${name}"]`);
     if (control.localName === "ha-input") {
@@ -105,19 +110,26 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     } else control.dispatchEvent(
       new dom.window.CustomEvent("value-changed", {detail: {value}, bubbles: true, composed: true}));
   };
+  const renameMenu = value => {
+    const id = panel.model.root.id;
+    const editing = panel.view === "entries";
+    if (editing) button(panel.t("Zur Menüverwaltung")).click();
+    select("menu-label-" + id, value);
+    if (editing) root.querySelector(`[data-edit-menu="${id}"]`).click();
+  };
   const setIntegrationLanguage = async language => {
     integrationLanguage = language;
     await panel.loadCompatibility();
   };
-  return {dom, panel, root, button, select, requests, compatibilityRequests, scrolled, layoutMedia,
-    setIntegrationLanguage, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
+  return {dom, panel, root, button, select, requests, notifications, compatibilityRequests, scrolled, layoutMedia,
+    setIntegrationLanguage, renameMenu, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
 }
 
 test("version status refresh warns about all receivers without changing unsaved fields", async () => {
   const ui = await createPanel();
   try {
     assert.equal(ui.compatibilityRequests.length, 1);
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Noch keine Receiver-Anfrage/);
+    assert.equal(ui.root.querySelector(".compatibility").textContent, "");
     ui.select("new-menu", "Wohnzimmer");
     ui.button("Untermenü hinzufügen").click();
     const field = ui.root.querySelector('[data-field="menu-label"]');
@@ -231,7 +243,7 @@ test("HA restart requires separate consent and saved edits; HACS absence and fai
     assert.match(ui.root.querySelector(".compatibility").textContent, /HA-Neustart angefordert/);
     ui.panel.compatibility.updates = {hacs: null, candidate: null, job: null};
     ui.panel.renderCompatibility();
-    assert.match(ui.root.querySelector(".compatibility").textContent, /HACS-Update nicht verfügbar/);
+    assert.doesNotMatch(ui.root.querySelector(".compatibility").textContent, /HACS-Update nicht verfügbar/);
     ui.panel.compatibility.updates.job = job;
     ui.panel.renderCompatibility();
     assert.match(ui.root.querySelector(".compatibility").textContent, /Receiver verwenden die Zielversion/);
@@ -274,14 +286,14 @@ test("integration language switching preserves the entire unsaved editor", async
     assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), null);
     ui.button("Save").click();
     await tick();
-    assert.equal(ui.saved().root.children[0].label, "Wohnzimmer");
-    assert.equal(ui.saved().root.children[0].children[0].label, "Lampe <img src=x>");
-    assert.equal(ui.root.querySelector(".notice").textContent,
-      "Saved. The receiver menu will update on its next refresh.");
+    assert.equal(ui.saved().menus[0].children[0].label, "Wohnzimmer");
+    assert.equal(ui.saved().menus[0].children[0].children[0].label, "Lampe <img src=x>");
+    assert.equal(ui.root.querySelector(".notice").textContent, "");
+    assert.equal(ui.notifications.at(-1).detail.message, "Saved. The receiver menu will update on its next refresh.");
     await ui.setIntegrationLanguage("de");
     assert.ok(ui.button("Speichern"));
     assert.equal(ui.panel.dirty, false);
-    assert.match(ui.root.querySelector(".notice").textContent, /^Gespeichert/);
+    assert.equal(ui.root.querySelector(".notice").textContent, "");
   } finally {ui.dom.window.close();}
 });
 
@@ -376,7 +388,7 @@ test("English editor translates errors, confirmation dialogs, counts and dynamic
     assert.equal(ui.root.querySelector(".section-heading p").textContent, `Edit and sort entries in “${name}”.`);
     ui.select("entity", "light.ceiling");
     ui.button("Add entity").click();
-    ui.root.querySelector(".breadcrumbs ha-button").click();
+    ui.button("Home Assistant").click();
     assert.equal(ui.root.querySelector('[data-field^="label-"]').hint, "1 entry");
     ui.button("Remove").click();
     assert.equal(ui.root.querySelector("dialog h2").textContent, "Remove the submenu and all its entries?");
@@ -410,7 +422,7 @@ test("create nested menu, select entity, save through HA", async () => {
     assert.equal(ui.root.querySelector("img"), null, "Entity labels must not become HTML");
     ui.button("Speichern").click();
     await tick();
-    assert.equal(ui.saved().root.children[0].label, "Wohnzimmer");
+    assert.equal(ui.saved().menus[0].children[0].label, "Wohnzimmer");
     assert.equal(ui.panel.model.revision, 2);
     assert.equal(ui.panel.path.at(-1).label, "Wohnzimmer");
     assert.equal(ui.panel.dirty, false);
@@ -580,7 +592,7 @@ test("native selector is loaded on first visit without a previous HA editor", as
     assert.equal(picker.selector.entity.multiple, false);
     assert.equal(picker.hass, ui.panel._hass);
     assert.ok(ui.button("Entität hinzufügen").disabled);
-    assert.deepEqual(ui.requests, ["enigmaha_companion/v1/config"]);
+    assert.deepEqual(ui.requests, ["enigmaha_companion/v1/configuration"]);
   } finally {ui.dom.window.close();}
 });
 
@@ -642,73 +654,41 @@ test("failed HA component loading displays an error instead of an inert selector
 });
 
 
-test("native form edits and appearance dropdowns persist values without replacing focused fields", async () => {
-  const ui = await createPanel();
+test("native menu title and entry edits preserve display settings without appearance controls", async () => {
+  const ui = await createPanel({overview: true});
   try {
-    assert.equal(ui.button("Speichern").disabled, true);
-    const title = ui.root.querySelector('[data-field="menu-title"]');
-    const size = ui.root.querySelector('[data-selector="font-size"]');
-    const font = ui.root.querySelector('[data-selector="font-family"]');
-    assert.equal(size.localName, "ha-selector");
-    assert.equal(size.selector.select.mode, "dropdown");
-    assert.equal(size.required, true);
-    assert.equal(size.value, "28");
-    assert.equal(size.selector.select.options[0].value, "16");
-    assert.equal(size.selector.select.options.at(-1).value, "64");
-    assert.equal(font.selector.select.mode, "dropdown");
-    assert.equal(font.required, true);
-    ui.select("menu-title", "Mein Zuhause");
-    ui.select("font-family", "Fixed");
-    ui.select("font-size", "36");
-    assert.equal(ui.root.querySelector('[data-field="menu-title"]'), title);
+    const title = ui.root.querySelector('[data-field="menu-label-home"]');
+    ui.select("menu-label-home", "Mein Zuhause");
+    assert.equal(ui.root.querySelector('[data-field="menu-label-home"]'), title);
     assert.equal(ui.button("Speichern").disabled, false);
-    assert.equal(ui.root.querySelector(".save-state").textContent, "Ungespeicherte Änderungen");
+    ui.button("Menüeinträge bearbeiten").click();
+    assert.equal(ui.root.querySelector('.receiver-display'), null);
+    assert.equal(ui.root.querySelector('[data-selector="font-family"]'), null);
+    assert.equal(ui.root.querySelector('[data-selector="font-size"]'), null);
     ui.select("entity", "light.ceiling");
     ui.button("Entität hinzufügen").click();
     const node = ui.panel.model.root.children[0];
     ui.select("label-" + node.id, "Deckenlicht");
-    assert.equal(ui.root.querySelector('[data-selector^="toggle-"]'), null);
     ui.button("Speichern").click();
     await tick();
-    assert.equal(ui.saved().root.label, "Mein Zuhause");
-    assert.equal(ui.saved().display.font_size, 36);
-    assert.equal(ui.saved().display.font_family, "Fixed");
-    assert.equal(ui.saved().root.children[0].label, "Deckenlicht");
-    assert.deepEqual(ui.saved().root.children[0].actions, ["toggle"]);
+    assert.equal(ui.saved().menus[0].label, "Mein Zuhause");
+    assert.deepEqual(ui.saved().display, {font_family: "Regular", font_size: 28});
+    assert.equal(ui.saved().menus[0].children[0].label, "Deckenlicht");
+    assert.deepEqual(ui.saved().menus[0].children[0].actions, ["toggle"]);
     assert.equal(ui.button("Speichern").disabled, true);
   } finally {ui.dom.window.close();}
 });
 
-test("appearance dropdowns retain custom saved fonts and reject empty or invalid choices", async () => {
+test("editor round trips a custom saved font without offering appearance fields", async () => {
   const ui = await createPanel();
   try {
     ui.panel.model.display = {font_family: "MySkinFont", font_size: 31};
     ui.panel.render();
-    const font = ui.root.querySelector('[data-selector="font-family"]');
-    const size = ui.root.querySelector('[data-selector="font-size"]');
-    assert.equal(font.value, "MySkinFont");
-    assert.ok(font.selector.select.options.some(option => option.value === "MySkinFont"));
-    assert.equal(size.value, "31");
-    for (const value of [undefined, "", "15", "65", "31.5", "abc"]) ui.select("font-size", value);
-    for (const value of [undefined, "", "unlisted font"]) ui.select("font-family", value);
-    assert.equal(ui.panel.model.display.font_family, "MySkinFont");
-    assert.equal(ui.panel.model.display.font_size, 31);
-    assert.equal(font.value, "MySkinFont");
-    assert.equal(size.value, "31");
-    assert.equal(ui.panel.dirty, false);
-    ui.select("font-size", "16");
-    assert.equal(ui.panel.model.display.font_size, 16);
-    ui.select("font-size", "64");
-    ui.select("font-size", undefined);
-    assert.equal(ui.panel.model.display.font_size, 64);
-    assert.equal(size.value, "64");
-    ui.select("font-family", "Regular");
-    ui.select("font-family", undefined);
-    assert.equal(font.value, "Regular");
-    ui.button("Speichern").click();
-    await tick();
-    assert.equal(ui.saved().display.font_family, "Regular");
-    assert.equal(ui.saved().display.font_size, 64);
+    ui.renameMenu("Mein Zuhause");
+    assert.equal(ui.root.querySelector('[data-selector="font-family"]'), null);
+    assert.equal(ui.root.querySelector('[data-selector="font-size"]'), null);
+    await ui.panel.save();
+    assert.deepEqual(ui.saved().display, {font_family: "MySkinFont", font_size: 31});
   } finally {ui.dom.window.close();}
 });
 
@@ -745,12 +725,263 @@ test("saving disables native controls and duplicate actions", async () => {
       assert.equal(control.disabled, true);
     }
     ui.button("Speichern").click();
-    ui.select("menu-title", "Blocked");
+    ui.select("label-" + ui.panel.model.root.children[0].id, "Blocked");
     assert.equal(writes, 1);
     assert.equal(ui.panel.model.root.label, "Home Assistant");
-    finish(ui.panel.model);
+    finish(ui.panel.menuForSave());
     await tick();
     assert.equal(ui.panel.loading, false);
+  } finally {ui.dom.window.close();}
+});
+
+test("complete menus keep separate trees, duplicate IDs and ACLs safely, and save together", async () => {
+  const ui = await createPanel();
+  try {
+    ui.renameMenu("Wohnung");
+    ui.select("entity", "light.ceiling");
+    ui.button("Entität hinzufügen").click();
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("access-home", "users");
+    ui.select("users-home", ["anna"]);
+    ui.button("Übernehmen").click();
+    await tick();
+    const first = ui.panel.model.root;
+    ui.button("Zur Menüverwaltung").click();
+    ui.button("Menü duplizieren").click();
+    const copy = ui.panel.model.root;
+    assert.notEqual(copy.id, first.id);
+    assert.notEqual(copy.children[0].id, first.children[0].id);
+    assert.deepEqual(Array.from(copy.access.users), ["anna"]);
+    ui.select("menu-label-" + copy.id, "Privat");
+    ui.root.querySelector(`[data-edit-menu="${copy.id}"]`).click();
+    ui.root.querySelector(`[data-access-node="${copy.id}"]`).click();
+    ui.select("access-" + copy.id, "none");
+    ui.button("Übernehmen").click();
+    await tick();
+    ui.button("Zur Menüverwaltung").click();
+    ui.root.querySelector(`[data-edit-menu="${first.id}"]`).click();
+    assert.equal(ui.panel.model.root.label, "Wohnung");
+    assert.equal(ui.panel.model.root.children.length, 1);
+    ui.root.querySelector(`[data-access-node="${first.children[0].id}"]`).click();
+    ui.select("access-" + first.children[0].id, "users");
+    ui.select("users-" + first.children[0].id, ["ben"]);
+    ui.button("Übernehmen").click();
+    await tick();
+    await ui.panel.save();
+    const saved = ui.saved();
+    assert.equal(saved.schema_version, 2);
+    assert.equal(saved.menus.length, 2);
+    assert.equal(saved.menus[1].label, "Privat");
+    assert.equal(saved.menus[1].access.mode, "none");
+    assert.deepEqual(saved.menus[0].children[0].access, {mode: "users", users: ["ben"]});
+    assert.equal(ui.panel.model.root.id, first.id);
+  } finally {ui.dom.window.close();}
+});
+
+test("user labels omit IDs while missing assignments survive editing and language changes", async () => {
+  const ui = await createPanel({overview: true});
+  try {
+    assert.deepEqual(Array.from(ui.root.querySelector('[data-selector="preview-user"]').selector.select.options,
+      option => option.label), ["Anna", "Ben"]);
+    ui.root.querySelector('[data-edit-menu="home"]').click();
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("access-home", "users");
+    ui.button("Übernehmen").click();
+    await tick();
+    assert.deepEqual(Array.from(ui.panel.model.root.access.users), []);
+    ui.panel.model.root.access.users.push("missing-user");
+    ui.panel.render();
+    ui.root.querySelector('[data-access-node="home"]').click();
+    const selector = ui.root.querySelector('[data-selector="users-home"]');
+    assert.deepEqual(Array.from(selector.selector.select.options.slice(0, 2), option => option.label), ["Anna", "Ben"]);
+    assert.match(selector.selector.select.options.at(-1).label, /Fehlender oder inaktiver Benutzer/);
+    assert.doesNotMatch(selector.selector.select.options.at(-1).label, /missing-user/);
+    ui.button("Abbrechen").click();
+    await tick();
+    ui.panel.setLanguage("en");
+    ui.root.querySelector('[data-access-node="home"]').click();
+    assert.match(ui.root.querySelector('[data-selector="users-home"]').selector.select.options.at(-1).label,
+      /Missing or inactive user/);
+    ui.button("Apply").click();
+    await tick();
+    await ui.panel.save();
+    assert.deepEqual(ui.saved().menus[0].access.users, ["missing-user"]);
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("users-home", []);
+    ui.button("Apply").click();
+    await tick();
+    await ui.panel.save();
+    assert.deepEqual(ui.saved().menus[0].access, {mode: "users", users: []});
+  } finally {ui.dom.window.close();}
+});
+
+test("successful saves use the native HA snackbar and failures keep inline errors", async () => {
+  const ui = await createPanel();
+  try {
+    assert.equal(ui.root.querySelector(".save-state").textContent, "");
+    assert.doesNotMatch(ui.root.textContent, /Alle Änderungen gespeichert/);
+    ui.renameMenu("Wohnung");
+    await ui.panel.save();
+    assert.equal(ui.notifications.length, 1);
+    const event = ui.notifications[0];
+    assert.equal(event.bubbles, true);
+    assert.equal(event.composed, true);
+    assert.equal(event.detail.message, "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.");
+    assert.equal(ui.panel.message, "");
+    assert.equal(ui.root.querySelector(".save-state").textContent, "");
+    ui.button("Zur Menüverwaltung").click();
+    ui.panel.users.push({id: "private-user-id", name: ""});
+    ui.panel.render();
+    const options = ui.root.querySelector('[data-selector="preview-user"]').selector.select.options;
+    assert.equal(options.at(-1).label, "Benutzer ohne Namen");
+    ui.button("Menüeinträge bearbeiten").click();
+    ui.fail();
+    ui.renameMenu("Privat");
+    await ui.panel.save();
+    assert.equal(ui.notifications.length, 1);
+    assert.match(ui.root.querySelector(".notice").textContent, /inzwischen geändert/);
+    assert.equal(ui.panel.dirty, true);
+  } finally {ui.dom.window.close();}
+});
+
+test("user dialog isolates drafts, cancels safely, and applies only changed rules", async () => {
+  const ui = await createPanel();
+  try {
+    const root = ui.panel.model.root;
+    const trigger = ui.root.querySelector('[data-access-node="home"]');
+    assert.equal(ui.root.querySelector('[data-selector="access-home"]'), null);
+    trigger.focus(); trigger.click();
+    const dialog = ui.root.querySelector("dialog");
+    const mode = dialog.querySelector('[data-selector="access-home"]');
+    assert.equal(ui.button("Übernehmen").getAttribute("variant"), null);
+    ui.select("access-home", "users");
+    ui.select("users-home", ["anna", "ben", "anna"]);
+    assert.equal(dialog.querySelector('[data-selector="access-home"]'), mode, "Changing mode preserves the focused selector");
+    assert.equal(root.access.mode, "all");
+    assert.equal(ui.panel.dirty, false);
+    ui.button("Speichern").click();
+    ui.button("Zur Menüverwaltung").click();
+    assert.equal(ui.panel.view, "entries");
+    assert.equal(ui.saved(), undefined);
+    assert.equal(ui.panel.configuration.menus.length, 1);
+    ui.panel.render();
+    assert.equal(ui.root.querySelector("dialog"), dialog);
+    ui.button("Abbrechen").click();
+    await tick();
+    assert.equal(root.access.mode, "all");
+    assert.equal(ui.panel.dirty, false);
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("access-home", "none");
+    ui.root.querySelector("dialog").dispatchEvent(new ui.dom.window.Event("cancel", {cancelable: true}));
+    await tick();
+    assert.equal(root.access.mode, "all");
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.button("Übernehmen").click();
+    await tick();
+    assert.equal(ui.panel.dirty, false, "Unchanged access does not dirty the editor");
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("access-home", "users");
+    ui.select("users-home", ["anna", "ben", "anna"]);
+    ui.select("access-home", "none");
+    ui.select("access-home", "users");
+    assert.deepEqual(Array.from(ui.root.querySelector('[data-selector="users-home"]').value), ["anna", "ben"]);
+    ui.button("Übernehmen").click();
+    await tick();
+    assert.deepEqual(JSON.parse(JSON.stringify(root.access)), {mode: "users", users: ["anna", "ben"]});
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(ui.saved(), undefined, "Applying a dialog only updates the draft");
+    ui.root.querySelector('[data-access-node="home"]').click();
+    ui.select("access-home", "none");
+    ui.panel.remove();
+    await tick();
+    assert.equal(root.access.mode, "users");
+    assert.equal(ui.panel.confirmation, undefined);
+  } finally {ui.dom.window.close();}
+});
+
+test("account-edit precedes deletion on entity and submenu rows and both submenu paths edit the same rule", async () => {
+  const ui = await createPanel();
+  try {
+    ui.select("entity", "light.ceiling");
+    ui.button("Entität hinzufügen").click();
+    ui.select("new-menu", "Wohnzimmer <img>");
+    ui.button("Untermenü hinzufügen").click();
+    for (const row of ui.root.querySelectorAll(".row")) {
+      const buttons = row.querySelector(".entry-actions").children;
+      assert.equal(buttons[buttons.length - 2].firstElementChild.icon, "mdi:account-edit");
+      assert.equal(buttons[buttons.length - 1].firstElementChild.icon, "mdi:delete-outline");
+      assert.equal(row.querySelector("ha-selector, details"), null);
+    }
+    const submenu = ui.panel.model.root.children.find(node => node.type === "menu");
+    ui.root.querySelector(`[data-access-node="${submenu.id}"]`).click();
+    assert.match(ui.root.querySelector("dialog").textContent, /Wohnzimmer <img>/);
+    assert.equal(ui.root.querySelector("dialog img"), null);
+    assert.deepEqual(Array.from(ui.root.querySelector(`[data-selector="access-${submenu.id}"]`).selector.select.options, option => option.value),
+      ["inherit", "users", "none"]);
+    ui.select("access-" + submenu.id, "users");
+    ui.select("users-" + submenu.id, ["ben"]);
+    ui.button("Übernehmen").click();
+    await tick();
+    ui.button("Untermenü bearbeiten").click();
+    ui.root.querySelector(`[data-access-node="${submenu.id}"]`).click();
+    assert.deepEqual(Array.from(ui.root.querySelector(`[data-selector="users-${submenu.id}"]`).value), ["ben"]);
+    ui.button("Abbrechen").click();
+    await tick();
+    assert.equal(submenu.access.mode, "users");
+  } finally {ui.dom.window.close();}
+});
+
+test("last complete menu can be removed after confirmation and recreated without reloading", async () => {
+  const ui = await createPanel({overview: true});
+  try {
+    ui.button("Menü entfernen").click();
+    assert.equal(ui.panel.configuration.menus.length, 1);
+    ui.root.querySelector("dialog .dialog-actions").lastElementChild.click();
+    await tick();
+    assert.equal(ui.panel.configuration.menus.length, 0);
+    assert.match(ui.root.textContent, /Keine Menüs vorhanden/);
+    await ui.panel.save();
+    assert.deepEqual(ui.saved().menus, []);
+    ui.button("Menü anlegen").click();
+    assert.equal(ui.panel.configuration.menus.length, 1);
+    assert.equal(ui.panel.model.root.access.mode, "all");
+    assert.equal(ui.panel.dirty, true);
+  } finally {ui.dom.window.close();}
+});
+
+test("preview submits the unsaved collection, escapes labels and does not save", async () => {
+  const ui = await createPanel();
+  try {
+    // Native HA buttons expose their internal focus target after Lit renders.
+    const prototype = ui.dom.window.customElements.get("ha-button").prototype;
+    Object.defineProperty(prototype, "updateComplete", {get() {
+      return Promise.resolve().then(() => { this.focusReady = true; });
+    }});
+    prototype.focus = function() { assert.equal(this.focusReady, true); };
+    ui.renameMenu("Entwurf");
+    ui.button("Zur Menüverwaltung").click();
+    ui.select("preview-user", "anna");
+    let sent;
+    ui.panel._hass.callApi = async (method, route, body) => {
+      assert.equal(method, "POST");
+      assert.equal(route, "enigmaha_companion/v1/preview");
+      sent = body;
+      return {root: {type: "menu", id: "home", label: "<img src=x>", children: []}};
+    };
+    ui.button("Vorschau öffnen").click();
+    await tick();
+    assert.equal(sent.user_id, "anna");
+    assert.equal(sent.configuration.menus[0].label, "Entwurf");
+    assert.equal(ui.root.querySelector("dialog img"), null);
+    assert.match(ui.root.querySelector("dialog").textContent, /<img src=x>/);
+    assert.equal(ui.root.querySelector("dialog").querySelectorAll("ha-button").length, 1);
+    assert.equal(ui.panel.message, "");
+    assert.equal(ui.panel.previewBusy, true);
+    ui.button("Schließen").click();
+    await tick();
+    assert.equal(ui.root.querySelector("dialog"), null);
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(ui.saved(), undefined);
   } finally {ui.dom.window.close();}
 });
 
@@ -794,7 +1025,7 @@ test("saving derives supported receiver actions throughout nested menus without 
     ui.panel.markDirty();
     ui.panel.render();
     const buttons = [...ui.root.querySelectorAll(".entry-actions ha-icon-button")];
-    assert.deepEqual(buttons.map(b => b.label), ["Untermenü bearbeiten", "Nach oben", "Nach unten", "Entfernen"]);
+    assert.deepEqual(buttons.map(b => b.label), ["Untermenü bearbeiten", "Nach oben", "Nach unten", "Benutzereinstellungen", "Entfernen"]);
     assert.equal(buttons[0].querySelector("ha-icon").icon, "mdi:pencil");
     ui.fail();
     await ui.panel.save();
@@ -806,7 +1037,7 @@ test("saving derives supported receiver actions throughout nested menus without 
       return {...sent, revision: sent.revision + 1};
     };
     await ui.panel.save();
-    assert.deepEqual(sent.root.children[0].children.map(n => n.actions),
+    assert.deepEqual(sent.menus[0].children[0].children.map(n => n.actions),
       [["toggle"], ["toggle"], ["toggle"], [], []]);
   } finally {ui.dom.window.close();}
 });
@@ -881,8 +1112,8 @@ test("HA drag-and-drop sorts entries after drag-end and saves submenu contents i
     assert.deepEqual(Array.from(items, n => n.id), ["room", "light", "power"]);
     ui.button("Speichern").click();
     await tick();
-    assert.deepEqual(ui.saved().root.children.map(n => n.id), ["room", "light", "power"]);
-    assert.equal(ui.saved().root.children[0].children[0].entity_id, "sensor.temp");
+    assert.deepEqual(ui.saved().menus[0].children.map(n => n.id), ["room", "light", "power"]);
+    assert.equal(ui.saved().menus[0].children[0].children[0].entity_id, "sensor.temp");
   } finally {ui.dom.window.close();}
 });
 
@@ -1046,4 +1277,118 @@ test("native SortableJS drag scrolls across the shadow boundary at both edges un
     assert.equal(tools.scrollTop, 0, "the settings column never scrolls with the list");
     assert.equal(ui.panel.scrollTop, 0);
   } finally {instance?.destroy(); ui.dom.window.close();}
+});
+
+test("menu overview opens first and separates sorting, access and preview from entry editing", async () => {
+  const ui = await createPanel({overview: true});
+  try {
+    assert.equal(ui.panel.view, "menus");
+    assert.equal(ui.root.querySelector('.menu-column h2').textContent, "Menüs verwalten");
+    assert.equal(ui.root.querySelector('.tools-column h2').textContent, "Vorschau");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]'), null);
+    const first = ui.panel.model.root;
+    ui.select("menu-label-home", "Gemeinsam <img>");
+    ui.button("Menü anlegen").click();
+    const second = ui.panel.model.root;
+    ui.select("menu-label-" + second.id, "Privat");
+    assert.equal(ui.panel.view, "menus");
+    for (const row of ui.root.querySelectorAll('.row')) {
+      const actions = [...row.querySelectorAll('.entry-actions ha-icon-button')];
+      assert.deepEqual(actions.map(button => button.firstElementChild.icon),
+        ["mdi:pencil", "mdi:content-copy", "mdi:arrow-up", "mdi:arrow-down", "mdi:delete-outline"]);
+    }
+    assert.equal(ui.root.querySelector('[data-access-node]'), null);
+    let rows = ui.root.querySelectorAll('.row');
+    assert.equal(rows[0].querySelectorAll('ha-icon-button')[2].disabled, true);
+    assert.equal(rows[1].querySelectorAll('ha-icon-button')[3].disabled, true);
+    ui.root.querySelector(`[data-edit-menu="${first.id}"]`).click();
+    assert.equal(ui.panel.view, "entries");
+    assert.equal(ui.root.querySelector('[data-selector="preview-user"]'), null);
+    assert.doesNotMatch(ui.root.textContent, /Menüs verwalten/);
+    ui.select("new-menu", "Raum");
+    ui.button("Untermenü hinzufügen").click();
+    ui.button("Untermenü bearbeiten").click();
+    const room = ui.panel.path.at(-1);
+    ui.select("entity", "sensor.temp");
+    ui.button("Entität hinzufügen").click();
+    ui.select("new-menu", "Noch im Entwurf");
+    ui.button("Zur Menüverwaltung").click();
+    assert.equal(ui.panel.configuration.menus[0].children[0].children[0].entity_id, "sensor.temp");
+    ui.root.querySelector(`[data-edit-menu="${first.id}"]`).click();
+    assert.equal(ui.panel.path.at(-1), room);
+    assert.equal(ui.root.querySelector('[data-field="new-menu"]').value, "Noch im Entwurf");
+    ui.button("Zur Menüverwaltung").click();
+    ui.root.querySelector(`[data-edit-menu="${second.id}"]`).click();
+    ui.root.querySelector(`[data-access-node="${second.id}"]`).click();
+    ui.select("access-" + second.id, "users");
+    ui.select("users-" + second.id, ["ben"]);
+    ui.button("Übernehmen").click();
+    await tick();
+    ui.button("Zur Menüverwaltung").click();
+    ui.root.querySelector(`[data-edit-menu="${first.id}"]`).click();
+    ui.button("Zur Menüverwaltung").click();
+    ui.root.querySelectorAll('.row')[1].querySelectorAll('ha-icon-button')[2].click();
+    await tick();
+    assert.deepEqual(Array.from(ui.panel.configuration.menus, node => node.id), [second.id, first.id]);
+    assert.equal(ui.panel.model.root, first, "Reordering does not change the open editor's menu");
+    assert.equal(ui.scrolled.at(-1).row.dataset.nodeId, second.id);
+    const sortable = ui.root.querySelector('ha-sortable');
+    assert.equal(sortable.rollback, true);
+    sortable.dispatchEvent(new ui.dom.window.CustomEvent("item-moved", {detail: {oldIndex: 0, newIndex: 1}}));
+    assert.equal(ui.panel.configuration.menus[0], second, "Wait for native HA rollback");
+    sortable.dispatchEvent(new ui.dom.window.CustomEvent("drag-end"));
+    await tick();
+    assert.deepEqual(Array.from(ui.panel.configuration.menus, node => node.id), [first.id, second.id]);
+    await ui.panel.save();
+    assert.equal(ui.panel.view, "menus");
+    assert.equal(ui.saved().menus[0].label, "Gemeinsam <img>");
+    assert.deepEqual(ui.saved().menus[1].access, {mode: "users", users: ["ben"]});
+    assert.equal(ui.saved().menus[0].children[0].children[0].entity_id, "sensor.temp");
+    assert.equal(ui.root.querySelector('img'), null);
+    ui.panel.setLanguage("en");
+    assert.equal(ui.root.querySelector('.menu-column h2').textContent, "Manage menus");
+    ui.button("Edit menu entries").click();
+    assert.ok(ui.button("Back to menu management"));
+  } finally {ui.dom.window.close();}
+});
+
+test("menu overview rejects invalid and stale drags and preserves rows when deletion is cancelled", async () => {
+  const ui = await createPanel({overview: true});
+  try {
+    ui.button("Menü anlegen").click();
+    const menus = ui.panel.configuration.menus;
+    const ids = Array.from(menus, node => node.id);
+    ui.panel.dirty = false;
+    ui.panel.render();
+    const drag = detail => {
+      const sortable = ui.root.querySelector('ha-sortable');
+      sortable.dispatchEvent(new ui.dom.window.CustomEvent("item-moved", {detail}));
+      sortable.dispatchEvent(new ui.dom.window.CustomEvent("drag-end"));
+    };
+    for (const detail of [{oldIndex: -1, newIndex: 0}, {oldIndex: 0, newIndex: 2},
+      {oldIndex: 0.5, newIndex: 1}, {oldIndex: 0, newIndex: 0}]) {
+      drag(detail);
+      await tick();
+    }
+    assert.equal(ui.panel.dirty, false);
+    drag({oldIndex: 0, newIndex: 1});
+    ui.button("Menüeinträge bearbeiten").click();
+    await tick();
+    assert.deepEqual(Array.from(menus, node => node.id), ids);
+    ui.button("Zur Menüverwaltung").click();
+    ui.button("Menü entfernen").click();
+    drag({oldIndex: 0, newIndex: 1});
+    await tick();
+    assert.deepEqual(Array.from(menus, node => node.id), ids);
+    ui.button("Abbrechen").click();
+    await tick();
+    assert.equal(ui.panel.dirty, false);
+    ui.panel.loading = true;
+    ui.panel.render();
+    assert.equal(ui.root.querySelector('ha-sortable').disabled, true);
+    drag({oldIndex: 0, newIndex: 1});
+    await tick();
+    assert.deepEqual(Array.from(menus, node => node.id), ids);
+    assert.equal(ui.panel.dirty, false);
+  } finally {ui.dom.window.close();}
 });

@@ -84,14 +84,18 @@ native selectors follow your HA profile language.
    type, area or device class to narrow the selection.
 3. Edit display names and reorder entries with the drag handle or up/down arrows.
    Drag near the list's edge to scroll automatically.
-4. Choose the font family and size under **Receiver appearance**.
+4. Choose the font family and size under **Settings → Devices & services → EnigmaHA
+   Companion → Options** as needed. Edit menu titles directly in the menu overview.
 5. Choose **Save**.
 
 Lights, switches and `input_boolean` helpers are configured as toggleable.
 Other entities are read-only. The receiver user still needs HA permissions.
 Your own menu and entity names are never automatically translated.
 
-All receivers use the same menu. HA manages it in
+Use **Manage menus** to create shared and personal menus. **Access** restricts
+complete menus, submenus or individual entries to selected HA users. The user
+of the receiver token determines its view. See [user-specific menus](User-menus.en.md)
+for setup, preview and automatic conversion of existing menus. HA manages the configuration in
 `.storage/enigmaha_companion.menu`; do not edit that file while HA is running.
 
 ## Update indicator in Home Assistant

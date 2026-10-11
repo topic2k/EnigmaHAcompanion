@@ -1,5 +1,6 @@
 """Setup/unload and flow import checks with minimal HA interfaces."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import types
@@ -12,9 +13,17 @@ BUNDLE = ROOT / "dist/unpacked/homeassistant/custom_components/enigmaha_companio
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_setup_registers_once_and_unload_disables_runtime(self):
+        await self.check_setup()
+
+    async def test_setup_migrates_published_menu_and_reloads_without_repeating_migration(self):
+        saved = json.loads((ROOT / "protocol/menu.example.json").read_text(encoding="utf-8"))
+        migrated = await self.check_setup(saved)
+        await self.check_setup(migrated)
+
+    async def check_setup(self, saved=None):
         fake = {}
         for name in ("homeassistant", "homeassistant.components", "homeassistant.components.frontend",
-                     "homeassistant.components.panel_custom", "homeassistant.components.http",
+                     "homeassistant.components.panel_custom", "homeassistant.components.http", "homeassistant.components.persistent_notification",
                      "homeassistant.helpers", "homeassistant.helpers.storage", "homeassistant.auth",
                      "homeassistant.auth.permissions", "homeassistant.auth.permissions.const",
                      "homeassistant.core", "homeassistant.const", "homeassistant.exceptions", "homeassistant.helpers.icon",
@@ -36,7 +45,8 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         fake["homeassistant.exceptions"].HomeAssistantError = RuntimeError
         fake["homeassistant.helpers.icon"].async_get_icons = AsyncMock(return_value={})
         fake["homeassistant.helpers.issue_registry"].async_delete_issue = lambda *args: None
-        store = types.SimpleNamespace(async_load=AsyncMock(return_value=None), async_save=AsyncMock())
+        fake["homeassistant.components.persistent_notification"].async_dismiss = lambda *args: None
+        store = types.SimpleNamespace(async_load=AsyncMock(side_effect=[saved, None, None]), async_save=AsyncMock())
         fake["homeassistant.helpers.storage"].Store = lambda *args: store
         views = []
         hass = types.SimpleNamespace(data={}, config_entries=types.SimpleNamespace(
@@ -50,14 +60,23 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             spec.loader.exec_module(module)
             self.assertTrue(await module.async_setup(hass, {}))
             self.assertTrue(await module.async_setup(hass, {}))
-            self.assertEqual(len(views), 7)
+            self.assertEqual(len(views), 10)
             hass.http.async_register_static_paths.assert_awaited_once()
             entry = types.SimpleNamespace(options={})
             self.assertTrue(await module.async_setup_entry(hass, entry))
             hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(entry, ["update"])
             runtime = hass.data[module.DOMAIN]["runtime"]
             self.assertIs(runtime.config_entry, entry)
-            self.assertEqual(runtime.menu["root"]["children"], [])
+            self.assertEqual(runtime.menu["schema_version"], 2)
+            if saved is None:
+                self.assertEqual(runtime.menu["menus"][0]["children"], [])
+                store.async_save.assert_not_awaited()
+            elif saved["schema_version"] == 1:
+                self.assertEqual(module.validate_configuration(saved), runtime.menu)
+                store.async_save.assert_awaited_once_with(runtime.menu)
+            else:
+                self.assertEqual(runtime.menu, saved)
+                store.async_save.assert_not_awaited()
             self.assertTrue(panels[0]["require_admin"])
             hass.config_entries.async_unload_platforms.return_value = False
             self.assertFalse(await module.async_unload_entry(hass, entry))
@@ -71,6 +90,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(runtime.active)
             self.assertNotIn("runtime", hass.data[module.DOMAIN])
             self.assertEqual(removed, [module.DOMAIN])
+            return runtime.menu
 
     async def test_config_flow_creates_single_named_entry(self):
         class Flow:
@@ -84,6 +104,8 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                 return {"type": "form", **kwargs}
             def async_create_entry(self, **kwargs):
                 return {"type": "create_entry", **kwargs}
+            def async_abort(self, **kwargs):
+                return {"type": "abort", **kwargs}
         ha = types.ModuleType("homeassistant")
         ha.config_entries = types.SimpleNamespace(ConfigFlow=Flow, OptionsFlow=Flow)
         core = types.SimpleNamespace(callback=lambda function: function)
@@ -96,6 +118,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         module = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, {"homeassistant": ha, "eha_flow_test": package,
                                      "homeassistant.core": core,
+                                     "homeassistant.exceptions": types.SimpleNamespace(HomeAssistantError=RuntimeError),
                                      "homeassistant.helpers.selector": selectors, "probatio": schema}):
             spec.loader.exec_module(module)
             flow = module.CompanionConfigFlow()
@@ -107,18 +130,26 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             entry = types.SimpleNamespace(options={"future_option": "preserved"})
             options = flow.async_get_options_flow(entry)
             options.config_entry = entry
+            runtime = types.SimpleNamespace(active=True, menu={"display": {"font_family": "MySkinFont", "font_size": 31}},
+                                            async_set_display=AsyncMock())
+            options.hass = types.SimpleNamespace(data={module.DOMAIN: {"runtime": runtime}})
             form = await options.async_step_init()
             self.assertEqual(form["step_id"], "init")
             self.assertEqual(form["errors"], {})
             self.assertEqual(entry.options, {"future_option": "preserved"})
             self.assertEqual(form["data_schema"][("language", "de")]["options"], ["de", "en", "auto"])
             self.assertEqual(form["data_schema"][("language", "de")]["translation_key"], "language")
+            fonts = form["data_schema"][("font_family", "MySkinFont")]
+            self.assertIn("MySkinFont", fonts["options"])
+            sizes = form["data_schema"][("font_size", "31")]["options"]
+            self.assertEqual((sizes[0], sizes[-1]), ("16", "64"))
             for language in ("auto", "en", "de"):
                 result = await options.async_step_init({"language": language})
                 self.assertEqual(result, {"type": "create_entry", "title": "", "data": {
                     "language": language, "future_option": "preserved"}})
                 entry.options = result["data"]
                 self.assertIn(("language", language), (await options.async_step_init())["data_schema"])
+                runtime.async_set_display.assert_awaited_with({"font_family": "MySkinFont", "font_size": 31})
             for invalid in ("fr", "", None, [], {}):
                 with self.subTest(language=invalid):
                     result = await options.async_step_init({"language": invalid})
@@ -130,3 +161,17 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             # Newly created entries retain auto when their options are opened.
             entry.options = created["options"]
             self.assertIn(("language", "auto"), (await options.async_step_init())["data_schema"])
+            runtime.async_set_display.reset_mock()
+            for key, values in {"font_size": ["", "15", "65", "31.5", None, True],
+                                "font_family": ["", "unlisted font", None, []]}.items():
+                for value in values:
+                    result = await options.async_step_init({"language": "auto", key: value})
+                    self.assertEqual(result["errors"], {key: "invalid_" + key})
+            runtime.async_set_display.assert_not_awaited()
+            self.assertEqual((await options.async_step_init({"language": "en", "font_family": "Fixed", "font_size": "36"}))["type"], "create_entry")
+            runtime.async_set_display.assert_awaited_once_with({"font_family": "Fixed", "font_size": 36})
+            runtime.async_set_display.side_effect = OSError("disk full")
+            result = await options.async_step_init({"language": "en", "font_family": "Fixed", "font_size": "36"})
+            self.assertEqual(result["errors"], {"base": "storage_failed"})
+            runtime.active = False
+            self.assertEqual(await options.async_step_init(), {"type": "abort", "reason": "integration_unavailable"})

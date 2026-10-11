@@ -3,7 +3,7 @@
 **Deutsch** · [English](Development.en.md)
 
 EnigmaHA Companion besteht aus einer Home-Assistant-Integration mit Menüeditor
-und einer Enigma2-Extension. Die Integration speichert das gemeinsame Menü und
+und einer Enigma2-Extension. Die Integration speichert gemeinsame und persönliche Menüs und
 stellt Zustände und Schaltaktionen über authentifizierte HTTP-Routen bereit.
 Der Receiver ruft diese Daten ab und zeigt sie als fernbedienbares Menü an.
 
@@ -78,19 +78,24 @@ weitere Änderungen kurz und ohne ausführliche technische Details.
 ## Home-Assistant-Integration
 
 Die Domain lautet `enigmaha_companion`. Ein einzelner Konfigurationseintrag
-verwaltet das Menü für alle Receiver. Home Assistants `Store` speichert es unter
+verwaltet die Menüs und Benutzerfreigaben für alle Receiver. Home Assistants `Store` speichert sie unter
 `.storage/enigmaha_companion.menu`. Die laufende Integration lädt und validiert
-das Menü; Speichern erhöht dessen Revision dauerhaft.
+die Konfiguration; Speichern erhöht deren gemeinsame Revision dauerhaft.
+`menus.py` validiert Konfigurationsschema 2 und übernimmt gespeicherte v1-Menüs
+beim Laden automatisch ohne Datenverlust. Das Receiver-Menüformat bleibt v1.
 
 Die API trennt Receiver-Zugriff und Administration. Menü und Zustände werden
-anhand der Leseberechtigungen des angemeldeten Benutzers gefiltert. Fehlende
+anhand der Menüfreigaben und Leseberechtigungen des angemeldeten Benutzers gefiltert. Fehlende
 Steuerungsrechte entfernen die Aktionen eines Menüeintrags. Jeder Schaltbefehl
 wird zusätzlich serverseitig auf Revision, Eintrag, erlaubte Aktion, aktuellen
 Zustand und Berechtigungen geprüft und mit HA-Benutzerkontext ausgeführt.
 Menüänderungen und Aktionen teilen sich eine Sperre. Eine fehlgeschlagene
 Speicherung verändert weder das laufende Menü noch seine Revision.
 
-Der Menüeditor und GET/PUT `/config` sind Administratoren vorbehalten.
+Der Menüeditor sowie `/configuration`, `/users`, `/preview` und die kompatible
+Einzelmenü-Route `/config` sind Administratoren vorbehalten. Die Vorschau nutzt
+dieselbe Filterlogik wie Menü-, Zustands- und Aktionsabrufe. Details zu Freigaben
+und Migration stehen unter [Benutzer-Menüs](Benutzermenues.md).
 Receiver-Zugangsdaten werden nicht im Editor gespeichert.
 
 ### Übersetzungen
@@ -110,7 +115,8 @@ Browserauswahl erhalten und der Optionsdialog bietet weiterhin Deutsch als Vorga
 `auto` nutzt die effektive HA-Profilsprache (`hass.language`), ersatzweise die
 erste unterstützte Browsersprache und zuletzt Deutsch. Regionale Sprachcodes
 werden auf `de` oder `en` abgebildet. Änderungen der HA-/Browsersprache werden
-im offenen Editor übernommen.
+im offenen Editor übernommen. Gemeinsame persistente HA-Hinweise folgen bei
+`auto` der HA-Systemsprache.
 HA-Konfigurationsdialoge verwenden `translations/de.json` und `translations/en.json`
 und folgen der HA-Profilsprache; beide Kataloge liegen auch im Quellbaum.
 
@@ -233,7 +239,7 @@ gegen Testserver, HA-Lebenszyklus und Berechtigungen, Symbolauflösung,
 Receiver-Navigation, Layouts sowie Inhalt und Metadaten der Pakete ab.
 HA-Dienste und Enigma2-Gerätefunktionen werden dabei durch Testobjekte ersetzt.
 Die Receiver-Pakete werden auch auf Python-3.13-kompatible Syntax geprüft.
-Sprachtests prüfen Deutsch als Standard, englische Texte, Platzhalter, gespeicherte
+Sprachtests prüfen neue Standardwerte, den Erhalt bestehender Einstellungen, englische Texte, Platzhalter, gespeicherte
 Sprachauswahl und unveränderte Menüentwürfe beim Wechsel.
 Die Skin-Profiltests prüfen automatische und manuelle Auswahl, Speicherung und
 Abbrechen, Übernahme beim erneuten Öffnen sowie fehlende Skin-Ressourcen.

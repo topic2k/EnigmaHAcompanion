@@ -18,6 +18,11 @@ Menü navigieren, Sensorwerte ablesen und Lampen, Schalter sowie
 `input_boolean` ein- und ausschalten. Ein zusätzlicher Server oder MQTT-Broker
 ist nicht nötig.
 
+Gemeinsame und persönliche Menüs können nebeneinander verwendet werden.
+Ganze Menüs, Untermenüs und einzelne Einträge lassen sich für HA-Benutzer
+freigeben; der Token am Receiver bestimmt die Ansicht.
+Siehe [benutzerabhängige Menüs](docs/Benutzermenues.md).
+
 ## Voraussetzungen
 
 - Home Assistant und eingerichtetes HACS.

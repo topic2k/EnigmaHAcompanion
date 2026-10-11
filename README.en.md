@@ -15,6 +15,10 @@ Build your menu in Home Assistant: select entities, organize submenus and choose
 display names. On the receiver, browse the menu, read sensors and toggle lights,
 switches and `input_boolean` helpers. No additional server or MQTT broker is required.
 
+Shared and personal menus can coexist. Share complete menus, submenus and
+individual entries with selected HA users; the receiver token determines its
+view. See [user-specific menus](docs/User-menus.en.md).
+
 ## Requirements
 
 - Home Assistant and HACS.

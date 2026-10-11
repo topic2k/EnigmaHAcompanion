@@ -125,6 +125,56 @@ ausschließlich lesbar. Der HA-Editor leitet die Aktionen beim Hinzufügen und
 Speichern automatisch aus der Domain ab. Das Protokoll erlaubt auch eine leere
 Aktionsliste für diese Domains. Dimmen, Szenen und Scripts werden nicht unterstützt.
 
+## Menüsammlung und Benutzerfreigaben
+
+Das Administrations- und Speicherformat verwendet `schema_version: 2` mit
+`revision`, `display` und `menus` (geordnetes Array vollständiger Menüwurzeln).
+Das Receiver-Format bleibt unverändert `schema_version: 1` mit `root`.
+Jeder Menü- oder Entitätsknoten darf zusätzlich `access` enthalten:
+
+| Regel | Bedeutung |
+| --- | --- |
+| `{"mode":"all"}` | Alle Benutzer; nur an vollständigen Menüwurzeln |
+| `{"mode":"inherit"}` | Elternebene übernehmen; nur an Kindern |
+| `{"mode":"users","users":["ha-user-id"]}` | Aufgelistete Benutzer; leere Liste sperrt |
+| `{"mode":"none"}` | Für alle Benutzer deaktiviert |
+
+Fehlendes `access` bedeutet an Wurzeln `all`, an Kindern `inherit`. Andere Modi
+als `users` enthalten kein `users`-Feld. Benutzer-IDs sind eindeutig und enthalten
+1–64 ASCII-Buchstaben, Ziffern, `_` oder `-`. Fehlende/inaktive Benutzer-IDs dürfen
+gespeichert bleiben. Alle übergeordneten Regeln und die HA-Entitätsrechte gelten
+zusätzlich, auch für Administratoren mit Receiver-Token. Die Regeln ändern keine
+Rechte für andere HA-APIs.
+
+Knoten-IDs sind über alle Menüs eindeutig. Die bisherigen Grenzen gelten
+einschließlich einer zusätzlichen Auswahlwurzel bei mehreren Menüs: maximal 500
+Knoten und acht Ebenen unter der Receiver-Wurzel. Schriftvorgaben und Revision
+gelten gemeinsam für die Sammlung. Eine leere Sammlung ist zulässig.
+
+PUT `/configuration` erhöht die Revision unter derselben Sperre wie Aktionen und
+liefert die gespeicherte Sammlung. Eine veraltete Revision ergibt HTTP 409
+`stale_menu`, ein ausgeschöpfter Revisionszähler `revision_limit`. Ungültige Daten
+ergeben HTTP 400 `invalid_menu`, fehlgeschlagene Speicherung HTTP 500
+`storage_failed` ohne Änderung der laufenden Konfiguration. v1-Menüdokumente
+werden ebenfalls angenommen und in eine Sammlung übernommen. Gespeicherte
+v1-Menüs werden beim Laden automatisch unter demselben Speicherschlüssel
+übernommen; IDs, Darstellung und Revision bleiben erhalten. Eine Neueinrichtung
+ist nicht erforderlich. GET/PUT `/config` sind nur für genau ein Menü ohne
+Benutzerbeschränkungen zulässig; sonst HTTP 409 `configuration_upgrade_required`.
+
+POST `/preview` erwartet `{"configuration": {...}, "user_id": "…"}`. Die
+Integration filtert den Entwurf mit den aktuellen HA-Rechten dieses aktiven
+Benutzers und speichert nichts. Fehlende, inaktive oder systemgenerierte Benutzer
+ergeben HTTP 404 `user_not_found`.
+
+Menüabruf, Vorschau, Zustände und Aktionen verwenden dieselbe Benutzeransicht.
+Eine erlaubte Wurzel wird direkt geliefert, mehrere unter einer automatisch
+erzeugten Auswahlwurzel. Ohne verfügbares Menü wird eine leere Wurzel mit ID
+`__enigmaha_no_menu` geliefert. Durch Filterung vollständig geleerte Menüs
+verschwinden; ursprünglich leere Menüs bleiben erhalten. Freigaben und Benutzer-IDs
+werden nicht an Receiver übertragen. Nicht sichtbare Aktions-IDs ergeben HTTP 404
+`entry_not_found`. Die [Benutzeranleitung](Benutzermenues.md) beschreibt den Editor.
+
 ## HTTP-Vertrag
 
 Basis: die konfigurierte HA-Origin plus `/api/enigmaha_companion/v1`.
@@ -138,8 +188,12 @@ den Token unverschlüsselt. Zugangsdaten gehören nur in lokale Receiver-Konfigu
 | GET `/menu` | Validierte Menüdefinition einschließlich `revision` |
 | GET `/states` | `schema_version`, `revision`, `states`, `icons` nach Beispiel |
 | POST `/actions` | Prüft Eintrag/Aktion und ruft den passenden HA-Service auf |
-| GET `/config` | Vollständige Menüdefinition; nur für Administratoren |
-| PUT `/config` | Menü validieren und speichern; nur für Administratoren |
+| GET `/config` | Uneingeschränktes Einzelmenü im bisherigen Format; nur für Administratoren |
+| PUT `/config` | Uneingeschränktes Einzelmenü speichern; nur für Administratoren |
+| GET `/configuration` | Vollständige Menüsammlung mit Freigaben; nur für Administratoren |
+| PUT `/configuration` | Menüsammlung validieren und speichern; nur für Administratoren |
+| GET `/users` | Aktive, nicht systemgenerierte HA-Benutzer als `{"users":[{"id":"…","name":"…"}]}`; nur für Administratoren |
+| POST `/preview` | Benutzeransicht des Entwurfs als v1-Menü; nur für Administratoren |
 | GET `/compatibility` | HA-Version und kürzlich geprüfte Receiver; nur für Administratoren |
 
 PUT `/config` erwartet die vollständige Menüdefinition mit der aktuellen

@@ -1,27 +1,30 @@
 """Authenticated receiver routes and administrator menu configuration."""
 
 import asyncio
-import copy
 import json
+import logging
 from time import monotonic
 
 from aiohttp import web
 from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
 from homeassistant.components.http import HomeAssistantView, KEY_HASS_USER
+from homeassistant.components import persistent_notification
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import BASE, CONF_LANGUAGE, DOMAIN, LANGUAGES
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
-from .enigmaha_protocol.menu import index_nodes
+from .enigmaha_protocol.menu import index_nodes, validate_display
 from .enigmaha_protocol.compatibility import (
     COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION,
     peer_status, protocol_version, valid_version, valid_receiver_id,
 )
 from .enigmaha_protocol.releases import UpdateError
 from .icons import IconResolver
+from .menus import legacy_menu, receiver_menu, validate_configuration
 
 LIMIT = 1024 * 1024
+_LOGGER = logging.getLogger(__name__)
 
 
 class CompanionRuntime:
@@ -34,6 +37,53 @@ class CompanionRuntime:
         self.receivers = {}
         self.updates = None
         self.repairs = None
+        self.editor_status_messages = {}
+        self.legacy_notices_cleared = False
+
+    async def async_set_display(self, display):
+        """Keep options and published editor APIs on one revisioned menu store."""
+        display = validate_display(display)
+        async with self.lock:
+            if not self.active:
+                raise HomeAssistantError("integration_unavailable")
+            if display == self.menu["display"]:
+                return
+            if self.menu["revision"] == 2147483647:
+                raise HomeAssistantError("revision_limit")
+            config = validate_configuration({**self.menu, "display": display,
+                                             "revision": self.menu["revision"] + 1})
+            await self.store.async_save(config)
+            self.menu = config
+
+    def log_editor_status(self, receivers, updates, language):
+        """Log informational status changes at DEBUG without creating notices."""
+        if not self.legacy_notices_cleared:
+            self.clear_editor_notifications()
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        english = language == "en"
+        messages = {
+            "version": (f"HA integration {VERSION}, protocol {PROTOCOL_VERSION}. Matching protocols allow different releases."
+                        if english else f"HA-Integration {VERSION}, Protokoll {PROTOCOL_VERSION}. Gleiche Protokolle erlauben unterschiedliche Releases."),
+            "no_receiver": (("No receiver request in the last 5 minutes. Versions are checked when connecting."
+                             if english else "Noch keine Receiver-Anfrage in den letzten 5 Minuten. Die Prüfung erfolgt beim Verbinden.")
+                            if not receivers else None),
+            "hacs": (("HACS update unavailable. Install EnigmaHA through HACS first and enable its update entity."
+                      if english else "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.")
+                     if updates is not None and not updates.get("hacs") else None),
+        }
+        for key, message in messages.items():
+            if self.editor_status_messages.get(key) == message:
+                continue
+            if message:
+                _LOGGER.debug("%s", message)
+            self.editor_status_messages[key] = message
+
+    def clear_editor_notifications(self):
+        """Remove only the informational notices created by older versions."""
+        for key in ("version", "no_receiver", "hacs"):
+            persistent_notification.async_dismiss(self.hass, f"{DOMAIN}_{key}")
+        self.legacy_notices_cleared = True
 
     def recent_receivers(self):
         cutoff = monotonic() - 300
@@ -63,20 +113,9 @@ class CompanionRuntime:
 
 
 def filtered_menu(menu, user):
-    result = copy.deepcopy(menu)
-
-    def filter_node(node):
-        if node["type"] == "menu":
-            node["children"] = [child for child in node["children"] if filter_node(child)]
-            return True
-        if not user.permissions.check_entity(node["entity_id"], POLICY_READ):
-            return False
-        if not user.permissions.check_entity(node["entity_id"], POLICY_CONTROL):
-            node["actions"] = []
-        return True
-
-    filter_node(result["root"])
-    return result
+    return receiver_menu(menu, user.id,
+                         lambda entity: user.permissions.check_entity(entity, POLICY_READ),
+                         lambda entity: user.permissions.check_entity(entity, POLICY_CONTROL))
 
 
 async def read_json(request):
@@ -142,7 +181,7 @@ class StatesView(CompanionView):
             return error
         states = {}
         icons = {}
-        menu = runtime.menu
+        menu = filtered_menu(runtime.menu, user)
         for node in index_nodes(menu).values():
             if node["type"] != "entity" or not user.permissions.check_entity(node["entity_id"], POLICY_READ):
                 continue
@@ -185,7 +224,7 @@ class ActionsView(CompanionView):
                         and user.permissions.check_entity(entity_id, POLICY_CONTROL))
 
             try:
-                plan = prepare_action(runtime.menu, command, get_state, can_control)
+                plan = prepare_action(filtered_menu(runtime.menu, user), command, get_state, can_control)
             except ActionError as error:
                 return self.reply({"error": error.code}, error.status)
             try:
@@ -203,7 +242,10 @@ class ConfigView(CompanionView):
 
     async def get(self, request):
         runtime, _ = self.access(request, admin=True)
-        return self.reply(runtime.menu)
+        menu = legacy_menu(runtime.menu)
+        if menu is None:
+            return self.reply({"error": "configuration_upgrade_required"}, 409)
+        return self.reply(menu)
 
     async def put(self, request):
         runtime, _ = self.access(request, admin=True)
@@ -214,6 +256,8 @@ class ConfigView(CompanionView):
         async with runtime.lock:
             if not runtime.active:
                 raise web.HTTPServiceUnavailable()
+            if legacy_menu(runtime.menu) is None:
+                return self.reply({"error": "configuration_upgrade_required"}, 409)
             if menu["revision"] != runtime.menu["revision"]:
                 return self.reply({"error": "stale_menu"}, 409)
             menu["revision"] += 1
@@ -223,11 +267,69 @@ class ConfigView(CompanionView):
                 return self.reply({"error": "revision_limit"}, 409)
             # Failed storage must leave the live menu and revision unchanged.
             try:
-                await runtime.store.async_save(menu)
+                await runtime.store.async_save(validate_configuration(menu))
             except (OSError, HomeAssistantError):
                 return self.reply({"error": "storage_failed"}, 500)
-            runtime.menu = menu
+            runtime.menu = validate_configuration(menu)
         return self.reply(menu)
+
+
+class ConfigurationView(CompanionView):
+    url, name = BASE + "/configuration", DOMAIN + ":configuration"
+
+    async def get(self, request):
+        runtime, _ = self.access(request, admin=True)
+        return self.reply(validate_configuration(runtime.menu))
+
+    async def put(self, request):
+        runtime, _ = self.access(request, admin=True)
+        try:
+            config = validate_configuration(await read_json(request))
+        except ProtocolError as error:
+            return self.reply({"error": "invalid_menu", "detail": str(error)}, 400)
+        async with runtime.lock:
+            if not runtime.active:
+                raise web.HTTPServiceUnavailable()
+            if config["revision"] != runtime.menu["revision"]:
+                return self.reply({"error": "stale_menu"}, 409)
+            if config["revision"] == 2147483647:
+                return self.reply({"error": "revision_limit"}, 409)
+            config["revision"] += 1
+            try:
+                await runtime.store.async_save(config)
+            except (OSError, HomeAssistantError):
+                return self.reply({"error": "storage_failed"}, 500)
+            runtime.menu = config
+        return self.reply(config)
+
+
+class UsersView(CompanionView):
+    url, name = BASE + "/users", DOMAIN + ":users"
+
+    async def get(self, request):
+        self.access(request, admin=True)
+        users = await self.hass.auth.async_get_users()
+        return self.reply({"users": [{"id": user.id, "name": user.name or ""}
+                                     for user in users if user.is_active and not user.system_generated]})
+
+
+class PreviewView(CompanionView):
+    url, name = BASE + "/preview", DOMAIN + ":preview"
+
+    async def post(self, request):
+        self.access(request, admin=True)
+        body = await read_json(request)
+        if (not isinstance(body, dict) or set(body) != {"configuration", "user_id"}
+                or not isinstance(body["user_id"], str)):
+            return self.reply({"error": "invalid_request"}, 400)
+        try:
+            config = validate_configuration(body["configuration"])
+        except ProtocolError as error:
+            return self.reply({"error": "invalid_menu", "detail": str(error)}, 400)
+        user = await self.hass.auth.async_get_user(body["user_id"])
+        if user is None or not user.is_active or user.system_generated:
+            return self.reply({"error": "user_not_found"}, 404)
+        return self.reply(filtered_menu(config, user))
 
 
 class CompatibilityView(CompanionView):
@@ -235,11 +337,21 @@ class CompatibilityView(CompanionView):
 
     async def get(self, request):
         runtime, _ = self.access(request, admin=True)
-        # Read live options without reloading or interrupting receiver requests.
+        # Read the live config entry so options apply without reloading the
+        # integration or interrupting receiver requests and update jobs.
         language = runtime.config_entry.options.get(CONF_LANGUAGE) if runtime.config_entry else None
-        return self.reply({"version": VERSION, "protocol_version": PROTOCOL_VERSION, "receivers": runtime.recent_receivers(),
+        receivers = runtime.recent_receivers()
+        updates = await runtime.updates.snapshot() if runtime.updates else None
+        # Logs are shared by HA users, so automatic mode follows
+        # HA's system language rather than a particular browser profile.
+        notice_language = language
+        if language == "auto":
+            locale = getattr(getattr(self.hass, "config", None), "language", "de")
+            notice_language = str(locale).lower().replace("_", "-").split("-")[0]
+        runtime.log_editor_status(receivers, updates, notice_language)
+        return self.reply({"version": VERSION, "protocol_version": PROTOCOL_VERSION, "receivers": receivers,
                            "editor_language": language if language in LANGUAGES else None,
-                           "updates": await runtime.updates.snapshot() if runtime.updates else None})
+                           "updates": updates})
 
 
 class UpdateAdminView(CompanionView):
@@ -310,5 +422,6 @@ class ReceiverUpdateView(CompanionView):
 
 
 def register_views(hass):
-    for view in (MenuView, StatesView, ActionsView, ConfigView, CompatibilityView, UpdateAdminView, ReceiverUpdateView):
+    for view in (MenuView, StatesView, ActionsView, ConfigView, ConfigurationView, UsersView,
+                 PreviewView, CompatibilityView, UpdateAdminView, ReceiverUpdateView):
         hass.http.register_view(view(hass))
