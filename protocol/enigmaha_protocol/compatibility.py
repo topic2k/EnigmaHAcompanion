@@ -2,7 +2,7 @@
 
 import re
 
-VERSION = "1.0.2"
+VERSION = "1.1.0"
 PROTOCOL_VERSION = 1
 PROTOCOL_HEADER = "X-EnigmaHA-Protocol"
 COMPONENT_HEADER = "X-EnigmaHA-Component"

@@ -1,6 +1,6 @@
 DOMAIN = "enigmaha_companion"
 BASE = "/api/enigmaha_companion/v1"
-VERSION = "1.0.2"
+VERSION = "1.1.0"
 CONF_LANGUAGE = "language"
 DEFAULT_LANGUAGE = "auto"
 LEGACY_LANGUAGE = "de"
