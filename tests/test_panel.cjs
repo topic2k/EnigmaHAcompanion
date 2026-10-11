@@ -63,6 +63,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   const model = {schema_version: 1, revision: 1, display: {font_family: "Regular", font_size: 28},
     root: {type: "menu", id: "home", label: "Home Assistant", children: []}};
   const requests = [];
+  const compatibilityRequests = [];
   panel.hass = {
     states: {
       "light.ceiling": {entity_id: "light.ceiling", attributes: {friendly_name: "Lampe <img src=x>"}, state: "off"},
@@ -73,6 +74,10 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
       "sensor.power": {device_id: "meter"}},
     devices: {lamp: {area_id: "living"}, meter: {area_id: "hall"}},
     callApi: async (method, route, body) => {
+    if (route.endsWith("/compatibility")) {
+      compatibilityRequests.push(route);
+      return {version: "1.0.0", receivers: []};
+    }
     requests.push(route);
     if (method === "PUT") {
       if (failSave) throw {status_code: 409};
@@ -93,8 +98,49 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     } else control.dispatchEvent(
       new dom.window.CustomEvent("value-changed", {detail: {value}, bubbles: true, composed: true}));
   };
-  return {dom, panel, root, button, select, requests, scrolled, layoutMedia, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
+  return {dom, panel, root, button, select, requests, compatibilityRequests, scrolled, layoutMedia, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
 }
+
+test("version status refresh warns about all receivers without changing unsaved fields", async () => {
+  const ui = await createPanel();
+  try {
+    assert.equal(ui.compatibilityRequests.length, 1);
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Noch keine Receiver-Anfrage/);
+    ui.select("new-menu", "Wohnzimmer");
+    ui.button("Untermenü hinzufügen").click();
+    const field = ui.root.querySelector('[data-field="menu-label"]');
+    const model = JSON.stringify(ui.panel.model);
+    ui.panel._hass.callApi = async () => ({version: "1.0.0", receivers: [
+      {address: "192.0.2.1", version: "0.9.0", status: "version_mismatch"},
+      {address: "192.0.2.2", version: "1.0.0", status: "compatible"},
+      {address: "<img src=x>", version: null, status: "unidentified_peer"},
+    ]});
+    await ui.panel.loadCompatibility();
+    const status = ui.root.querySelector(".compatibility");
+    assert.match(status.textContent, /0\.9\.0 passt nicht zu HA 1\.0\.0/);
+    assert.match(status.textContent, /192\.0\.2\.2: Version 1\.0\.0 passt/);
+    assert.equal(status.querySelectorAll(".version-warning").length, 2);
+    assert.equal(status.querySelector("img"), null);
+    assert.equal(JSON.stringify(ui.panel.model), model);
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(ui.root.querySelector('[data-field="menu-label"]'), field);
+    ui.panel.setLanguage("en");
+    assert.match(ui.root.querySelector(".compatibility").textContent, /does not match HA/);
+    ui.panel._hass.callApi = async () => ({version: "1.0.0", receivers: [
+      {address: "192.0.2.1", version: "1.0.0", status: "compatible"},
+    ]});
+    await ui.panel.loadCompatibility();
+    assert.equal(ui.root.querySelectorAll(".version-warning").length, 0);
+    ui.panel._hass.callApi = async () => { throw new Error("offline"); };
+    await ui.panel.loadCompatibility();
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Version check unavailable/);
+    ui.panel.remove();
+    let requests = 0;
+    ui.panel._hass.callApi = async () => { requests++; };
+    await ui.panel.loadCompatibility();
+    assert.equal(requests, 0);
+  } finally { ui.dom.window.close(); }
+});
 
 test("initial HA assignment before connection loads the editor without another state update", async () => {
   const ui = await createPanel({hassBeforeConnect: true});
@@ -102,6 +148,80 @@ test("initial HA assignment before connection loads the editor without another s
     assert.equal(ui.requests.length, 1);
     assert.equal(ui.panel.model.root.label, "Home Assistant");
     assert.ok(ui.root.querySelector("[data-selector='language']"));
+  } finally { ui.dom.window.close(); }
+});
+
+test("coordinated update requires confirmation and pins the release and participating receivers", async () => {
+  const ui = await createPanel();
+  try {
+    const candidate = {id: "release-candidate", release: {version: "2.0.0"}};
+    ui.panel.compatibility = {version: "1.0.0", receivers: [{id: "a".repeat(32), address: "192.0.2.1", version: "1.0.0", status: "compatible"}],
+      updates: {hacs: {entity_id: "update.renamed"}, candidate, job: null}};
+    const calls = [];
+    ui.panel._hass.callApi = async (method, route, body) => {
+      calls.push({method, route, body});
+      return {hacs: {}, candidate, job: {id: "job", release: {version: "2.0.0"}, phase: "ha_installing", receivers: []}};
+    };
+    ui.select("new-menu", "Ungespeichert");
+    ui.button("Untermenü hinzufügen").click();
+    const draft = JSON.stringify(ui.panel.model);
+    ui.panel.renderCompatibility();
+    ui.button("Beide auf 2.0.0 aktualisieren").click();
+    assert.match(ui.root.querySelector("dialog").textContent, /192\.0\.2\.1/);
+    assert.equal(calls.length, 0);
+    ui.button("Abbrechen").click();
+    await tick();
+    assert.equal(calls.length, 0);
+    ui.button("Beide auf 2.0.0 aktualisieren").click();
+    // A live status refresh cannot add unconfirmed receivers to the request.
+    ui.panel.compatibility.receivers.push({id: "c".repeat(32), address: "192.0.2.2"});
+    ui.button("Update starten").click();
+    await tick();
+    assert.equal(calls.length, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(calls[0])), {method: "POST", route: "enigmaha_companion/v1/updates",
+      body: {action: "start", candidate_id: "release-candidate", receiver_ids: ["a".repeat(32)]}});
+    assert.equal(JSON.stringify(ui.panel.model), draft);
+    assert.equal(ui.panel.dirty, true);
+  } finally { ui.dom.window.close(); }
+});
+
+test("HA restart requires separate consent and saved edits; HACS absence and failure are visible", async () => {
+  const ui = await createPanel();
+  try {
+    const job = {id: "job", release: {version: "2.0.0"}, phase: "ha_restart_required", receivers: [
+      {address: "192.0.2.1", status: "completed"}]};
+    ui.panel.compatibility.updates = {hacs: {}, candidate: null, job};
+    ui.panel.renderCompatibility();
+    ui.panel.markDirty();
+    ui.panel.renderCompatibility();
+    assert.equal(ui.button("Home Assistant neu starten").disabled, true);
+    const calls = [];
+    ui.panel._hass.callApi = async (method, route, body) => { calls.push(body); return ui.panel.compatibility.updates; };
+    ui.panel.dirty = false;
+    ui.panel.renderCompatibility();
+    ui.button("Home Assistant neu starten").click();
+    assert.equal(calls.length, 0);
+    ui.button("Abbrechen").click();
+    await tick();
+    assert.equal(calls.length, 0);
+    ui.button("Home Assistant neu starten").click();
+    ui.button("Neu starten").click();
+    await tick();
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{action: "restart", job_id: "job"}]);
+    assert.match(ui.root.querySelector(".compatibility").textContent, /HA-Neustart angefordert/);
+    ui.panel.compatibility.updates = {hacs: null, candidate: null, job: null};
+    ui.panel.renderCompatibility();
+    assert.match(ui.root.querySelector(".compatibility").textContent, /HACS-Update nicht verfügbar/);
+    ui.panel.compatibility.updates.job = job;
+    ui.panel.renderCompatibility();
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Receiver verwenden die Zielversion/);
+    ui.panel.compatibility.updates.job = null;
+    ui.panel.compatibility.updates.hacs = {};
+    ui.panel._hass.callApi = async () => { throw {body: {error: "release_check_failed"}}; };
+    await ui.panel.updateAction({action: "check"});
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Release nicht verfügbar oder unvollständig/);
+    ui.panel.setLanguage("en");
+    assert.match(ui.root.querySelector(".compatibility").textContent, /Release unavailable or incomplete/);
   } finally { ui.dom.window.close(); }
 });
 

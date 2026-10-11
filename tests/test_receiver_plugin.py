@@ -7,6 +7,7 @@ import tempfile
 import types
 import unittest
 from unittest.mock import patch
+from unittest.mock import Mock
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -126,10 +127,10 @@ def load_receiver():
     config.ConfigSelection = ConfigSelection
     config.getConfigListEntry = lambda *args: args
     fake["Plugins.Plugin"].PluginDescriptor = type("PluginDescriptor", (), {
-        "WHERE_PLUGINMENU": 1, "WHERE_EXTENSIONSMENU": 2, "WHERE_MENU": 3,
+        "WHERE_PLUGINMENU": 1, "WHERE_EXTENSIONSMENU": 2, "WHERE_MENU": 3, "WHERE_SESSIONSTART": 4,
         "__init__": lambda self, **kwargs: self.__dict__.update(kwargs)})
     fake["Screens.Screen"].Screen = Screen
-    fake["Screens.MessageBox"].MessageBox = type("MessageBox", (), {"TYPE_ERROR": 0, "TYPE_INFO": 1})
+    fake["Screens.MessageBox"].MessageBox = type("MessageBox", (), {"TYPE_ERROR": 0, "TYPE_INFO": 1, "TYPE_YESNO": 2})
     fake["Screens.VirtualKeyBoard"].VirtualKeyBoard = object
     fake["Screens.ChoiceBox"].ChoiceBox = type("ChoiceBox", (), {})
     enigma = fake["enigma"]
@@ -155,14 +156,17 @@ class ReceiverTests(unittest.TestCase):
         self.states = json.loads((ROOT / "protocol/states.example.json").read_text(encoding="utf-8"))["states"]
         self.pending, self.commands, self.dialogs = [], [], []
         session = types.SimpleNamespace(open=lambda *args, **kwargs: self.dialogs.append((args, kwargs)),
-                                      openWithCallback=lambda *args: self.dialogs.append(args))
+                                      openWithCallback=lambda *args, **kwargs: self.dialogs.append(args if not kwargs else (args, kwargs)))
         self.screen = PLUGIN.CompanionScreen(session)
         self.addCleanup(self.screen.cleanup)
         # Enigma2's skin loader owns Screen.scale and replaces it during layout.
         self.screen.scale = ((1, 1), (1, 1))
         self.screen.config = dict(PLUGIN.DEFAULTS, url="http://ha.test:8123", token="dummy")
         self.screen.client = types.SimpleNamespace(get_menu=lambda: self.menu,
-             get_states=lambda menu: self.states, execute=lambda command: self.commands.append(command))
+             get_update=lambda: None, get_states=lambda menu: self.states, execute=lambda command: self.commands.append(command))
+        identity = patch.object(PLUGIN, "load_receiver_id", return_value="a" * 32)
+        identity.start()
+        self.addCleanup(identity.stop)
         def defer(work):
             item = Pending(work)
             self.pending.append(item)
@@ -558,12 +562,102 @@ class ReceiverTests(unittest.TestCase):
         self.press("ok")
         self.assertEqual(self.commands, [])
 
+    def test_peer_mismatch_has_localized_versions_blocks_actions_and_does_not_repeat_dialog(self):
+        self.press("open")
+        for language in ("de", "en"):
+            self.screen.appearance.language = language
+            self.screen.peer_notice = None
+            error = PLUGIN.ClientError("version_mismatch", peer_version="99.0.0")
+            failure = types.SimpleNamespace(value=error)
+            self.screen.failed(failure, self.screen.generation)
+            count = len(self.dialogs)
+            self.assertIn(PLUGIN.VERSION, self.screen["status"].text)
+            self.assertIn("99.0.0", self.screen["status"].text)
+            self.assertIn("denselben Release" if language == "de" else "same release", self.dialogs[-1][0][1])
+            self.assertFalse(self.screen.online)
+            self.press("ok")
+            self.assertEqual(self.commands, [])
+            self.screen.failed(failure, self.screen.generation)
+            self.assertEqual(len(self.dialogs), count)
+            self.screen.loaded((self.menu, self.states), self.screen.generation)
+            self.assertTrue(self.screen.online)
+            self.screen.failed(failure, self.screen.generation)
+            self.assertEqual(len(self.dialogs), count + 1)
+        error = PLUGIN.ClientError("unidentified_peer")
+        self.screen.failed(types.SimpleNamespace(value=error), self.screen.generation)
+        self.assertIn("Cannot identify", self.dialogs[-1][0][1])
+
     def test_settings_can_be_opened_and_cancelled(self):
         self.press("settings")
         self.assertFalse(self.screen.timer.running)
         self.assertEqual(len(self.dialogs), 1)
         self.screen.settings_done(None)
         self.assertEqual(len(self.pending), 1)
+
+    def update_plan(self):
+        return {"id": "b" * 32, "release": {"version": "2.0.0"}, "status": "pending", "attempt": 1}
+
+    def test_receiver_declining_update_cannot_download_or_install(self):
+        job = self.update_plan()
+        self.screen.client.get_update = lambda: job
+        self.screen.client.report_update = lambda job, status: job.update(status=status)
+        self.screen.updater = types.SimpleNamespace(confirm=Mock(), perform=Mock())
+        self.press("refresh")
+        self.pending.pop().fire()
+        args, kwargs = self.dialogs[-1]
+        self.assertEqual(kwargs["default"], False)
+        self.assertIn("2.0.0", args[2])
+        self.screen.updater.perform.assert_not_called()
+        args[0](False)
+        self.pending.pop().fire()
+        self.assertEqual(job["status"], "declined")
+        self.screen.updater.confirm.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+
+    def test_receiver_confirms_install_and_gui_restart_separately_and_blocks_close(self):
+        job = self.update_plan()
+        self.screen.client.get_update = lambda: job
+        def perform(job, client):
+            job["status"] = "restart_required"
+        self.screen.updater = types.SimpleNamespace(confirm=Mock(), perform=Mock(side_effect=perform))
+        self.press("refresh")
+        self.pending.pop().fire()
+        args, kwargs = self.dialogs[-1]
+        args[0](True)
+        self.assertTrue(self.screen.update_installing)
+        self.press("close")
+        self.assertFalse(self.screen.closed)
+        with patch.dict(sys.modules, {"Components.SystemInfo": types.SimpleNamespace(BoxInfo=types.SimpleNamespace(getItem=lambda key: "openatv"))}):
+            self.pending.pop().fire()
+        self.screen.updater.confirm.assert_called_once_with(job)
+        self.screen.updater.perform.assert_called_once_with(job, self.screen.client)
+        self.assertFalse(self.screen.update_installing)
+        args, kwargs = self.dialogs[-1]
+        self.assertIn("GUI jetzt neu starten", args[2])
+        self.assertEqual(kwargs["default"], False)
+        args[0](False)
+        self.assertFalse(self.screen.busy)
+        with patch.dict(sys.modules, {"Screens.Standby": types.SimpleNamespace(TryQuitMainloop=object)}):
+            self.screen.restart_answer(True)
+        self.assertEqual(self.dialogs[-1][0], (object, 3))
+
+    def test_update_errors_are_localized_and_startup_only_reports_running_release(self):
+        self.screen.appearance.language = "en"
+        failure = types.SimpleNamespace(value=PLUGIN.UpdateError("checksum_failed"))
+        self.screen.failed(failure, self.screen.generation)
+        self.assertIn("checksum does not match", self.dialogs[-1][0][1])
+        self.assertFalse(self.screen.online)
+        fake = types.SimpleNamespace(get_update=Mock(return_value=None))
+        journal = types.SimpleNamespace(acknowledge_running=Mock())
+        with patch.object(PLUGIN, "load_settings", return_value=self.screen.config), \
+             patch.object(PLUGIN, "CompanionClient", return_value=fake), \
+             patch.object(PLUGIN, "ReceiverUpdater", return_value=journal):
+            PLUGIN.report_after_restart(0)
+            PLUGIN._UPDATE_REPORT_TIMER.callback[0]()
+            self.pending.pop().fire()
+        fake.get_update.assert_called_once()
+        journal.acknowledge_running.assert_called_once_with(None)
+        PLUGIN.report_after_restart(1)
 
     def test_private_config_roundtrip_and_validation(self):
         settings = __import__("eha_receiver_test.settings", fromlist=["save_settings"])

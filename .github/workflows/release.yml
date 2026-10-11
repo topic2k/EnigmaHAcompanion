@@ -60,7 +60,7 @@ jobs:
       - name: Record tested source tree
         id: source
         run: |
-          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py
+          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py protocol/enigmaha_protocol/compatibility.py
           echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"
       - name: Install test dependencies
         run: |
@@ -134,7 +134,7 @@ jobs:
             exit 1
           fi
           python tools/release_version.py --version "$VERSION"
-          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py
+          git add package.json package-lock.json custom_components/enigmaha_companion/manifest.json custom_components/enigmaha_companion/const.py protocol/enigmaha_protocol/compatibility.py
           if [[ "$(git write-tree)" != "$TESTED_TREE" ]]; then
             echo "::error::Release source differs from tested source."
             exit 1

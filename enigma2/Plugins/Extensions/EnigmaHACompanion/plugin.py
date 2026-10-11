@@ -13,6 +13,9 @@ from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont,
 from twisted.internet.threads import deferToThread
 
 from .companion.client import ClientError, CompanionClient
+from .companion.updater import ReceiverUpdater, load_receiver_id
+from .enigmaha_protocol.releases import UpdateError
+from .enigmaha_protocol.compatibility import VERSION
 from .companion.navigation import Navigator
 from .companion.i18n import translate
 from .appearance import Appearance
@@ -66,6 +69,10 @@ class CompanionScreen(Screen):
         self.state_icons = StateIcons()
         self.busy = False
         self.online = False
+        self.peer_notice = None
+        self.update_notice = None
+        self.update_installing = False
+        self.updater = ReceiverUpdater()
         self.closed = False
         self.generation = 0
         self.row_height = max(28, int(40*self.ui_scale))
@@ -100,8 +107,9 @@ class CompanionScreen(Screen):
 
     def connect(self):
         try:
-            self.client = CompanionClient(self.config["url"], self.config["token"], self.config["timeout"])
-        except ValueError:
+            self.client = CompanionClient(self.config["url"], self.config["token"], self.config["timeout"],
+                                          receiver_id=load_receiver_id())
+        except (ValueError, OSError):
             self["status"].setText(self.t("Adresse oder Token ungültig. Menü: Einstellungen"))
             return
         self.refresh()
@@ -158,6 +166,11 @@ class CompanionScreen(Screen):
 
     @staticmethod
     def snapshot(client):
+        job = client.get_update()
+        if job and job["status"] in {"pending", "installing", "restart_required"}:
+            return {"update": job}
+        if job:
+            ReceiverUpdater().acknowledge_running(job)
         menu = client.get_menu()
         return menu, client.get_states(menu)
 
@@ -178,6 +191,14 @@ class CompanionScreen(Screen):
 
     def loaded(self, result, generation):
         if self.closed or generation != self.generation:
+            return
+        if isinstance(result, dict) and "update" in result:
+            self.busy, self.online = False, False
+            self.update_loaded(result["update"])
+            return
+        if isinstance(result, dict) and "installed_update" in result:
+            self.busy, self.online, self.update_installing = False, False, False
+            self.offer_restart(result["installed_update"])
             return
         menu, states = result
         overrides = {}
@@ -202,6 +223,7 @@ class CompanionScreen(Screen):
                         break
         self.nav, self.states = new_nav, states
         self.online, self.busy = True, False
+        self.peer_notice = None
         self.render()
         self["status"].setText(self.t("Verbunden") if self.nav.current["children"] else self.t("Menü ist leer. Einträge in Home Assistant hinzufügen."))
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
@@ -209,10 +231,31 @@ class CompanionScreen(Screen):
     def failed(self, failure, generation):
         if self.closed or generation != self.generation:
             return None
+        was_updating = self.update_installing
         self.busy, self.online = False, False
+        self.update_installing = False
         error = failure.value
+        if isinstance(error, UpdateError):
+            reasons = {"download_failed": "IPK konnte nicht geladen werden. Internetverbindung prüfen.",
+                       "checksum_failed": "IPK-Prüfsumme stimmt nicht. Keine Installation ausgeführt.",
+                       "invalid_package": "IPK passt nicht zu diesem Release oder Receiver.",
+                       "install_uncertain": "Installation unklar. Paketstatus prüfen; keine automatische Wiederholung.",
+                       "permission_denied": "Für das Receiver-Update werden Root-Rechte benötigt.",
+                       "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Dateirechte prüfen."}
+            message = self.t(reasons.get(error.code, "Receiver-Update fehlgeschlagen. Fortschritt im HA-Editor prüfen."))
+            self["status"].setText(message)
+            self.session.open(MessageBox, message, type=MessageBox.TYPE_ERROR)
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return None
+        if was_updating:
+            self["status"].setText(self.t("Updateverbindung unterbrochen. Fortschritt wird beim nächsten Abruf geprüft."))
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return None
         code = error.code if isinstance(error, ClientError) else "unknown"
         messages = {"unauthorized": self.t("Token abgelehnt. Menü: Einstellungen"),
+                    "version_mismatch": self.t("Versionen ungleich: Receiver {receiver}, HA {ha}. Beide auf denselben Release aktualisieren.",
+                                              receiver=VERSION, ha=getattr(error, "peer_version", None) or "?"),
+                    "unidentified_peer": self.t("Gegenstelle nicht als passende EnigmaHA-Integration erkennbar. Installation und Version prüfen."),
                     "forbidden": self.t("Keine Berechtigung für diese Aktion."),
                     "not_found": self.t("HA-Integration nicht erreichbar. Installation prüfen."),
                     "conflict": self.t("Menü/Zustand geändert. Gelb: neu laden."),
@@ -220,9 +263,91 @@ class CompanionScreen(Screen):
                     "connection_failed": self.t("Verbindung fehlgeschlagen. Schaltzustand unklar; keine Wiederholung."),
                     "invalid_menu": self.t("HA hat ein ungültiges Menü geliefert.")}
         self["status"].setText(messages.get(code, self.t("Abruf fehlgeschlagen. Gelb: erneut laden.")))
+        if code in {"version_mismatch", "unidentified_peer"}:
+            notice = (code, error.peer_version)
+            if notice != self.peer_notice:
+                self.peer_notice = notice
+                self.session.open(MessageBox, messages[code], type=MessageBox.TYPE_ERROR)
+            # Keep the status line short; the dialog contains the recovery steps.
+            self["status"].setText(self.t("Versionen ungleich: Receiver {receiver}, HA {ha}.",
+                                         receiver=VERSION, ha=error.peer_version or "?")
+                                   if code == "version_mismatch" else self.t("EnigmaHA-Gegenstelle nicht erkannt. Installation prüfen."))
         self["heading"].setText("OFFLINE – " + (safe_text(self.nav.breadcrumb) if self.nav else "Home Assistant"))
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
         return None  # Consume Deferred failure; do not log request/token details.
+
+    def update_loaded(self, job):
+        self.timer.stop()
+        key = (job["id"], job["attempt"])
+        if job["status"] == "restart_required":
+            self.offer_restart(job)
+            return
+        if job["status"] == "installing":
+            # Resume only consent already written locally. perform() checks the journal.
+            self.install_update(job, confirmed=False)
+            return
+        if key == self.update_notice:
+            self["status"].setText(self.t("Update wartet auf Bestätigung. Plugin erneut öffnen."))
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return
+        self.update_notice = key
+        self.busy = True
+        self.session.openWithCallback(lambda answer: self.update_answer(job, answer), MessageBox,
+            self.t("Release {version} für HA und Receiver verwenden? Das geprüfte IPK wird installiert. Danach ist ein GUI-Neustart nötig.",
+                   version=job["release"]["version"]), type=MessageBox.TYPE_YESNO, default=False)
+
+    def update_answer(self, job, answer):
+        if self.closed:
+            return
+        self.busy = False
+        if answer:
+            self.install_update(job, confirmed=True)
+        else:
+            client = self.client
+            def work():
+                client.report_update(job, "declined")
+                return self.snapshot(client)
+            self.run(work, self.t("Update abgelehnt."))
+
+    def install_update(self, job, confirmed):
+        client = self.client
+        def work():
+            from Components.SystemInfo import BoxInfo
+            if BoxInfo.getItem("distro") != "openatv":
+                raise UpdateError("invalid_package")
+            if confirmed:
+                self.updater.confirm(job)
+            self.updater.perform(job, client)
+            return {"installed_update": job}
+        self.update_installing = True
+        self.run(work, self.t("Receiver-Update wird installiert. Bitte warten …"))
+
+    def offer_restart(self, job):
+        key = (job["id"], "restart")
+        self["status"].setText(self.t("Update installiert. GUI-Neustart erforderlich."))
+        if self.update_notice == key:
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return
+        self.update_notice = key
+        self.busy = True
+        self.session.openWithCallback(self.restart_answer, MessageBox,
+            self.t("Release {version} installiert. Receiver-GUI jetzt neu starten? Aufnahmen werden durch die OpenATV-Neustartprüfung berücksichtigt.",
+                   version=job["release"]["version"]), type=MessageBox.TYPE_YESNO, default=False)
+
+    def restart_answer(self, answer):
+        if self.closed:
+            return
+        self.busy = False
+        if answer:
+            from Screens.Standby import TryQuitMainloop
+            self.session.open(TryQuitMainloop, 3)
+        self.timer.start(self.config["refresh_seconds"] * 1000, True)
+
+    def close(self, *args, **kwargs):
+        if self.update_installing:
+            self["status"].setText(self.t("Receiver-Update wird installiert. Bitte warten …"))
+            return
+        Screen.close(self, *args, **kwargs)
 
     def render(self):
         if not self.nav:
@@ -294,6 +419,35 @@ def main(session, **kwargs):
     session.open(CompanionScreen)
 
 
+_UPDATE_REPORT_TIMER = None
+
+
+def report_after_restart(reason, **kwargs):
+    """Report the running release after GUI restart; never install in the background."""
+    global _UPDATE_REPORT_TIMER
+    if reason != 0:
+        if _UPDATE_REPORT_TIMER is not None:
+            _UPDATE_REPORT_TIMER.stop()
+        return
+    attempts = [0]
+    timer = _UPDATE_REPORT_TIMER = eTimer()
+    def work():
+        config = load_settings()
+        if not config["url"] or not config["token"]:
+            return
+        client = CompanionClient(config["url"], config["token"], config["timeout"], receiver_id=load_receiver_id())
+        ReceiverUpdater().acknowledge_running(client.get_update())
+    def failed(failure):
+        attempts[0] += 1
+        if attempts[0] < 10:
+            timer.start(30000, True)
+        return None
+    def report():
+        deferToThread(work).addCallbacks(lambda result: None, failed)
+    timer.callback.append(report)
+    timer.start(10000, True)
+
+
 def menu(menuid, **kwargs):
     if menuid != "mainmenu":
         return []
@@ -323,4 +477,5 @@ def Plugins(**kwargs):
     return [PluginDescriptor(name="EnigmaHA Companion", description=t("Home Assistant auf deinem Receiver"),
                              where=[PluginDescriptor.WHERE_PLUGINMENU, PluginDescriptor.WHERE_EXTENSIONSMENU], fnc=main),
             PluginDescriptor(name="EnigmaHA Companion", description=t("Home Assistant auf deinem Receiver"),
-                             where=PluginDescriptor.WHERE_MENU, fnc=menu)]
+                             where=PluginDescriptor.WHERE_MENU, fnc=menu),
+            PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=report_after_restart)]

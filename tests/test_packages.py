@@ -27,6 +27,18 @@ def read_ar(data):
 
 
 class PackageTests(unittest.TestCase):
+    def test_ha_and_receiver_ship_the_same_release_identity(self):
+        relative = "enigmaha_protocol/compatibility.py"
+        root = DIST / "unpacked"
+        ha = root / "homeassistant/custom_components/enigmaha_companion" / relative
+        receiver = root / "enigma2/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion" / relative
+        self.assertEqual(ha.read_bytes(), receiver.read_bytes())
+        constants = ast.parse(receiver.read_text(encoding="utf-8"))
+        version = next(ast.literal_eval(node.value) for node in constants.body
+                       if isinstance(node, ast.Assign)
+                       and any(isinstance(target, ast.Name) and target.id == "VERSION" for target in node.targets))
+        self.assertEqual(version, VERSION)
+
     def test_hacs_release_installs_complete_component_without_extra_directory(self):
         hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
         self.assertTrue(hacs["zip_release"])
@@ -68,7 +80,7 @@ class PackageTests(unittest.TestCase):
             names = archive.namelist()
             prefix = "custom_components/enigmaha_companion/"
             for filename in ("__init__.py", "manifest.json", "config_flow.py", "api.py", "panel.js",
-                             "icons.py",
+                             "icons.py", "updates.py", "enigmaha_protocol/releases.py",
                              "translations/de.json", "translations/en.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertFalse(any("__pycache__" in name or name.endswith(".pyc") for name in names))
@@ -102,7 +114,8 @@ class PackageTests(unittest.TestCase):
             for filename in ("plugin.py", "setup.py", "keymap.xml", "settings.py", "state_icons.py",
                              "skin/__init__.py", "skin/base.py",
                              "skin/native/__init__.py", "skin/GradientFHD/__init__.py",
-                             "companion/client.py", "companion/i18n.py", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
+                             "companion/client.py", "companion/updater.py", "companion/i18n.py",
+                             "enigmaha_protocol/releases.py", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertTrue(all(name.startswith(prefix) and ".." not in name.split("/") for name in names))
             self.assertFalse(any("__pycache__" in name for name in names))

@@ -168,6 +168,22 @@ gemeinsame Liste; das gemeinsame Layout bleibt in `appearance.py`.
 
 ## Teststand und Grenzen
 
+Die Updatekoordination liegt in `updates.py`, die portable Releaseprüfung in
+`protocol/enigmaha_protocol/releases.py` und die OpenATV-Installation in
+`enigma2/companion/updater.py`. Verwendet werden die öffentliche
+[HACS-Update-Entität](https://github.com/hacs/integration/blob/main/custom_components/hacs/update.py)
+und OpenATVs [`opkg`](https://github.com/openatv/enigma2/blob/master/lib/python/Components/Opkg.py)
+sowie [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/python/Screens/Standby.py).
+Die bestehenden Python-Paketabhängigkeiten decken auch Hashing, UUID und
+Prozessaufrufe ab; `python3-netclient` zieht `python3-crypt` nach.
+
+Update-Tests prüfen feste HACS-Zielversionen, Benutzer-/Receiverbindung,
+Bestätigungen, Ablehnung, Prüfsummen und Paketmetadaten, verlorene Antworten,
+Speicherfehler, unterbrochene Installationen und Abschluss erst nach tatsächlich
+laufender Zielversion auf beiden Seiten. HACS-Dienste und `opkg` werden dabei
+ersetzt; ein kompletter HACS/IPK-Updatezyklus auf HA und OpenATV-Hardware steht
+noch aus. Vor Freigabe einschließlich GUI-Neustart bei laufender Aufnahme prüfen.
+
 Die automatisierten Tests decken Menüvalidierung, Befehle, echte HTTP-Anfragen
 gegen Testserver, HA-Lebenszyklus und Berechtigungen, Symbolauflösung,
 Receiver-Navigation, Layouts sowie Inhalt und Metadaten der Pakete ab.

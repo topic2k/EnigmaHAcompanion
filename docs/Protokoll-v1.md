@@ -7,6 +7,77 @@ Menüdefinition, Zustandsabruf und Schaltaktionen. `schema_version: 1` bezeichne
 das Datenformat unabhängig von der Paketversion. Teststand und bekannte Grenzen
 stehen in der [Entwicklerdokumentation](Entwicklung.md#teststand-und-grenzen).
 
+## Komponenten- und Versionsprüfung
+
+Receiver-Anfragen an `/menu`, `/states` und `/actions` senden
+`X-EnigmaHA-Component: receiver` und `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`.
+HA prüft die Header nach der Authentifizierung und vor dem Abruf bzw. Schalten.
+Antworten der Companion-Views enthalten `X-EnigmaHA-Component: homeassistant`
+und die eigene `X-EnigmaHA-Version`. Der Receiver prüft sie vor dem Verarbeiten
+erfolgreicher Antworten sowie bei HTTP 426. Die Paketversionen müssen exakt
+übereinstimmen. Eine bloß gleiche `schema_version` reicht nicht aus.
+
+HTTP 426 meldet `version_mismatch` bei unterschiedlichen Versionen oder
+`unidentified_peer` bei fehlender/ungültiger Kennung oder Version; die JSON-Antwort
+enthält zusätzlich die HA-`version`. Die Kennung dient der Kompatibilitätsprüfung,
+nicht als Ersatz für HA-Authentifizierung oder TLS.
+
+GET `/compatibility` ist Administratoren vorbehalten und liefert
+`{"version": "1.0.0", "receivers": [], "updates": {...}}` mit der tatsächlich
+geladenen HA-Paketversion. Receiver-Einträge enthalten `id` (ggf. `null`),
+`address`, `version` (ggf. `null`) und `status`
+(`compatible`, `version_mismatch`, `unidentified_peer`). HA hält höchstens 64
+Einträge der letzten fünf Minuten im Arbeitsspeicher, gruppiert nach HA-Benutzer
+und `X-EnigmaHA-Receiver-ID` (32 kleingeschriebene Hex-Zeichen); ohne gültige ID
+wird die Quelladresse verwendet. Die ID liegt dauerhaft auf dem Receiver.
+Es findet kein aktiver Scan statt; die Liste bleibt im Arbeitsspeicher.
+
+## Bestätigtes Release-Update
+
+`updates` enthält `hacs` (Update-Entität oder `null`), `candidate` (geprüfter
+Release mit zufälliger `id` oder `null`) und `job` (dauerhafter Vorgang oder `null`).
+HACS wird über seine registrierte Update-Entität mit `INSTALL | SPECIFIC_VERSION`
+angesprochen. Die folgenden Administrator-Anfragen an POST `/updates` liefern
+jeweils den aktualisierten `updates`-Status; fachliche Fehler liefern HTTP 409.
+
+| Anfrage | Wirkung |
+| --- | --- |
+| `{"action":"check"}` | Neuesten stabilen GitHub-Release und Assets prüfen; Auswahl zehn Minuten gültig |
+| `{"action":"start","candidate_id":"…","receiver_ids":["…"]}` | Bestätigte Auswahl festschreiben; Receiver müssen kürzlich gemeldet sein |
+| `{"action":"retry","job_id":"…"}` | Gescheiterte Schritte bzw. Ablehnungen für denselben Release erneut anbieten |
+| `{"action":"restart","job_id":"…"}` | HA-Neustart erst nach Zielversion aller beteiligten Receiver anfordern |
+
+Ein Release-Deskriptor enthält exakt `version`, `ipk_url`, `ipk_sha256` und
+`ipk_size`. URLs müssen zum festen Repository, Tag `v<Version>` und erwarteten
+IPK-Dateinamen passen. Nur veröffentlichte stabile Releases mit HACS-ZIP, IPK und
+Prüfsummendatei werden angeboten. HACS erhält `update.install` mit explizitem
+`version: v<Version>` und dem bestätigenden Administrator als Benutzerkontext.
+Der Release und die Receiverliste wechseln innerhalb eines Vorgangs nicht.
+
+GET/POST `/receiver_update` verlangen einen aktiven authentifizierten HA-Benutzer,
+Receiver-Kennung, gültige Version und Receiver-ID. Hier sind ungleiche Versionen
+ausdrücklich erlaubt. Andere Receiver-Routen bleiben gesperrt. Ein Receiver
+erhält nur den an seine ID **und** seinen HA-Benutzer gebundenen Vorgang.
+
+GET liefert `{"job":null}` oder `{"job":{"id":"…","release":{...},
+"status":"pending","attempt":1}}`. Nach lokaler Bestätigung meldet POST
+`{"job_id":"…","attempt":1,"status":"installing","error":null}`;
+weitere Meldungen sind `declined`, `restart_required` oder `failed` mit festen,
+nicht sensitiven Fehlercodes. Erfolg ist `{"accepted":true}`. Veraltete
+Vorgänge/Versuche werden mit `stale_update` abgewiesen. Eine `completed`-Meldung
+wird nicht akzeptiert: Erst ein GET mit tatsächlich geladener Zielversion
+schließt den Receiver ab.
+
+Vorgangsphasen: `ha_installing`, `receivers`, `ha_restart_required`, `completed`,
+`failed`. Receiverstatus: `pending`, `installing`, `restart_required`, `completed`,
+`declined`, `failed`. HA speichert den Vorgang getrennt vom Menü. Der Receiver
+speichert die lokale Bestätigung vor dem Paketaufruf und prüft Paketgröße,
+SHA-256, Paketmetadaten sowie anschließend `opkg status`. Bei unklarem
+Installationsergebnis wird nicht automatisch erneut installiert. Weder
+GitHub-Downloads noch Paketaufrufe erhalten den HA-Token. Neustarts verlangen
+separate Bestätigung. `completed` setzt die tatsächlich laufende Zielversion
+auf HA und allen beteiligten Receivern voraus.
+
 ## Menü
 
 Die maßgebliche Validierung liegt in `protocol/enigmaha_protocol/menu.py`.
@@ -52,6 +123,7 @@ den Token unverschlüsselt. Zugangsdaten gehören nur in lokale Receiver-Konfigu
 | POST `/actions` | Prüft Eintrag/Aktion und ruft den passenden HA-Service auf |
 | GET `/config` | Vollständige Menüdefinition; nur für Administratoren |
 | PUT `/config` | Menü validieren und speichern; nur für Administratoren |
+| GET `/compatibility` | HA-Version und kürzlich geprüfte Receiver; nur für Administratoren |
 
 PUT `/config` erwartet die vollständige Menüdefinition mit der aktuellen
 Revision. Die Integration prüft und speichert sie unter derselben Sperre wie
@@ -99,6 +171,7 @@ blockiert das Receiver-UI weitere Schaltaktionen.
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
 | 409 | `stale_menu`, `entity_unavailable`, beim Speichern `revision_limit` |
+| 426 | `version_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, beim Speichern `storage_failed` |
 | 503 | Integration nicht geladen oder bereits entladen |
 
@@ -107,7 +180,8 @@ Die fachlichen Fehlerantworten haben die Form `{"error": "code"}`;
 Verfügbarkeits- und Eingangsprüfung können davon abweichen. Anfragen über 1 MiB
 werden mit HTTP 413 abgewiesen. Keine Tokens, Tracebacks oder internen URLs
 an den Receiver zurückgeben. Der Client zeigt nur aus dem HTTP-Status
-abgeleitete Fehler an und verwirft den Antworttext bei Fehlern.
+abgeleitete Fehler sowie geprüfte Komponenten-/Versionsheader an und verwirft
+den Antworttext bei Fehlern.
 
 ## Implementierung
 

@@ -42,7 +42,8 @@ Only `MAJOR.MINOR.PATCH` without `v` or suffix is accepted. The prerelease check
 sets GitHub/HACS's beta flag and also requires a new version number.
 
 The workflow synchronizes `package.json`, both `package-lock.json` version fields,
-the HA manifest and `const.py`, then builds packages and runs Python/frontend
+the HA manifest, `const.py` and the shared component version in
+`protocol/enigmaha_protocol/compatibility.py`, then builds packages and runs Python/frontend
 tests. Only then does the separate release job receive write permissions. It
 checks SHA256 sums and the tested source tree, creates `Release <Version>`, and
 updates the chosen branch and `v<Version>` tag together. If the branch changed
@@ -85,6 +86,12 @@ prereleases. Inclusion in HACS's default catalog is a separate process.
   protocol module added by the build.
 
 ## Release notes
+
+The coordinated HACS/IPK workflow offers published stable releases only. The
+HACS ZIP, IPK and `SHA256SUMS.txt` must use the names above in the same release.
+Keep published assets and checksums unchanged: a started transaction pins its
+receivers and target version. Both components must first be installed with the
+update feature before the coordinated workflow becomes available.
 
 Describe features, requirements and limitations. State required reconfiguration
 explicitly and report only systems actually tested. Refer to

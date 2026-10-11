@@ -12,6 +12,8 @@ sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import API_PATH, ClientError, CompanionClient, MAX_RESPONSE_BYTES
 from companion.navigation import Navigator
 from enigmaha_protocol import ActionError, prepare_action
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION
+from enigmaha_protocol.releases import asset_url, ipk_name
 
 
 class FakeHA(BaseHTTPRequestHandler):
@@ -23,11 +25,14 @@ class FakeHA(BaseHTTPRequestHandler):
     def reply(self, code, body):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
+        for key, value in self.server.peer_headers.items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(json.dumps(body).encode("utf-8"))
 
     def do_GET(self):
         self.server.requests.append((self.command, self.path))
+        self.server.request_headers.append(dict(self.headers))
         if self.headers.get("Authorization") != "Bearer test-token":
             self.reply(401, {"error": "unauthorized"})
         elif self.server.mode == "redirect":
@@ -38,12 +43,16 @@ class FakeHA(BaseHTTPRequestHandler):
             self.reply(200, {"padding": "a" * MAX_RESPONSE_BYTES})
         elif self.server.mode == "malformed":
             self.send_response(200)
+            for key, value in self.server.peer_headers.items():
+                self.send_header(key, value)
             self.end_headers()
             self.wfile.write(b"not json")
         elif self.path == API_PATH + "/menu":
             self.reply(200, self.server.menu)
         elif self.path == API_PATH + "/states":
             self.reply(200, self.server.snapshot)
+        elif self.path == API_PATH + "/receiver_update":
+            self.reply(200, {"job": self.server.update_plan})
         else:
             self.reply(404, {"error": "not_found"})
 
@@ -51,6 +60,10 @@ class FakeHA(BaseHTTPRequestHandler):
         self.server.requests.append((self.command, self.path))
         if self.headers.get("Authorization") != "Bearer test-token":
             self.reply(401, {"error": "unauthorized"})
+            return
+        if self.path == API_PATH + "/receiver_update":
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.reply(200, {"accepted": True})
             return
         if self.path != API_PATH + "/actions":
             self.reply(404, {"error": "not_found"})
@@ -91,6 +104,9 @@ class ClientTests(unittest.TestCase):
         self.server.menu = json.loads((ROOT / "protocol/menu.example.json").read_text(encoding="utf-8"))
         self.server.snapshot = json.loads((ROOT / "protocol/states.example.json").read_text(encoding="utf-8"))
         self.server.mode = "normal"
+        self.server.peer_headers = {COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION}
+        self.server.update_plan = None
+        self.server.request_headers = []
         self.server.requests = []
         self.server.plans = []
         self.url = "http://127.0.0.1:" + str(self.server.server_port)
@@ -108,6 +124,38 @@ class ClientTests(unittest.TestCase):
         states = self.client.get_states(self.server.menu)
         self.assertEqual(states["light.wohnzimmer"]["state"], "on")
         self.assertEqual(self.server.plans[0]["data"], {"entity_id": "light.wohnzimmer"})
+
+    def test_receiver_sends_identity_and_version(self):
+        self.client.get_menu()
+        headers = {key.lower(): value for key, value in self.server.request_headers[0].items()}
+        self.assertEqual(headers[COMPONENT_HEADER.lower()], "receiver")
+        self.assertEqual(headers[VERSION_HEADER.lower()], VERSION)
+
+    def test_only_update_route_allows_an_identified_peer_with_a_different_version(self):
+        self.server.peer_headers[VERSION_HEADER] = "2.0.0"
+        self.assertIsNone(self.client.get_update())
+        job = {"id": "b" * 32, "status": "pending", "attempt": 1, "release": {"version": "2.0.0",
+            "ipk_url": asset_url("2.0.0", ipk_name("2.0.0")), "ipk_sha256": "a" * 64, "ipk_size": 10}}
+        self.server.update_plan = job
+        self.assertEqual(self.client.get_update(), job)
+        self.client.report_update(job, "installing")
+        with self.assertRaises(ClientError):
+            self.client.get_menu()
+        self.server.peer_headers[COMPONENT_HEADER] = "other"
+        with self.assertRaises(ClientError):
+            self.client.get_update()
+
+    def test_wrong_missing_and_invalid_peer_identity(self):
+        for headers, reason, version in [({}, "unidentified_peer", None),
+                ({COMPONENT_HEADER: "homeassistant", VERSION_HEADER: "2.0.0"}, "version_mismatch", "2.0.0"),
+                ({COMPONENT_HEADER: "other", VERSION_HEADER: VERSION}, "unidentified_peer", VERSION),
+                ({COMPONENT_HEADER: "homeassistant", VERSION_HEADER: "token-value"}, "unidentified_peer", None)]:
+            self.server.peer_headers = headers
+            with self.subTest(headers=headers), self.assertRaises(ClientError) as caught:
+                self.client.get_menu()
+            self.assertEqual(caught.exception.code, reason)
+            self.assertEqual(caught.exception.peer_version, version)
+        self.assertEqual(self.server.plans, [])
 
     def test_auth_error_does_not_expose_token(self):
         with self.assertRaises(ClientError) as caught:

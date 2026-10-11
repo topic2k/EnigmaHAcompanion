@@ -46,7 +46,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             spec.loader.exec_module(module)
             self.assertTrue(await module.async_setup(hass, {}))
             self.assertTrue(await module.async_setup(hass, {}))
-            self.assertEqual(len(views), 4)
+            self.assertEqual(len(views), 7)
             hass.http.async_register_static_paths.assert_awaited_once()
             self.assertTrue(await module.async_setup_entry(hass, object()))
             runtime = hass.data[module.DOMAIN]["runtime"]

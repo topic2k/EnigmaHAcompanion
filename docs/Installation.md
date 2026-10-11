@@ -51,6 +51,17 @@ Das separate ZIP `enigmaha_companion.zip` ist für HACS bestimmt.
 
 ## 2. Menü zusammenstellen
 
+HA-Integration und Receiver-Plugin müssen exakt denselben Release verwenden.
+Bei jeder Receiver-Anfrage prüfen beide Seiten EnigmaHA-Kennung und Paketversion.
+Bei unterschiedlichen Versionen oder fehlender/ungültiger Kennung werden Abrufe
+und Schaltbefehle gesperrt. Der Receiver zeigt einen Hinweis mit den Versionen;
+der HA-Editor zeigt die Anfragen der letzten fünf Minuten und aktualisiert die
+Anzeige alle 30 Sekunden. Ohne Receiver-Anfrage ist noch keine Prüfung möglich.
+
+Das [gemeinsame Update](#gemeinsames-update-über-hacs-und-ipk) bringt HA und die
+beteiligten Receiver nach Bestätigung auf denselben Release. Menü,
+Receiver-Einstellungen und Token bleiben erhalten; eine Neueinrichtung ist nicht nötig.
+
 Unter **Sprache** zwischen **Deutsch** (Standard) und **English** wechseln.
 Die Auswahl gilt für diesen Browser und ändert keine Menünamen. HA-eigene
 Einrichtungsdialoge und die internen Texte nativer Auswahlfelder folgen der
@@ -71,6 +82,53 @@ auch bei schaltbaren Einträgen die passenden HA-Berechtigungen.
 Alle Receiver verwenden dasselbe Menü. Die Menüdatei
 `.storage/enigmaha_companion.menu` wird von Home Assistant verwaltet und sollte
 nicht bei laufendem HA manuell bearbeitet werden.
+
+## Gemeinsames Update über HACS und IPK
+
+Beide Komponenten müssen einmal in einer Version installiert sein, die diesen
+Updateablauf enthält. Ältere Installationen zuerst über HACS bzw. das IPK aus
+demselben Release aktualisieren und HA sowie die Receiver-GUI neu starten.
+Bei einer bisherigen ZIP-Installation zuerst EnigmaHA in HACS einrichten.
+
+Voraussetzungen sind eine aktive HACS-Update-Entität für dieses Repository,
+Internetzugang zu GitHub auf HA und den Receivern sowie Root-Rechte für `opkg`
+auf OpenATV. Der Receiver benötigt weiterhin nur seinen normalen HA-Benutzertoken.
+Die HTTPS-Zertifikatsprüfung bleibt aktiv. Zusätzliche SSH-Zugangsdaten sind nicht nötig.
+
+1. Das Plugin auf allen beteiligten Receivern öffnen. Im HA-Editor erscheinen
+   die Receiver-Anfragen der letzten fünf Minuten. Offline-Receiver werden nicht
+   automatisch gesucht oder in ein Update aufgenommen.
+2. Im HA-Editor **Auf Updates prüfen** wählen. Angeboten wird der neueste
+   veröffentlichte stabile Release mit HACS-ZIP, IPK und `SHA256SUMS.txt`.
+3. **Beide auf … aktualisieren** wählen und Zielversion sowie Receiverliste
+   bestätigen. Die Auswahl gilt zehn Minuten. HACS installiert genau diese
+   Version; Zielversion und beteiligte Receiver bleiben für diesen Vorgang fest.
+4. Auf jedem Receiver die IPK-Installation bestätigen. Das Plugin lädt das
+   passende Paket, prüft Größe, SHA-256-Prüfsumme, Paketname und Version und
+   installiert es über `opkg`. Bis dahin wird nichts auf dem Receiver installiert.
+5. Den anschließend angebotenen **GUI-Neustart** am Receiver bestätigen.
+   Die native OpenATV-Neustartprüfung berücksichtigt laufende Aufnahmen.
+   Nach dem Neustart meldet das Plugin seine tatsächlich geladene Version an HA.
+6. Sobald alle beteiligten Receiver die Zielversion melden, im HA-Editor
+   **Home Assistant neu starten** bestätigen. Ungespeicherte Menüänderungen
+   vorher speichern. Danach die HA-Seite neu laden. Erst wenn auch HA mit
+   der Zielversion läuft, erscheint der Vorgang als abgeschlossen.
+
+Ein abgelehntes Receiver-Update kann im HA-Editor erneut angeboten werden und
+erfordert erneut die lokale Bestätigung. Bei ungleichen Versionen bleiben
+Menüabruf und Schaltbefehle gesperrt; der Updatekanal funktioniert weiterhin.
+HA speichert den Fortschritt unter `.storage/enigmaha_companion.update`, der
+Receiver seine Kennung und sein Installationsjournal unter
+`/etc/enigma2/enigmaha_companion_receiver_id` bzw.
+`/etc/enigma2/enigmaha_companion_update.json`. Nicht manuell während eines Updates ändern.
+
+Verbindungsabbrüche lösen keine zweite IPK-Installation aus. Bei unklarem
+`opkg`-Ergebnis den Paketstatus am Receiver prüfen; eine Installation mit
+unklarem Ausgang wird nicht automatisch wiederholt. Ein fehlender GUI-Neustart
+wird erneut angeboten. Downgrades sind gesperrt. Während eines Vorgangs keine
+andere Version über HACS oder `opkg` installieren. Nicht beteiligte Receiver
+später auf denselben Release bringen; sie bleiben andernfalls gesperrt.
+Die manuelle Installation beider Pakete aus demselben Release bleibt möglich.
 
 ## Langlebigen Zugriffstoken erstellen
 

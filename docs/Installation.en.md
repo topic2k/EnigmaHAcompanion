@@ -48,6 +48,17 @@ The separate `enigmaha_companion.zip` is intended for HACS.
 
 ## 2. Build the menu
 
+The HA integration and receiver plugin must use exactly the same release.
+Both sides check the EnigmaHA identity and package version on every receiver
+request. Different versions or a missing/invalid identity block data requests
+and actions. The receiver displays an explanation with the versions; the HA
+editor shows requests from the last five minutes and refreshes this status every
+30 seconds. A receiver must connect before it can be checked.
+
+The [coordinated update](#coordinated-update-through-hacs-and-ipk) brings HA and
+participating receivers to the same release after confirmation. Menus, receiver
+settings and tokens are retained; no reconfiguration is required.
+
 Choose **English** under **Sprache**. German is the default and first option.
 The choice is saved in this browser. HA setup dialogs and the internal texts of
 native selectors follow your HA profile language.
@@ -66,6 +77,51 @@ Your own menu and entity names are never automatically translated.
 
 All receivers use the same menu. HA manages it in
 `.storage/enigmaha_companion.menu`; do not edit that file while HA is running.
+
+## Coordinated update through HACS and IPK
+
+Both components must first run a version containing this update workflow. Update
+older installations through HACS and the IPK from the same release, then restart
+HA and the receiver GUI. For an existing ZIP installation, configure EnigmaHA in
+HACS first.
+
+Requirements: an active HACS update entity for this repository, GitHub internet
+access from HA and each receiver, and root permissions for OpenATV's `opkg`.
+The receiver still uses its regular HA user token. HTTPS certificate verification
+remains enabled; no SSH credentials are required.
+
+1. Open the plugin on all participating receivers. The HA editor lists receiver
+   requests from the last five minutes. Offline receivers are not discovered or
+   included automatically.
+2. Choose **Check for updates** in the HA editor. It offers the latest published
+   stable release containing the HACS ZIP, IPK and `SHA256SUMS.txt`.
+3. Choose **Update both to …** and confirm the target version and receiver list.
+   The selection expires after ten minutes. HACS installs that exact version;
+   the release and participating receivers stay fixed for this transaction.
+4. Confirm IPK installation on each receiver. The plugin downloads the matching
+   package, checks size, SHA-256, package name and version, then installs through
+   `opkg`. Nothing is installed on the receiver before this confirmation.
+5. Confirm the offered **GUI restart** on each receiver. OpenATV's native restart
+   check considers active recordings. After restarting, the plugin reports its
+   actual loaded version to HA.
+6. Once every participating receiver reports the target, confirm **Restart Home
+   Assistant** in the HA editor. Save unsaved menu changes first, then reload the
+   HA page after restarting. Completion requires HA itself to run the target too.
+
+A declined receiver update can be offered again in the HA editor and requires
+another local confirmation. Different versions continue to block menu requests
+and actions; the update channel remains available. HA stores progress in
+`.storage/enigmaha_companion.update`. Receiver identity and installation journal
+are stored in `/etc/enigma2/enigmaha_companion_receiver_id` and
+`/etc/enigma2/enigmaha_companion_update.json`. Do not edit these during an update.
+
+Lost connections do not cause a second IPK installation. If an `opkg` result is
+uncertain, inspect package status on the receiver; uncertain installations are
+not retried automatically. A missing GUI restart is offered again. Downgrades
+are blocked. Do not install another version through HACS or `opkg` during the
+transaction. Update receivers not included in the transaction to the same release
+later; otherwise they remain blocked. Manual installation of both packages from
+the same release remains available.
 
 ## Create a long-lived access token
 
@@ -242,9 +298,9 @@ repeated, even if their response was lost.
 
 ## Updating
 
-Update HA through HACS or the manual ZIP and restart HA. Install the receiver
-package from the same release and restart its GUI. Check release notes for any
-required reconfiguration and back up configuration before changes.
+Use the [coordinated update](#coordinated-update-through-hacs-and-ipk), or install
+the HA and receiver packages from the same release manually and restart both.
+Check release notes for required reconfiguration and back up configuration before changes.
 
 The bilingual update requires no reconfiguration. Without a saved preference,
 the editor and receiver start in German. Existing menus and credentials remain.

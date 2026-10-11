@@ -144,6 +144,22 @@ skin interfaces and keys. Register further profiles once in `skin/__init__.py`'s
 
 ## Test status and limitations
 
+Update coordination lives in `updates.py`, portable release verification in
+`protocol/enigmaha_protocol/releases.py`, and OpenATV installation in
+`enigma2/companion/updater.py`. It uses the public
+[HACS update entity](https://github.com/hacs/integration/blob/main/custom_components/hacs/update.py),
+OpenATV's [`opkg`](https://github.com/openatv/enigma2/blob/master/lib/python/Components/Opkg.py)
+and [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/python/Screens/Standby.py).
+Existing Python package dependencies also cover hashing, UUID and subprocesses;
+`python3-netclient` pulls in `python3-crypt`.
+
+Update tests cover pinned HACS versions, user/receiver binding, confirmation,
+declines, checksums, package metadata, lost responses, storage failures,
+interrupted installations and completion only after both sides run the target.
+HACS services and `opkg` are replaced; a complete HACS/IPK update cycle on HA and
+OpenATV hardware remains to be verified. Before release, include a GUI restart
+with an active recording in the checks.
+
 Automated tests cover menu validation, commands, real HTTP requests against test
 servers, HA lifecycle and permissions, icon resolution, navigation, layouts,
 package contents and metadata. HA services and receiver APIs use test doubles.

@@ -62,6 +62,12 @@ def build(output):
                          and any(isinstance(target, ast.Name) and target.id == "VERSION" for target in node.targets))
     if manifest_version != VERSION or panel_version != VERSION:
         raise ValueError("package.json, HA manifest and panel version must match")
+    peer_constants = ast.parse((ROOT / "protocol/enigmaha_protocol/compatibility.py").read_text(encoding="utf-8"))
+    peer_version = next(ast.literal_eval(node.value) for node in peer_constants.body
+                        if isinstance(node, ast.Assign)
+                        and any(isinstance(target, ast.Name) and target.id == "VERSION" for target in node.targets))
+    if peer_version != VERSION:
+        raise ValueError("receiver/HA compatibility version must match the package version")
     output = output.resolve()
     if output != (ROOT / "dist").resolve():
         raise ValueError("build output must be the project's dist directory")

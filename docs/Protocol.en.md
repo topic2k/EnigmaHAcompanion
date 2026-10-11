@@ -6,6 +6,74 @@ The HA integration and Enigma2 extension use this protocol for menus, state
 retrieval and actions. `schema_version: 1` identifies the data format independently
 of the package version. See [test status](Development.en.md#test-status-and-limitations).
 
+## Component and version checks
+
+Receiver requests to `/menu`, `/states` and `/actions` send
+`X-EnigmaHA-Component: receiver` and `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`.
+HA checks these headers after authentication and before reading data or executing
+an action. Companion view responses include `X-EnigmaHA-Component: homeassistant`
+and the local `X-EnigmaHA-Version`. The receiver checks successful responses and
+HTTP 426 before processing their payload. Package versions must match exactly;
+matching `schema_version` values alone are insufficient.
+
+HTTP 426 reports `version_mismatch` for different versions or `unidentified_peer`
+for missing/invalid identity or version headers. Its JSON response also includes
+the HA `version`. This identity check does not replace HA authentication or TLS.
+
+Administrator-only GET `/compatibility` returns
+`{"version": "1.0.0", "receivers": [], "updates": {...}}` with HA's actually
+loaded package version. Receiver entries contain `id` (possibly `null`),
+`address`, `version` (possibly `null`) and `status`
+(`compatible`, `version_mismatch`, `unidentified_peer`). HA keeps at most 64 entries
+from the last five minutes in memory, grouped by HA user and
+`X-EnigmaHA-Receiver-ID` (32 lowercase hexadecimal characters), falling back to
+source address without a valid ID. The receiver persists its identity.
+There is no active scan; the recent list is not persisted.
+
+## Confirmed release update
+
+`updates` contains `hacs` (update entity or `null`), `candidate` (verified release
+with random `id` or `null`) and `job` (persisted transaction or `null`). HACS is
+accessed through its registered update entity with `INSTALL | SPECIFIC_VERSION`.
+Administrator POST requests to `/updates` return the updated `updates` snapshot;
+application errors return HTTP 409.
+
+| Request | Effect |
+| --- | --- |
+| `{"action":"check"}` | Verify the latest stable GitHub release and assets; selection valid for ten minutes |
+| `{"action":"start","candidate_id":"…","receiver_ids":["…"]}` | Pin confirmed release and recently seen receiver identities |
+| `{"action":"retry","job_id":"…"}` | Offer failed steps or declined updates again for the same release |
+| `{"action":"restart","job_id":"…"}` | Request HA restart only after all participants run the target |
+
+A release descriptor contains exactly `version`, `ipk_url`, `ipk_sha256` and
+`ipk_size`. URLs must match the fixed repository, `v<Version>` tag and expected
+IPK filename. Only published stable releases with HACS ZIP, IPK and checksums
+are offered. HACS receives `update.install` with explicit `version: v<Version>`
+and the confirming administrator's context. The release and participant list
+remain fixed throughout a transaction.
+
+GET/POST `/receiver_update` require an authenticated active HA user, receiver
+component header, valid version and receiver identity. Different versions are
+explicitly allowed here; normal receiver routes remain blocked. Receivers only
+receive transactions bound to both their identity **and** their HA user.
+
+GET returns `{"job":null}` or `{"job":{"id":"…","release":{...},
+"status":"pending","attempt":1}}`. After local confirmation, POST reports
+`{"job_id":"…","attempt":1,"status":"installing","error":null}`.
+Other reports are `declined`, `restart_required` or `failed` with fixed,
+non-sensitive error codes. Success returns `{"accepted":true}`. Stale jobs or
+attempts return `stale_update`. A `completed` report is rejected; only a GET
+reporting the actually loaded target version completes that receiver.
+
+Job phases: `ha_installing`, `receivers`, `ha_restart_required`, `completed`,
+`failed`. Receiver statuses: `pending`, `installing`, `restart_required`,
+`completed`, `declined`, `failed`. HA stores progress separately from the menu.
+The receiver persists local consent before invoking the package manager, checks
+size, SHA-256 and package metadata, then verifies `opkg status`. An uncertain
+installation is never automatically repeated. GitHub downloads and package
+commands never receive the HA token. Restarts require separate confirmation.
+Completion requires HA and every participant to actually run the target version.
+
 ## Menu
 
 `protocol/enigmaha_protocol/menu.py` is the authoritative validator.
@@ -53,6 +121,7 @@ transmits the token without encryption. Store credentials only on the receiver.
 | POST `/actions` | Validate entry/action and call the corresponding HA service |
 | GET `/config` | Complete menu; administrators only |
 | PUT `/config` | Validate and save menu; administrators only |
+| GET `/compatibility` | HA version and recently checked receivers; administrators only |
 
 PUT `/config` accepts the complete menu with its current revision. Validation
 and saving share the action lock; revision increases by one. The response
@@ -95,6 +164,7 @@ The receiver blocks further actions while a request or command runs.
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
 | 409 | `stale_menu`, `entity_unavailable`, or `revision_limit` when saving |
+| 426 | `version_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, or `storage_failed` when saving |
 | 503 | Integration not loaded or already unloaded |
 
@@ -102,7 +172,7 @@ Application errors use `{"error": "code"}`; `invalid_menu` additionally includes
 `detail`. Authentication, availability and request-validation HTTP errors may
 differ. Requests over 1 MiB return HTTP 413. Do not return tokens, tracebacks or
 internal URLs. The client discards error response bodies and displays messages
-derived from HTTP status.
+derived from HTTP status and validated component/version headers.
 
 ## Implementation
 

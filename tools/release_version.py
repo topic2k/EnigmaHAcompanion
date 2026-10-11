@@ -13,6 +13,7 @@ VERSION_FILES = (
     "package-lock.json",
     "custom_components/enigmaha_companion/manifest.json",
     "custom_components/enigmaha_companion/const.py",
+    "protocol/enigmaha_protocol/compatibility.py",
 )
 SEMVER = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 
@@ -48,12 +49,13 @@ def update_versions(root, version):
         if filename == "package-lock.json":
             content["packages"][""]["version"] = version
         replacements[path] = json.dumps(content, indent=2, ensure_ascii=False) + "\n"
-    path = root / VERSION_FILES[3]
-    constants, count = re.subn(r'^VERSION = "[^"]+"$', f'VERSION = "{version}"',
-                               path.read_text(encoding="utf-8"), flags=re.MULTILINE)
-    if count != 1:
-        raise ValueError("Expected exactly one VERSION assignment in const.py")
-    replacements[path] = constants
+    for filename in VERSION_FILES[3:]:
+        path = root / filename
+        constants, count = re.subn(r'^VERSION = "[^"]+"$', f'VERSION = "{version}"',
+                                   path.read_text(encoding="utf-8"), flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError("Expected exactly one VERSION assignment in " + filename)
+        replacements[path] = constants
     # Prepare and validate all files before changing any of them.
     for path, content in replacements.items():
         path.write_text(content, encoding="utf-8", newline="\n")

@@ -49,7 +49,8 @@ class ReleaseVersionTests(unittest.TestCase):
             self.assertEqual(after["packages"][""]["version"], "3.0.0")
             self.assertEqual({k: v for k, v in before["packages"].items() if k},
                              {k: v for k, v in after["packages"].items() if k})
-            self.assertIn('VERSION = "3.0.0"', (root / VERSION_FILES[3]).read_text())
+            for name in VERSION_FILES[3:]:
+                self.assertIn('VERSION = "3.0.0"', (root / name).read_text())
 
     def test_invalid_metadata_does_not_partially_update_files(self):
         with tempfile.TemporaryDirectory() as directory:

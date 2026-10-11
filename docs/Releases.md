@@ -50,7 +50,8 @@ ohne `v` oder Suffix; die Vorabversion-Checkbox setzt das GitHub-/HACS-Betaflag
 und benötigt ebenfalls eine neue Nummer.
 
 Der Workflow synchronisiert `package.json`, beide Versionsfelder in
-`package-lock.json`, das HA-Manifest und `const.py`, baut die Pakete und führt die
+`package-lock.json`, das HA-Manifest, `const.py` und die gemeinsame Komponentenversion
+in `protocol/enigmaha_protocol/compatibility.py`, baut die Pakete und führt die
 Python- und Frontendtests aus. Erst danach erhält der separate Release-Job
 Schreibrechte und prüft SHA256-Summen und den getesteten Git-Quellbaum. Er erstellt
 einen Versionscommit `Release <Version>` und aktualisiert den ausgewählten Branch
@@ -98,6 +99,13 @@ Eine Aufnahme in den HACS-Standardkatalog ist ein separater Vorgang.
   enthalten das beim Build ergänzte Protokollmodul nicht.
 
 ## Release-Hinweise
+
+Das gemeinsame HACS/IPK-Update bietet nur veröffentlichte stabile Releases an.
+HACS-ZIP, IPK und `SHA256SUMS.txt` müssen unter den oben genannten Namen im
+selben Release liegen. Nach Veröffentlichung Assets und Prüfsummen unverändert
+lassen: Ein gestarteter Updatevorgang bindet Receiver und Zielversion fest.
+Der Release mit der Updatefunktion muss zunächst einmal auf beiden Seiten
+installiert werden; erst danach ist der koordinierte Ablauf verfügbar.
 
 Funktionen, Voraussetzungen und bekannte Grenzen des Releases beschreiben.
 Erforderliche Schritte zur Neueinrichtung ausdrücklich nennen. Den Teststand aus

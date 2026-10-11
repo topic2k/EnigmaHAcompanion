@@ -1,6 +1,7 @@
 """Blocking HTTP client: Enigma2 adapters MUST run calls in a worker thread."""
 
 import json
+from uuid import uuid4
 from http.client import HTTPException
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -8,16 +9,19 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from enigmaha_protocol.menu import ProtocolError, validate_menu
 from enigmaha_protocol.icons import valid_icon
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, peer_status, valid_version, valid_receiver_id
+from enigmaha_protocol.releases import UpdateError, validate_release
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 API_PATH = "/api/enigmaha_companion/v1"
 
 
 class ClientError(Exception):
-    def __init__(self, code, status=None):
+    def __init__(self, code, status=None, peer_version=None):
         super().__init__(code)
         self.code = code
         self.status = status
+        self.peer_version = peer_version
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -27,7 +31,7 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 class CompanionClient:
-    def __init__(self, base_url, token, timeout=5):
+    def __init__(self, base_url, token, timeout=5, receiver_id=None):
         parts = urlsplit(base_url)
         if (parts.scheme not in {"http", "https"} or not parts.hostname
                 or parts.username is not None or parts.password is not None
@@ -42,19 +46,35 @@ class CompanionClient:
         self._token = token
         self._timeout = timeout
         self._opener = build_opener(_NoRedirect())
+        self.receiver_id = receiver_id or uuid4().hex
+        if not valid_receiver_id(self.receiver_id):
+            raise ValueError("invalid receiver ID")
 
-    def _request(self, method, path, body=None):
+    def _check_peer(self, headers, allow_mismatch=False):
+        version = headers.get(VERSION_HEADER)
+        status = peer_status(headers.get(COMPONENT_HEADER), version, "homeassistant")
+        if status != "compatible" and not (allow_mismatch and status == "version_mismatch"):
+            raise ClientError(status, peer_version=version if valid_version(version) else None)
+
+    def _request(self, method, path, body=None, allow_mismatch=False):
         data = None if body is None else json.dumps(body).encode("utf-8")
         request = Request(self._base_url + path, data=data, method=method, headers={
             "Authorization": "Bearer " + self._token,
             "Accept": "application/json", "Content-Type": "application/json",
+            COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
+            RECEIVER_HEADER: self.receiver_id,
         })
         try:
             with self._opener.open(request, timeout=self._timeout) as response:
+                self._check_peer(response.headers, allow_mismatch)
                 payload = response.read(MAX_RESPONSE_BYTES + 1)
         except HTTPError as error:
             status = error.code
+            headers = error.headers
             error.close()
+            if status == 426:
+                self._check_peer(headers)
+                raise ClientError("unidentified_peer", status)
             code = {401: "unauthorized", 403: "forbidden", 404: "not_found",
                     409: "conflict"}.get(status, "http_error")
             raise ClientError(code, status) from None
@@ -76,6 +96,31 @@ class CompanionClient:
             return validate_menu(self._request("GET", "/menu"))
         except ProtocolError:
             raise ClientError("invalid_menu") from None
+
+    def get_update(self):
+        result = self._request("GET", "/receiver_update", allow_mismatch=True)
+        if set(result) != {"job"}:
+            raise ClientError("invalid_response")
+        job = result["job"]
+        if job is None:
+            return None
+        if (not isinstance(job, dict) or set(job) != {"id", "release", "status", "attempt"}
+                or not valid_receiver_id(job["id"]) or type(job["attempt"]) is not int or job["attempt"] < 1
+                or not isinstance(job["status"], str)
+                or job["status"] not in {"pending", "installing", "restart_required", "completed", "declined", "failed"}):
+            raise ClientError("invalid_response")
+        try:
+            validate_release(job["release"])
+        except UpdateError:
+            raise ClientError("invalid_response") from None
+        return job
+
+    def report_update(self, job, status, error=None):
+        result = self._request("POST", "/receiver_update", {"job_id": job["id"], "attempt": job["attempt"],
+                               "status": status, "error": error}, allow_mismatch=True)
+        if result != {"accepted": True} or type(result.get("accepted")) is not bool:
+            raise ClientError("invalid_response")
+        return result
 
     def get_states(self, menu):
         from enigmaha_protocol.menu import index_nodes

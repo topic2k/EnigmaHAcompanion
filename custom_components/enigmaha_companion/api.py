@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+from time import monotonic
 
 from aiohttp import web
 from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
@@ -13,6 +14,10 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import BASE, DOMAIN
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
 from .enigmaha_protocol.menu import index_nodes
+from .enigmaha_protocol.compatibility import (
+    COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, peer_status, valid_version, valid_receiver_id,
+)
+from .enigmaha_protocol.releases import UpdateError
 from .icons import IconResolver
 
 LIMIT = 1024 * 1024
@@ -24,6 +29,30 @@ class CompanionRuntime:
         self.lock = asyncio.Lock()
         self.active = True
         self.icons = IconResolver(hass)
+        self.receivers = {}
+        self.updates = None
+
+    def recent_receivers(self):
+        cutoff = monotonic() - 300
+        self.receivers = {key: value for key, value in self.receivers.items()
+                          if value["seen"] >= cutoff}
+        return [{key: value for key, value in receiver.items() if key not in {"seen", "user_id"}}
+                for receiver in self.receivers.values()]
+
+    def check_receiver(self, request, user):
+        self.recent_receivers()
+        version = request.headers.get(VERSION_HEADER)
+        status = peer_status(request.headers.get(COMPONENT_HEADER), version, "receiver")
+        receiver_id = request.headers.get(RECEIVER_HEADER)
+        receiver_id = receiver_id if valid_receiver_id(receiver_id) else None
+        key = (user.id, receiver_id or request.remote)
+        # Bound memory even when an authenticated caller sends many source addresses.
+        if key not in self.receivers and len(self.receivers) >= 64:
+            del self.receivers[min(self.receivers, key=lambda key: self.receivers[key]["seen"])]
+        self.receivers[key] = {"address": request.remote or "?", "id": receiver_id, "user_id": user.id,
+                               "version": version if valid_version(version) else None,
+                               "status": status, "seen": monotonic()}
+        return status
 
 
 def filtered_menu(menu, user):
@@ -74,7 +103,14 @@ class CompanionView(HomeAssistantView):
         return runtime, user
 
     def reply(self, data, status=200):
-        return self.json(data, status, headers={"Cache-Control": "no-store"})
+        return self.json(data, status, headers={"Cache-Control": "no-store",
+                         COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION})
+
+    def receiver_error(self, runtime, request, user):
+        status = runtime.check_receiver(request, user)
+        if status != "compatible":
+            return self.reply({"error": status, "version": VERSION}, 426)
+        return None
 
 
 class MenuView(CompanionView):
@@ -82,6 +118,9 @@ class MenuView(CompanionView):
 
     async def get(self, request):
         runtime, user = self.access(request)
+        error = self.receiver_error(runtime, request, user)
+        if error is not None:
+            return error
         return self.reply(filtered_menu(runtime.menu, user))
 
 
@@ -90,6 +129,9 @@ class StatesView(CompanionView):
 
     async def get(self, request):
         runtime, user = self.access(request)
+        error = self.receiver_error(runtime, request, user)
+        if error is not None:
+            return error
         states = {}
         icons = {}
         menu = runtime.menu
@@ -118,6 +160,9 @@ class ActionsView(CompanionView):
 
     async def post(self, request):
         runtime, user = self.access(request)
+        error = self.receiver_error(runtime, request, user)
+        if error is not None:
+            return error
         command = await read_json(request)
         async with runtime.lock:
             if not runtime.active:
@@ -177,6 +222,81 @@ class ConfigView(CompanionView):
         return self.reply(menu)
 
 
+class CompatibilityView(CompanionView):
+    url, name = BASE + "/compatibility", DOMAIN + ":compatibility"
+
+    async def get(self, request):
+        runtime, _ = self.access(request, admin=True)
+        return self.reply({"version": VERSION, "receivers": runtime.recent_receivers(),
+                           "updates": await runtime.updates.snapshot() if runtime.updates else None})
+
+
+class UpdateAdminView(CompanionView):
+    url, name = BASE + "/updates", DOMAIN + ":updates"
+
+    async def post(self, request):
+        runtime, user = self.access(request, admin=True)
+        if runtime.updates is None:
+            raise web.HTTPServiceUnavailable()
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            return self.reply({"error": "invalid_update"}, 400)
+        try:
+            action = body.get("action")
+            if action == "check" and set(body) == {"action"}:
+                await runtime.updates.check()
+            elif action == "start" and set(body) == {"action", "candidate_id", "receiver_ids"}:
+                runtime.recent_receivers()
+                ids = body["receiver_ids"]
+                if (not isinstance(ids, list) or not ids or any(not valid_receiver_id(value) for value in ids)
+                        or len(set(ids)) != len(ids)):
+                    raise UpdateError("receiver_update_unavailable")
+                receivers = [receiver for receiver in runtime.receivers.values() if receiver["id"] in ids]
+                if len(receivers) != len(ids):
+                    raise UpdateError("receiver_update_unavailable")
+                await runtime.updates.start(body["candidate_id"], receivers, user)
+            elif action == "retry" and set(body) == {"action", "job_id"}:
+                await runtime.updates.retry(body["job_id"], user)
+            elif action == "restart" and set(body) == {"action", "job_id"}:
+                await runtime.updates.restart(body["job_id"], user)
+            else:
+                raise UpdateError("invalid_update")
+        except UpdateError as error:
+            return self.reply({"error": error.code}, 409)
+        return self.reply(await runtime.updates.snapshot())
+
+
+class ReceiverUpdateView(CompanionView):
+    url, name = BASE + "/receiver_update", DOMAIN + ":receiver_update"
+
+    def receiver_access(self, request):
+        runtime, user = self.access(request)
+        receiver_id = request.headers.get(RECEIVER_HEADER)
+        if (request.headers.get(COMPONENT_HEADER) != "receiver" or not valid_receiver_id(receiver_id)
+                or not valid_version(request.headers.get(VERSION_HEADER))):
+            raise web.HTTPBadRequest()
+        if runtime.updates is None:
+            raise web.HTTPServiceUnavailable()
+        runtime.check_receiver(request, user)
+        return runtime, user, receiver_id
+
+    async def get(self, request):
+        runtime, user, receiver_id = self.receiver_access(request)
+        try:
+            result = await runtime.updates.receiver_plan(receiver_id, user.id, request.headers[VERSION_HEADER])
+        except UpdateError as error:
+            return self.reply({"error": error.code}, 409)
+        return self.reply(result)
+
+    async def post(self, request):
+        runtime, user, receiver_id = self.receiver_access(request)
+        try:
+            await runtime.updates.report(receiver_id, user.id, await read_json(request))
+        except UpdateError as error:
+            return self.reply({"error": error.code}, 409)
+        return self.reply({"accepted": True})
+
+
 def register_views(hass):
-    for view in (MenuView, StatesView, ActionsView, ConfigView):
+    for view in (MenuView, StatesView, ActionsView, ConfigView, CompatibilityView, UpdateAdminView, ReceiverUpdateView):
         hass.http.register_view(view(hass))
