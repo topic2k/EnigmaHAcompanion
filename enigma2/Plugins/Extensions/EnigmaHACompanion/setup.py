@@ -9,7 +9,7 @@ from Screens.VirtualKeyBoard import VirtualKeyBoard
 
 from enigma import getDesktop, getFontFaces
 
-from .companion.i18n import LANGUAGE_CHOICES, translate
+from .companion.i18n import LANGUAGE_CHOICES, resolve_language, translate
 from .appearance import Appearance
 from .skin import profile_choices
 from .companion.client import CompanionClient
@@ -19,7 +19,7 @@ from .settings import DEFAULTS, save_settings, validate_settings
 class CompanionSetup(Screen, ConfigListScreen):
     def __init__(self, session, values=None):
         values = values or DEFAULTS
-        self.language = values["language"]
+        self.language = resolve_language(values["language"])
         self.appearance = Appearance(getDesktop(0).size(), values["skin_profile"], self.language)
         self.skin = self.appearance.layout(setup=True)
         Screen.__init__(self, session)
@@ -32,13 +32,13 @@ class CompanionSetup(Screen, ConfigListScreen):
             # Keep an existing preference when the active skin no longer has it.
             font_choices.append((values["font_family"], self.t("{name} (Ersatz: Regular)", name=values["font_family"])))
         self.selection_choices = {
-            "language": LANGUAGE_CHOICES,
+            "language": [(value, self.t(label)) for value, label in LANGUAGE_CHOICES],
             "skin_profile": profile_choices(self.language),
             "font_family": font_choices,
             "font_size": [("0", self.t("Aus HA übernehmen"))] + [(str(size), str(size)) for size in range(16, 65)],
         }
         self.fields = {
-            "language": ConfigSelection(choices=LANGUAGE_CHOICES, default=self.language),
+            "language": ConfigSelection(choices=self.selection_choices["language"], default=values["language"]),
             "skin_profile": ConfigSelection(choices=self.selection_choices["skin_profile"], default=values["skin_profile"]),
             "url": ConfigText(default=values["url"], fixed_size=False),
             "token": ConfigPassword(default=values["token"], fixed_size=False, visible_width=24),

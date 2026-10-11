@@ -28,10 +28,15 @@ Hinweise zum Updateablauf und seinen Grenzen findest du in der [Entwicklerdokume
 
 ## Sprache
 
-Deutsch ist die Standardsprache. Im HA-Menüeditor kannst du unter **Sprache** auf
-**English** wechseln; die Auswahl wird in diesem Browser gespeichert. Am Receiver
+Neue Installationen verwenden **Automatisch**; bestehende Spracheinstellungen
+bleiben erhalten. Unter **Einstellungen → Geräte & Dienste →
+EnigmaHA Companion → Konfigurieren** wählst du **Deutsch**, **English** oder
+**Automatisch** für den Menüeditor. Automatisch folgt der HA-Profilsprache,
+ersatzweise dem Browser. Die Option gilt für alle Browser. Am Receiver
 unter **Menü/Blau → Sprache** wählen und mit **Grün** speichern. Die Receiver-Sprache
-wird beim nächsten Öffnen des Plugins wirksam. Beide Einstellungen sind unabhängig.
+wird beim nächsten Öffnen des Plugins wirksam; **Automatisch** folgt dort der
+OpenATV-Systemsprache. Beide Einstellungen sind unabhängig. Nicht unterstützte
+Sprachen verwenden Deutsch; bisherige Einstellungen bleiben erhalten.
 Die HA-Einrichtungsdialoge und die internen Bedienelemente nativer HA-Auswahlfelder
 folgen der Sprache deines HA-Benutzerprofils. Eigene Menü- und Entitätsnamen werden
 nicht automatisch übersetzt.

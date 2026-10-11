@@ -1,13 +1,45 @@
+import probatio
+
 from homeassistant import config_entries
-from .const import DOMAIN
+from homeassistant.core import callback
+from homeassistant.helpers.selector import SelectSelector
+
+from .const import CONF_LANGUAGE, DEFAULT_LANGUAGE, DOMAIN, LANGUAGES, LEGACY_LANGUAGE
 
 
 class CompanionConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry):
+        return CompanionOptionsFlow()
+
     async def async_step_user(self, user_input=None):
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
         if user_input is not None:
-            return self.async_create_entry(title="EnigmaHA Companion", data={})
+            # Persist the new default only for new entries. Published entries
+            # without a language option keep their legacy browser preference.
+            return self.async_create_entry(title="EnigmaHA Companion", data={},
+                                           options={CONF_LANGUAGE: DEFAULT_LANGUAGE})
         return self.async_show_form(step_id="user")
+
+
+class CompanionOptionsFlow(config_entries.OptionsFlow):
+    async def async_step_init(self, user_input=None):
+        errors = {}
+        language = self.config_entry.options.get(CONF_LANGUAGE, LEGACY_LANGUAGE)
+        if language not in LANGUAGES:
+            language = LEGACY_LANGUAGE
+        if user_input is not None:
+            if user_input.get(CONF_LANGUAGE) in LANGUAGES:
+                return self.async_create_entry(title="", data={
+                    **self.config_entry.options, CONF_LANGUAGE: user_input[CONF_LANGUAGE],
+                })
+            errors[CONF_LANGUAGE] = "invalid_language"
+        return self.async_show_form(step_id="init", errors=errors, data_schema=probatio.Schema({
+            probatio.Required(CONF_LANGUAGE, default=language): SelectSelector({
+                "mode": "dropdown", "translation_key": "language", "options": list(LANGUAGES),
+            }),
+        }))

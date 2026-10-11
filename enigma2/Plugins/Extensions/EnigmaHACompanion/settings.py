@@ -10,7 +10,7 @@ from .companion.i18n import LANGUAGE_CHOICES, translate
 CONFIG_PATH = "/etc/enigma2/enigmaha_companion.json"
 DEFAULTS = {"url": "", "token": "", "refresh_seconds": 10, "font_family": "",
             "font_size": 0, "timeout": 5, "show_in_mainmenu": False,
-            "reverse_channel_paging": False, "skin_profile": "auto", "language": "de"}
+            "reverse_channel_paging": False, "skin_profile": "auto", "language": "auto"}
 
 
 def validate_settings(values):
@@ -20,6 +20,9 @@ def validate_settings(values):
     t = lambda message: translate(message, language)
     result = dict(DEFAULTS)
     result.update(values)
+    # A stored configuration without a language predates language selection.
+    # Only an absent settings file starts with the new automatic default.
+    result["language"] = language
     if not isinstance(result["language"], str) or result["language"] not in dict(LANGUAGE_CHOICES):
         raise ValueError(t("Ungültige Sprache"))
     if not isinstance(result["skin_profile"], str) or result["skin_profile"] not in dict(profile_choices()):

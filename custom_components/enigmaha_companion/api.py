@@ -11,7 +11,7 @@ from homeassistant.components.http import HomeAssistantView, KEY_HASS_USER
 from homeassistant.core import Context
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import BASE, DOMAIN
+from .const import BASE, CONF_LANGUAGE, DOMAIN, LANGUAGES
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
 from .enigmaha_protocol.menu import index_nodes
 from .enigmaha_protocol.compatibility import (
@@ -25,8 +25,9 @@ LIMIT = 1024 * 1024
 
 
 class CompanionRuntime:
-    def __init__(self, hass, store, menu):
+    def __init__(self, hass, store, menu, config_entry=None):
         self.hass, self.store, self.menu = hass, store, menu
+        self.config_entry = config_entry
         self.lock = asyncio.Lock()
         self.active = True
         self.icons = IconResolver(hass)
@@ -234,7 +235,10 @@ class CompatibilityView(CompanionView):
 
     async def get(self, request):
         runtime, _ = self.access(request, admin=True)
+        # Read live options without reloading or interrupting receiver requests.
+        language = runtime.config_entry.options.get(CONF_LANGUAGE) if runtime.config_entry else None
         return self.reply({"version": VERSION, "protocol_version": PROTOCOL_VERSION, "receivers": runtime.recent_receivers(),
+                           "editor_language": language if language in LANGUAGES else None,
                            "updates": await runtime.updates.snapshot() if runtime.updates else None})
 
 

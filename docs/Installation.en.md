@@ -67,8 +67,16 @@ after successful verification. Release differences alone never create a repair
 or require an update. Published versions through 1.0.2 still enforce matching
 releases themselves; update both components once to enable independent protocol checks.
 
-Choose **English** under **Sprache**. German is the default and first option.
-The choice is saved in this browser. HA setup dialogs and the internal texts of
+Open **Settings → Devices & services → EnigmaHA Companion → Configure** and
+choose **English** under **Menu editor language**. New installations default to **Automatic**;
+existing language preferences are retained.
+**Automatic** follows the HA profile language, falling back to the first supported
+browser language. Regional variants such as `en-GB` are recognized; German is
+used if no supported language is available.
+The choice applies to all browsers. An open editor picks it up within 30 seconds
+and preserves unsaved edits. On existing installations, until this option is first saved, a browser
+language preference remains in use. No reconfiguration is required and menu names
+remain unchanged. HA setup dialogs and the internal texts of
 native selectors follow your HA profile language.
 
 1. Add and open submenus as needed.
@@ -235,12 +243,13 @@ Restart the GUI afterwards.
 ## 4. Configure the receiver
 
 Settings open automatically on first launch. Later, press **Menu/Blue**.
-The initial language is German. Choose **English** under **Sprache**, press
+New installations default to **Automatic**. Existing language choices are retained;
+older configuration files without `language` keep German. Choose **English** under **Sprache**, press
 **Green**, then close and reopen the plugin to apply the language.
 
 | Setting | Meaning |
 | --- | --- |
-| Language | **Deutsch** (default) or **English**; applies on next opening |
+| Language | **Deutsch**, **English** or **Automatic** (default for new installations, OpenATV system language); applies on next opening |
 | Home Assistant address | For example `http://192.168.1.20:8123` or your HTTPS address; do not append `/api` or a subpath |
 | Long-lived HA access token | The complete token |
 | Refresh interval | Interval while the plugin is open; default 10 seconds |
@@ -274,7 +283,7 @@ You can use an editor or SFTP for a long token. Close the plugin before editing
   "url": "http://192.168.1.20:8123",
   "token": "ENTER_YOUR_OWN_TOKEN_HERE",
   "refresh_seconds": 10,
-  "language": "en",
+  "language": "auto",
   "skin_profile": "auto",
   "font_family": "",
   "font_size": 0,
@@ -284,7 +293,9 @@ You can use an editor or SFTP for a long token. Close the plugin before editing
 }
 ```
 
-`language` accepts `de` (German, default) and `en` (English). An empty font
+`language` accepts `de` (German), `en` (English) and `auto` (default for new installations,
+OpenATV system language, falling back to German for unsupported languages). An existing
+file without this value keeps German. No migration or reconfiguration is required. An empty font
 family and font size `0` mean **Use HA setting**. `skin_profile` accepts `auto`,
 `native` and `gradient`. If you create the file manually, set its permissions
 with `chmod 600 /etc/enigma2/enigmaha_companion.json`; the plugin saves it with

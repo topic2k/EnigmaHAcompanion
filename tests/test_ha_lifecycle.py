@@ -52,10 +52,11 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await module.async_setup(hass, {}))
             self.assertEqual(len(views), 7)
             hass.http.async_register_static_paths.assert_awaited_once()
-            entry = object()
+            entry = types.SimpleNamespace(options={})
             self.assertTrue(await module.async_setup_entry(hass, entry))
             hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(entry, ["update"])
             runtime = hass.data[module.DOMAIN]["runtime"]
+            self.assertIs(runtime.config_entry, entry)
             self.assertEqual(runtime.menu["root"]["children"], [])
             self.assertTrue(panels[0]["require_admin"])
             hass.config_entries.async_unload_platforms.return_value = False
@@ -84,15 +85,48 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             def async_create_entry(self, **kwargs):
                 return {"type": "create_entry", **kwargs}
         ha = types.ModuleType("homeassistant")
-        ha.config_entries = types.SimpleNamespace(ConfigFlow=Flow)
+        ha.config_entries = types.SimpleNamespace(ConfigFlow=Flow, OptionsFlow=Flow)
+        core = types.SimpleNamespace(callback=lambda function: function)
+        selectors = types.SimpleNamespace(SelectSelector=lambda config: config)
+        schema = types.SimpleNamespace(Schema=lambda value: value,
+                                       Required=lambda key, **kwargs: (key, kwargs["default"]))
         package = types.ModuleType("eha_flow_test")
         package.__path__ = [str(BUNDLE)]
         spec = importlib.util.spec_from_file_location("eha_flow_test.config_flow", BUNDLE / "config_flow.py")
         module = importlib.util.module_from_spec(spec)
-        with patch.dict(sys.modules, {"homeassistant": ha, "eha_flow_test": package}):
+        with patch.dict(sys.modules, {"homeassistant": ha, "eha_flow_test": package,
+                                     "homeassistant.core": core,
+                                     "homeassistant.helpers.selector": selectors, "probatio": schema}):
             spec.loader.exec_module(module)
             flow = module.CompanionConfigFlow()
             self.assertEqual((await flow.async_step_user())["type"], "form")
-            self.assertEqual(await flow.async_step_user({}),
-                             {"type": "create_entry", "title": "EnigmaHA Companion", "data": {}})
+            created = await flow.async_step_user({})
+            self.assertEqual(created, {"type": "create_entry", "title": "EnigmaHA Companion",
+                                       "data": {}, "options": {"language": "auto"}})
             self.assertEqual(flow.unique_id, "enigmaha_companion")
+            entry = types.SimpleNamespace(options={"future_option": "preserved"})
+            options = flow.async_get_options_flow(entry)
+            options.config_entry = entry
+            form = await options.async_step_init()
+            self.assertEqual(form["step_id"], "init")
+            self.assertEqual(form["errors"], {})
+            self.assertEqual(entry.options, {"future_option": "preserved"})
+            self.assertEqual(form["data_schema"][("language", "de")]["options"], ["de", "en", "auto"])
+            self.assertEqual(form["data_schema"][("language", "de")]["translation_key"], "language")
+            for language in ("auto", "en", "de"):
+                result = await options.async_step_init({"language": language})
+                self.assertEqual(result, {"type": "create_entry", "title": "", "data": {
+                    "language": language, "future_option": "preserved"}})
+                entry.options = result["data"]
+                self.assertIn(("language", language), (await options.async_step_init())["data_schema"])
+            for invalid in ("fr", "", None, [], {}):
+                with self.subTest(language=invalid):
+                    result = await options.async_step_init({"language": invalid})
+                    self.assertEqual(result["type"], "form")
+                    self.assertEqual(result["errors"], {"language": "invalid_language"})
+                    self.assertEqual(entry.options["language"], "de")
+            entry.options = {"language": "fr"}
+            self.assertIn(("language", "de"), (await options.async_step_init())["data_schema"])
+            # Newly created entries retain auto when their options are opened.
+            entry.options = created["options"]
+            self.assertIn(("language", "auto"), (await options.async_step_init())["data_schema"])

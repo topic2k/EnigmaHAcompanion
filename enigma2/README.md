@@ -13,9 +13,11 @@ ebenso der [Updateablauf und seine Grenzen](../docs/Entwicklung.md#updateablauf-
 
 ## Sprache
 
-Deutsch ist die erste Auswahl und der Standard. **Menü/Blau → Sprache** bietet
-**Deutsch** und **English**. Mit Grün speichern und das Plugin erneut öffnen.
-`language` in `/etc/enigma2/enigmaha_companion.json` verwendet `de` oder `en`.
+Neue Installationen verwenden **Automatisch**; bestehende Einstellungen bleiben erhalten.
+**Menü/Blau → Sprache** bietet
+**Deutsch**, **English** und **Automatisch**. Automatisch folgt der OpenATV-Systemsprache;
+nicht unterstützte Sprachen verwenden Deutsch. Mit Grün speichern und das Plugin erneut öffnen.
+`language` in `/etc/enigma2/enigmaha_companion.json` verwendet `de`, `en` oder `auto`.
 Die Auswahl gilt für Texte, Hilfe, Zustände und die eingebauten Skin-Layouts.
 Die Systemdialoge von OpenATV und vom aktiven Skin fest vorgegebene Texte folgen
 weiterhin deren Sprache. Eigene HA-Menünamen bleiben erhalten.
@@ -133,6 +135,8 @@ erhalten; `skin/GradientFHD/__init__.py` zeigt die Verwendung vorhandener OpenAT
 Nach Installation des aktualisierten Receiver-Pakets die GUI neu starten.
 Keine Neueinrichtung erforderlich; Zugangsdaten bleiben erhalten. Fehlt
 `skin_profile` in der Konfigurationsdatei, gilt der Standardwert `auto`.
+Fehlt `language` in einer vorhandenen Datei, bleibt Deutsch aktiv. Nur ohne
+Konfigurationsdatei wird automatisch die OpenATV-Systemsprache übernommen.
 
 ## Navigation und Einstieg
 

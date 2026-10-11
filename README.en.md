@@ -26,10 +26,15 @@ for the update implementation and its limitations.
 
 ## Language
 
-German is the default. In the HA menu editor, choose **English** under **Sprache**;
-the choice is saved in your browser. On the receiver, open **Menu/Blue → Sprache**,
+New installations default to **Automatic**; existing language preferences are
+retained. Under **Settings → Devices & services → EnigmaHA Companion
+→ Configure**, choose **Deutsch**, **English** or **Automatic** for the menu editor.
+Automatic follows the HA profile language, falling back to the browser. The option
+applies to all browsers. On the receiver, open **Menu/Blue → Sprache**,
 select **English** and press **Green** to save. The receiver language takes effect
-the next time you open the plugin. These two choices are independent.
+the next time you open the plugin. **Automatic** follows the OpenATV system language
+there. These two choices are independent. Unsupported languages fall back to German;
+existing preferences remain unchanged.
 
 HA setup dialogs and the internal controls of native HA selectors follow your
 HA profile language. Your menu and entity names are kept as entered.

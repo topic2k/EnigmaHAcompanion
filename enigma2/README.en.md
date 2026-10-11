@@ -10,9 +10,12 @@ and [update implementation and limitations](../docs/Development.en.md#update-imp
 
 ## Language
 
-German is the first choice and default. Open **Menu/Blue → Sprache**, select
+New installations default to **Automatic**; existing preferences are retained.
+Open **Menu/Blue → Sprache**, select
 **English**, save with Green and reopen the plugin. The local configuration
-`/etc/enigma2/enigmaha_companion.json` accepts `language: "de"` or `"en"`.
+`/etc/enigma2/enigmaha_companion.json` accepts `language: "de"`, `"en"` or `"auto"`.
+**Automatic** follows the OpenATV system language and falls back to German for
+unsupported languages; existing fixed language preferences remain unchanged.
 This covers plugin text, help, states and built-in skin layouts. OpenATV system
 dialogs and fixed text in external skins follow their own language. Custom HA
 menu names are retained. No reconfiguration is required.

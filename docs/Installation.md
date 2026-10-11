@@ -71,8 +71,15 @@ Prüfung. Reine Release-Unterschiede erzeugen keine Reparatur und erfordern kein
 Veröffentlichte Versionen bis 1.0.2 verlangen selbst noch gleiche Releases; beide
 Komponenten einmal aktualisieren, um die unabhängige Protokollprüfung zu verwenden.
 
-Unter **Sprache** zwischen **Deutsch** (Standard) und **English** wechseln.
-Die Auswahl gilt für diesen Browser und ändert keine Menünamen. HA-eigene
+Unter **Einstellungen → Geräte & Dienste → EnigmaHA Companion → Konfigurieren**
+die **Sprache des Menüeditors** auf **Deutsch**, **English** oder
+**Automatisch** (Standard bei neuen Installationen) stellen. Automatisch übernimmt die HA-Profilsprache, ersatzweise
+die erste unterstützte Browsersprache. Regionale Varianten wie `en-GB` werden
+erkannt; ohne passende Sprache wird Deutsch verwendet.
+Die Auswahl gilt für alle Browser; ein geöffneter Editor übernimmt sie innerhalb
+von 30 Sekunden und behält ungespeicherte Änderungen. Bis zum ersten Speichern
+dieser Option bleibt bei bestehenden Installationen eine bisherige Browser-Sprachauswahl erhalten. Eine
+Neueinrichtung ist nicht nötig. Menünamen bleiben unverändert. HA-eigene
 Einrichtungsdialoge und die internen Texte nativer Auswahlfelder folgen der
 Sprache im HA-Benutzerprofil.
 
@@ -259,10 +266,12 @@ Anschließend die GUI über das Receiver-Menü neu starten.
 
 Beim ersten Öffnen erscheinen die Einstellungen automatisch.
 Später sind sie über **Menü/Blau** erreichbar.
+Neue Installationen starten mit **Automatisch**. Bestehende Spracheinstellungen
+bleiben erhalten; ältere Konfigurationsdateien ohne `language` verwenden weiter Deutsch.
 
 | Einstellung | Bedeutung |
 | --- | --- |
-| Sprache | **Deutsch** (Standard) oder **English**; wirksam beim nächsten Öffnen des Plugins |
+| Sprache | **Deutsch**, **English** oder **Automatisch** (Standard bei neuen Installationen, OpenATV-Systemsprache); wirksam beim nächsten Öffnen des Plugins |
 | Home-Assistant-Adresse | Zum Beispiel `http://192.168.1.20:8123` oder deine HTTPS-Adresse; kein `/api` und keinen Unterpfad anfügen |
 | Token | Vollständiger langlebiger HA-Zugriffstoken |
 | Aktualisierung | Abrufintervall bei geöffnetem Plugin; Standard 10 Sekunden |
@@ -298,7 +307,7 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
   "url": "http://192.168.1.20:8123",
   "token": "HIER_DEN_EIGENEN_TOKEN_EINTRAGEN",
   "refresh_seconds": 10,
-  "language": "de",
+  "language": "auto",
   "skin_profile": "auto",
   "font_family": "",
   "font_size": 0,
@@ -309,7 +318,10 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
 ```
 
 Leere Schriftfamilie und Schriftgröße `0` bedeuten **Aus HA übernehmen**.
-`language` akzeptiert `de` (Deutsch, Standard) und `en` (English).
+`language` akzeptiert `de` (Deutsch), `en` (English) und `auto`
+(Standard bei neuen Installationen, OpenATV-Systemsprache; Deutsch als Rückfall
+für nicht unterstützte Sprachen). Fehlt der Wert in einer vorhandenen Datei,
+bleibt Deutsch aktiv. Es ist keine Migration oder Neueinrichtung nötig.
 `skin_profile` akzeptiert `auto`, `native` (Standard) und `gradient` (GradientFHD).
 Bei manueller Anlage mit `chmod 600 /etc/enigma2/enigmaha_companion.json` die
 Dateirechte setzen. Das Plugin speichert die Datei selbst mit diesen Rechten.

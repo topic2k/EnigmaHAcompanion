@@ -213,7 +213,7 @@ class ReceiverTests(unittest.TestCase):
             settings.save_settings(values, path)
             original = Path(path).read_bytes()
             setup = PLUGIN.CompanionSetup(self.screen.session, values)
-            self.assertEqual(setup.selection_choices["language"], [("de", "Deutsch"), ("en", "English")])
+            self.assertEqual(setup.selection_choices["language"], [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")])
             setup.fields["language"].value = "en"
             setup.cancel()
             self.assertEqual(Path(path).read_bytes(), original)
@@ -234,6 +234,61 @@ class ReceiverTests(unittest.TestCase):
             with patch.dict(reopened.save.__globals__, {"save_settings": fail_save}):
                 reopened.save()
             self.assertIn("Could not save settings", self.dialogs[-1][0][1])
+
+    def test_new_install_uses_auto_and_existing_settings_keep_their_language(self):
+        settings = types.SimpleNamespace(load_settings=PLUGIN.load_settings,
+                                         save_settings=PLUGIN.CompanionSetup.save.__globals__["save_settings"])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "settings.json"
+            fresh = settings.load_settings(str(path))
+            self.assertEqual(fresh["language"], "auto")
+            self.assertFalse(path.exists())
+            setup = PLUGIN.CompanionSetup(self.screen.session, fresh)
+            self.assertEqual(setup.fields["language"].value, "auto")
+            old = dict(self.screen.config)
+            old.pop("language")
+            for preference in (None, "de", "en", "auto"):
+                with self.subTest(preference=preference):
+                    stored = dict(old)
+                    if preference is not None:
+                        stored["language"] = preference
+                    path.write_text(json.dumps(stored), encoding="utf-8")
+                    original = path.read_bytes()
+                    loaded = settings.load_settings(str(path))
+                    self.assertEqual(loaded["language"], preference or "de")
+                    self.assertEqual(loaded["url"], old["url"])
+                    self.assertEqual(loaded["token"], old["token"])
+                    self.assertEqual(path.read_bytes(), original)
+                    settings.save_settings(loaded, str(path))
+                    self.assertEqual(settings.load_settings(str(path)), loaded)
+
+    def test_automatic_language_uses_openatv_and_persists_the_mode(self):
+        settings = types.SimpleNamespace(load_settings=PLUGIN.load_settings,
+                                         save_settings=PLUGIN.CompanionSetup.save.__globals__["save_settings"])
+        native = types.SimpleNamespace(international=types.SimpleNamespace(getLocale=lambda: "en_GB"))
+        values = dict(self.screen.config, language="auto")
+        with patch.dict(sys.modules, {"Components.International": native}):
+            with patch.object(PLUGIN, "load_settings", return_value=values):
+                screen = PLUGIN.CompanionScreen(self.screen.session)
+            self.addCleanup(screen.cleanup)
+            self.assertEqual(screen.appearance.language, "en")
+            self.assertEqual(screen.config["language"], "auto")
+            self.assertEqual(screen["status"].text, "Preparing connection …")
+            screen.loaded((self.menu, self.states), screen.generation)
+            self.assertEqual(screen.nav.language, "en")
+            setup = PLUGIN.CompanionSetup(self.screen.session, values)
+            self.assertEqual(setup.fields["language"].value, "auto")
+            self.assertEqual(setup.selection_choices["language"][-1], ("auto", "Automatic"))
+            self.assertIn("Green: Save", setup["hint"].text)
+            with tempfile.TemporaryDirectory() as directory:
+                path = str(Path(directory) / "settings.json")
+                with patch.dict(setup.save.__globals__, {"save_settings": lambda data: settings.save_settings(data, path)}):
+                    setup.save()
+                self.assertEqual(settings.load_settings(path)["language"], "auto")
+            native.international.getLocale = lambda: "de_DE"
+            reopened = PLUGIN.CompanionSetup(self.screen.session, values)
+            self.assertEqual(reopened.fields["language"].value, "auto")
+            self.assertIn("Grün: Speichern", reopened["hint"].text)
 
     def test_english_screen_help_errors_and_state_text(self):
         with patch.object(PLUGIN, "load_settings", return_value=dict(self.screen.config, language="en")):

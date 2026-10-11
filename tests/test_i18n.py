@@ -4,18 +4,20 @@ import json
 from pathlib import Path
 from string import Formatter
 import sys
+import types
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 
-from companion.i18n import ENGLISH, LANGUAGE_CHOICES, translate
+from companion.i18n import ENGLISH, LANGUAGE_CHOICES, resolve_language, translate
 from companion.navigation import Navigator
 
 
 class LanguageTests(unittest.TestCase):
     def test_german_default_and_safe_formatted_translation(self):
-        self.assertEqual(LANGUAGE_CHOICES, [("de", "Deutsch"), ("en", "English")])
+        self.assertEqual(LANGUAGE_CHOICES, [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")])
         self.assertEqual(translate("Nicht verfügbar"), "Nicht verfügbar")
         self.assertEqual(translate("Nicht verfügbar", "en"), "Unavailable")
         self.assertEqual(translate("Nicht verfügbar", "fr"), "Nicht verfügbar")
@@ -25,6 +27,22 @@ class LanguageTests(unittest.TestCase):
             with self.subTest(message=source):
                 fields = lambda text: {key for _, key, _, _ in Formatter().parse(text) if key is not None}
                 self.assertEqual(fields(source), fields(english))
+
+    def test_automatic_language_uses_openatv_locale_and_preserves_fixed_choices(self):
+        for locale, expected in [("en_US", "en"), ("EN-gb", "en"), ("de_DE", "de"),
+                                 ("fr_FR", "de"), ("", "de"), (None, "de")]:
+            native = types.SimpleNamespace(international=types.SimpleNamespace(getLocale=lambda: locale))
+            with self.subTest(locale=locale), patch.dict(sys.modules, {"Components.International": native}):
+                self.assertEqual(resolve_language("auto"), expected)
+                self.assertEqual(resolve_language("en"), "en")
+                self.assertEqual(resolve_language("de"), "de")
+                self.assertEqual(translate("Nicht verfügbar", "auto"),
+                                 "Unavailable" if expected == "en" else "Nicht verfügbar")
+        legacy = types.SimpleNamespace(language=types.SimpleNamespace(getLanguage=lambda: "en_GB"))
+        with patch.dict(sys.modules, {"Components.International": None, "Components.Language": legacy}):
+            self.assertEqual(resolve_language("auto"), "en")
+        with patch.dict(sys.modules, {"Components.International": None, "Components.Language": None}):
+            self.assertEqual(resolve_language("auto"), "de")
 
     def test_ha_languages_have_the_same_complete_keys(self):
         def flatten(value, prefix=""):

@@ -95,15 +95,33 @@ Receiver-Zugangsdaten werden nicht im Editor gespeichert.
 
 ### Übersetzungen
 
-Deutsch ist Standard und erste Auswahl. Der Menüeditor enthält sein englisches
+Neue Installationen verwenden `auto`. Der Menüeditor enthält sein englisches
 Wörterbuch in `panel.js`; `t()` übersetzt deutsche Quelltexte und setzt benannte
-Platzhalter ein. Die Sprachauswahl wird unter `enigmaha_companion.language` im
-Browser gespeichert. Der Wechsel erhält Menüentwurf, Navigation und Filter.
+Platzhalter ein. Die Sprachauswahl liegt als `language` (`de`, `en` oder `auto`) in den
+Config-Entry-Optionen und wird über den Options-Flow geändert. Der Editor übernimmt
+sie mit der regelmäßigen Statusabfrage, ohne die Integration neu zu laden; der
+Wechsel erhält Menüentwurf, Navigation und Filter. Solange die Option fehlt,
+bleibt `enigmaha_companion.language` aus dem Browser als Rückfall erhalten.
+Dieser bisherige Wert wird weder überschrieben noch gelöscht. Eine Migration der
+Menüdaten oder Neueinrichtung ist nicht erforderlich. Der Einrichtungs-Flow
+speichert `language: auto` nur für neu angelegte Config Entries. Vorhandene
+Optionen bleiben unverändert; bei fehlender Option bleibt die bisherige
+Browserauswahl erhalten und der Optionsdialog bietet weiterhin Deutsch als Vorgabe.
+`auto` nutzt die effektive HA-Profilsprache (`hass.language`), ersatzweise die
+erste unterstützte Browsersprache und zuletzt Deutsch. Regionale Sprachcodes
+werden auf `de` oder `en` abgebildet. Änderungen der HA-/Browsersprache werden
+im offenen Editor übernommen.
 HA-Konfigurationsdialoge verwenden `translations/de.json` und `translations/en.json`
 und folgen der HA-Profilsprache; beide Kataloge liegen auch im Quellbaum.
 
 Der Receiver nutzt `companion/i18n.py` und die lokale Einstellung `language`
-(`de` oder `en`, Standard `de`). Navigation, Hilfe, Einstellungen und eingebaute
+(`de`, `en` oder `auto`, Standard `auto` bei neuer Installation). Ohne Konfigurationsdatei
+liefert `load_settings()` die neuen Vorgaben. Eine vorhandene Datei ohne `language`
+wird weiterhin mit `de` ergänzt; feste Werte werden beibehalten. Die Datei wird
+beim Lesen nicht verändert. `auto` liest beim Öffnen die OpenATV-Locale
+über `Components.International`, ersatzweise `Components.Language`; nicht
+unterstützte Sprachen verwenden Deutsch. Der gespeicherte Wert bleibt `auto`.
+Navigation, Hilfe, Einstellungen und eingebaute
 Skin-Texte werden damit übersetzt. Ein Wechsel gilt ab dem nächsten Öffnen,
 damit auch die Skin-Tastenleiste dieselbe Sprache verwendet. Eigene Labels,
 Entity-IDs, Rohzustände und Protokoll-Fehlercodes bleiben unverändert.

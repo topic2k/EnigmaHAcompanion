@@ -85,19 +85,31 @@ Receiver credentials are not stored in the editor.
 
 ### Translations
 
-German is the default and first choice. `panel.js` contains the English catalog;
+New installations default to `auto`. `panel.js` contains the English catalog;
 `t()` translates German source messages and substitutes named placeholders.
-The browser stores its choice under `enigmaha_companion.language`. Switching
-preserves menu edits, navigation, drafts and filters. Storage failure leaves the
-editor usable, but the choice cannot be persisted.
+The options flow stores the choice as `language` (`de`, `en` or `auto`) in the config entry
+options. The editor picks it up during its regular status refresh without reloading
+the integration. Switching preserves menu edits, navigation, drafts and filters.
+Until the option is saved, the previous `enigmaha_companion.language` browser value
+remains a fallback and is neither overwritten nor deleted. No menu data migration
+or reconfiguration is required. The setup flow saves `language: auto` only for
+new config entries. Existing options remain unchanged; entries without a language
+retain the legacy browser choice and the options dialog still suggests German.
+`auto` uses the effective HA profile language (`hass.language`), then the first
+supported browser language, then German. Regional codes map to `de` or `en`.
+HA/browser language changes apply in the open editor.
 
 HA config dialogs use `translations/de.json` and `translations/en.json`,
 following the HA profile language. Both catalogs are present in source and
 packages, as required by [HA custom integration localization](https://developers.home-assistant.io/docs/internationalization/custom_integration/).
 Native HA selector internals follow the HA profile language as well.
 
-The receiver uses `companion/i18n.py` and local `language` (`de` or `en`, default
-`de`). This covers navigation, help, settings and built-in skin text. Changes
+The receiver uses `companion/i18n.py` and local `language` (`de`, `en` or `auto`, default
+`auto` for new installations). With no configuration file, `load_settings()` returns
+the new defaults. Existing files without `language` still use `de`, and fixed values
+are retained. Reading does not modify the file. On opening, `auto` reads the OpenATV locale through `Components.International`,
+falling back to `Components.Language`, then German for unsupported languages.
+The saved value stays `auto`. This covers navigation, help, settings and built-in skin text. Changes
 apply on the next opening so the generated skin footer uses the same language.
 Keep custom labels, entity IDs, raw protocol states and error codes unchanged.
 Add new UI messages to the relevant catalog and retain the same placeholders in

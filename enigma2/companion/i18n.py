@@ -1,6 +1,6 @@
-"""German source messages with an explicit English translation catalog."""
+"""German/English messages with optional OpenATV language detection."""
 
-LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English")]
+LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
     "Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.": "Connected · Receiver {receiver}, HA {ha} · Protocol {protocol} matches.",
@@ -99,6 +99,26 @@ ENGLISH = {
 }
 
 
+def resolve_language(language):
+    """Resolve automatic presentation from the OpenATV locale, without changing settings."""
+    if language != "auto":
+        return language if language in ("de", "en") else "de"
+    try:
+        from Components.International import international
+        locale = international.getLocale()
+    except (ImportError, AttributeError):
+        try:
+            from Components.Language import language as receiver_language
+            locale = receiver_language.getLanguage()
+        except (ImportError, AttributeError):
+            locale = None
+    if isinstance(locale, str):
+        code = locale.strip().lower().replace("-", "_").split("_")[0]
+        if code in ("de", "en"):
+            return code
+    return "de"
+
+
 def translate(message, language="de", **values):
-    text = ENGLISH.get(message, message) if language == "en" else message
+    text = ENGLISH.get(message, message) if resolve_language(language) == "en" else message
     return text.format(**values) if values else text

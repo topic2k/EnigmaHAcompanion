@@ -11,6 +11,29 @@
       "already_configured": "EnigmaHA Companion is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnigmaHA Companion",
+        "description": "Choose the menu editor language. Automatic follows the HA profile language, falling back to the browser. The selection applies to all browsers. Set the receiver language in the receiver plugin.",
+        "data": {
+          "language": "Menu editor language"
+        }
+      }
+    },
+    "error": {
+      "invalid_language": "Choose Deutsch, English or Automatic."
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "de": "Deutsch",
+        "en": "English",
+        "auto": "Automatic"
+      }
+    }
+  },
   "issues": {
     "protocol_mismatch": {
       "title": "EnigmaHA protocols do not match",

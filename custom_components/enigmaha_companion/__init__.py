@@ -32,7 +32,7 @@ async def async_setup_entry(hass, entry):
     store = Store(hass, 1, DOMAIN + ".menu")
     saved = await store.async_load()
     menu = validate_menu(saved if saved is not None else empty_menu())
-    runtime = CompanionRuntime(hass, store, menu)
+    runtime = CompanionRuntime(hass, store, menu, entry)
     update_store = Store(hass, 1, DOMAIN + ".update")
     runtime.updates = UpdateManager(hass, update_store, await update_store.async_load())
     repair_store = Store(hass, 1, DOMAIN + ".repairs")

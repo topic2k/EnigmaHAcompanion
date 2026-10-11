@@ -134,6 +134,22 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
                      **({COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
                         if peer_headers is None else peer_headers)}, json=body)
 
+    async def test_editor_language_reads_live_options_without_changing_menu(self):
+        original = copy.deepcopy(self.runtime.menu)
+        async with await self.request("GET", "/compatibility") as response:
+            self.assertIsNone((await response.json())["editor_language"])
+        entry = self.runtime.config_entry = types.SimpleNamespace(options={})
+        for options, expected in [({}, None), ({"language": "en"}, "en"),
+                                  ({"language": "de"}, "de"), ({"language": "auto"}, "auto"),
+                                  ({"language": "fr"}, None)]:
+            with self.subTest(options=options):
+                entry.options = options
+                async with await self.request("GET", "/compatibility") as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual((await response.json())["editor_language"], expected)
+                self.assertEqual(self.runtime.menu, original)
+                self.assertIsNone(self.store.data)
+
     async def test_mismatched_or_unidentified_receivers_are_blocked_on_all_routes(self):
         for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: "99"}, "protocol_mismatch"),
                                 ({}, "unidentified_peer"),

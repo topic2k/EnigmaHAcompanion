@@ -11,6 +11,29 @@
       "already_configured": "EnigmaHA Companion ist bereits eingerichtet."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EnigmaHA Companion",
+        "description": "Wähle die Sprache des Menüeditors. Automatisch folgt der HA-Profilsprache, ersatzweise dem Browser. Die Auswahl gilt für alle Browser. Die Sprache am Receiver stellst du im Receiver-Plugin ein.",
+        "data": {
+          "language": "Sprache des Menüeditors"
+        }
+      }
+    },
+    "error": {
+      "invalid_language": "Wähle Deutsch, English oder Automatisch."
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "de": "Deutsch",
+        "en": "English",
+        "auto": "Automatisch"
+      }
+    }
+  },
   "issues": {
     "protocol_mismatch": {
       "title": "EnigmaHA-Protokolle passen nicht zusammen",

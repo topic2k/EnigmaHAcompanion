@@ -2,7 +2,7 @@
 
 import xml.etree.ElementTree as ET
 
-from .companion.i18n import translate
+from .companion.i18n import resolve_language, translate
 from .skin import resolve_profile
 from .skin.base import skin_font
 
@@ -21,7 +21,7 @@ def active_profile():
 
 class Appearance:
     def __init__(self, desktop, selection="auto", language="de"):
-        self.language = language
+        self.language = resolve_language(language)
         self.selection = selection
         self.definition = resolve_profile(selection, active_skin())
         self.profile = self.definition.id

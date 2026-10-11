@@ -12,8 +12,13 @@ const script = fs.readFileSync(path.join(__dirname, "../custom_components/enigma
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 async function createPanel({lazySelectors = false, lazySortable = false, brokenSelectors = false,
-  savedLanguage, blockedStorage = false, hassBeforeConnect = false} = {}) {
+  savedLanguage, integrationLanguage, haLanguage, haLocale, browserLanguages,
+  blockedStorage = false, hassBeforeConnect = false} = {}) {
   const dom = new JSDOM("<!doctype html><body></body>", {url: "http://ha.test", runScripts: "outside-only"});
+  if (browserLanguages !== undefined) {
+    Object.defineProperty(dom.window.navigator, "languages", {configurable: true, value: browserLanguages});
+    Object.defineProperty(dom.window.navigator, "language", {configurable: true, value: browserLanguages[0] || ""});
+  }
   if (savedLanguage !== undefined) dom.window.localStorage.setItem("enigmaha_companion.language", savedLanguage);
   if (blockedStorage) Object.defineProperty(dom.window, "localStorage", {
     get() { throw new dom.window.DOMException("Storage disabled", "SecurityError"); },
@@ -65,6 +70,8 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   const requests = [];
   const compatibilityRequests = [];
   panel.hass = {
+    language: haLanguage,
+    locale: {language: haLocale},
     states: {
       "light.ceiling": {entity_id: "light.ceiling", attributes: {friendly_name: "Lampe <img src=x>"}, state: "off"},
       "sensor.temp": {entity_id: "sensor.temp", attributes: {friendly_name: "Temperatur", device_class: "temperature"}, state: "22"},
@@ -76,7 +83,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     callApi: async (method, route, body) => {
     if (route.endsWith("/compatibility")) {
       compatibilityRequests.push(route);
-      return {version: "1.0.0", receivers: []};
+      return {version: "1.0.0", receivers: [], editor_language: integrationLanguage};
     }
     requests.push(route);
     if (method === "PUT") {
@@ -98,7 +105,12 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     } else control.dispatchEvent(
       new dom.window.CustomEvent("value-changed", {detail: {value}, bubbles: true, composed: true}));
   };
-  return {dom, panel, root, button, select, requests, compatibilityRequests, scrolled, layoutMedia, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
+  const setIntegrationLanguage = async language => {
+    integrationLanguage = language;
+    await panel.loadCompatibility();
+  };
+  return {dom, panel, root, button, select, requests, compatibilityRequests, scrolled, layoutMedia,
+    setIntegrationLanguage, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
 }
 
 test("version status refresh warns about all receivers without changing unsaved fields", async () => {
@@ -155,7 +167,7 @@ test("initial HA assignment before connection loads the editor without another s
   try {
     assert.equal(ui.requests.length, 1);
     assert.equal(ui.panel.model.root.label, "Home Assistant");
-    assert.ok(ui.root.querySelector("[data-selector='language']"));
+    assert.equal(ui.root.querySelector("[data-selector='language']"), null);
   } finally { ui.dom.window.close(); }
 });
 
@@ -233,12 +245,11 @@ test("HA restart requires separate consent and saved edits; HACS absence and fai
   } finally { ui.dom.window.close(); }
 });
 
-test("German is first and language switching preserves the entire unsaved editor", async () => {
+test("integration language switching preserves the entire unsaved editor", async () => {
   const ui = await createPanel();
   try {
     assert.equal(ui.panel.language, "de");
-    assert.deepEqual(Array.from(ui.root.querySelector('[data-selector="language"]').selector.select.options,
-      option => option.value), ["de", "en"]);
+    assert.equal(ui.root.querySelector('[data-selector="language"]'), null);
     ui.select("new-menu", "Wohnzimmer");
     ui.button("Untermenü hinzufügen").click();
     ui.button("Untermenü bearbeiten").click();
@@ -248,7 +259,7 @@ test("German is first and language switching preserves the entire unsaved editor
     ui.select("domain", "sensor");
     ui.select("entity", "sensor.temp");
     const before = JSON.stringify(ui.panel.model);
-    ui.select("language", "en");
+    await ui.setIntegrationLanguage("en");
     assert.equal(ui.panel.getAttribute("lang"), "en");
     assert.equal(ui.panel.dirty, true);
     assert.equal(JSON.stringify(ui.panel.model), before);
@@ -260,44 +271,102 @@ test("German is first and language switching preserves the entire unsaved editor
     assert.ok(ui.button("Save"));
     assert.ok(ui.button("Add entity"));
     assert.equal(ui.root.querySelector('[data-selector="domain"]').label, "Entity type");
-    assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), "en");
+    assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), null);
     ui.button("Save").click();
     await tick();
     assert.equal(ui.saved().root.children[0].label, "Wohnzimmer");
     assert.equal(ui.saved().root.children[0].children[0].label, "Lampe <img src=x>");
     assert.equal(ui.root.querySelector(".notice").textContent,
       "Saved. The receiver menu will update on its next refresh.");
-    ui.select("language", "de");
+    await ui.setIntegrationLanguage("de");
     assert.ok(ui.button("Speichern"));
     assert.equal(ui.panel.dirty, false);
     assert.match(ui.root.querySelector(".notice").textContent, /^Gespeichert/);
   } finally {ui.dom.window.close();}
 });
 
-test("language preference survives reopening and unsupported values fall back to German", async () => {
-  for (const [savedLanguage, expected] of [["en", "en"], ["de", "de"], ["fr", "de"]]) {
-    const ui = await createPanel({savedLanguage});
+test("legacy browser language is retained until an integration language is configured", async () => {
+  for (const [savedLanguage, integrationLanguage, expected] of [
+    ["en", undefined, "en"], ["de", undefined, "de"], ["fr", undefined, "de"],
+    ["en", "de", "de"], ["de", "en", "en"], ["en", "fr", "en"],
+  ]) {
+    const ui = await createPanel({savedLanguage, integrationLanguage});
     try {
       assert.equal(ui.panel.language, expected);
       assert.equal(ui.panel.getAttribute("lang"), expected);
       assert.ok(ui.button(expected === "en" ? "Add entity" : "Entität hinzufügen"));
-      ui.select("language", "fr");
+      await ui.setIntegrationLanguage("fr");
       assert.equal(ui.panel.language, expected);
+      assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), savedLanguage);
     } finally {ui.dom.window.close();}
   }
 });
 
-test("language selection still works when browser storage is blocked", async () => {
+test("integration language works on reopening and when browser storage is blocked", async () => {
   const ui = await createPanel({blockedStorage: true});
   try {
     assert.equal(ui.panel.language, "de");
-    ui.select("language", "en");
+    await ui.setIntegrationLanguage("en");
     assert.ok(ui.button("Save"));
   } finally {ui.dom.window.close();}
+  const reopened = await createPanel({blockedStorage: true, integrationLanguage: "en"});
+  try {
+    assert.equal(reopened.panel.language, "en");
+    assert.ok(reopened.button("Save"));
+  } finally {reopened.dom.window.close();}
+});
+
+test("automatic language prefers HA, then browser locales, with German fallback", async () => {
+  for (const [haLanguage, haLocale, browserLanguages, expected] of [
+    ["de-DE", "en", ["en-US"], "de"],
+    ["EN_gb", undefined, ["de"], "en"],
+    [undefined, "en-GB", ["de"], "en"],
+    [undefined, undefined, ["fr-FR", "en-US"], "en"],
+    ["fr", undefined, ["de-AT", "en"], "de"],
+    ["fr", undefined, ["fr-FR"], "de"],
+    [undefined, undefined, [], "de"],
+  ]) {
+    const ui = await createPanel({integrationLanguage: "auto", savedLanguage: "en",
+      haLanguage, haLocale, browserLanguages});
+    try {
+      assert.equal(ui.panel.languagePreference, "auto");
+      assert.equal(ui.panel.language, expected);
+      assert.equal(ui.panel.getAttribute("lang"), expected);
+      assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), "en");
+    } finally { ui.dom.window.close(); }
+  }
+});
+
+test("automatic language follows HA and browser changes without losing unsaved drafts", async () => {
+  const ui = await createPanel({integrationLanguage: "auto", haLanguage: "de", browserLanguages: ["en"]});
+  try {
+    ui.select("entity", "sensor.temp");
+    ui.button("Entität hinzufügen").click();
+    ui.select("new-menu", "Unfertiger Entwurf");
+    const model = JSON.stringify(ui.panel.model);
+    ui.panel.hass = {...ui.panel._hass, language: "en-US"};
+    assert.equal(ui.panel.language, "en");
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(JSON.stringify(ui.panel.model), model);
+    assert.equal(ui.root.querySelector('[data-field="new-menu"]').value, "Unfertiger Entwurf");
+    ui.panel.hass = {...ui.panel._hass, language: undefined};
+    Object.defineProperty(ui.dom.window.navigator, "languages", {configurable: true, value: ["de-DE"]});
+    ui.dom.window.dispatchEvent(new ui.dom.window.Event("languagechange"));
+    assert.equal(ui.panel.language, "de");
+    assert.equal(JSON.stringify(ui.panel.model), model);
+    await ui.setIntegrationLanguage("en");
+    ui.panel.hass = {...ui.panel._hass, language: "de"};
+    ui.dom.window.dispatchEvent(new ui.dom.window.Event("languagechange"));
+    assert.equal(ui.panel.language, "en");
+    ui.panel.remove();
+    ui.panel.languagePreference = "auto";
+    ui.dom.window.dispatchEvent(new ui.dom.window.Event("languagechange"));
+    assert.equal(ui.panel.language, "en");
+  } finally { ui.dom.window.close(); }
 });
 
 test("English editor translates errors, confirmation dialogs, counts and dynamic labels safely", async () => {
-  const ui = await createPanel({savedLanguage: "en"});
+  const ui = await createPanel({integrationLanguage: "en"});
   try {
     const name = "Wohnzimmer <img src=x> {count}";
     ui.select("new-menu", name);

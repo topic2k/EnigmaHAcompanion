@@ -1,4 +1,4 @@
-/* German is the default; English is an explicit browser preference. */
+/* Fixed languages override HA/browser language detection; legacy preferences remain usable. */
 const ENIGMAHA_EN = {
   "HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.": "HA integration {version}, protocol {protocol}. Matching protocols allow different releases.",
   "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben.": "Receiver {address}: Release {version} differs from HA {ha}. Protocol {protocol_version} matches; connection allowed.",
@@ -131,6 +131,10 @@ class EnigmaHAPanel extends HTMLElement {
     this.filtersOpen = false;
     this.menuDraft = "";
     this.language = "de";
+    this.languagePreference = undefined;
+    this.handleLanguageChange = () => {
+      if (this.languagePreference === "auto") this.setLanguage("auto");
+    };
     try {
       if (localStorage.getItem("enigmaha_companion.language") === "en") this.language = "en";
     } catch (_) { /* Storage can be disabled; German remains the default. */ }
@@ -142,14 +146,28 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   setLanguage(language) {
-    if (!["de", "en"].includes(language) || language === this.language) return;
-    this.language = language;
-    try { localStorage.setItem("enigmaha_companion.language", language); } catch (_) { /* Optional persistence. */ }
+    if (!["de", "en", "auto"].includes(language)) return;
+    this.languagePreference = language;
+    const resolved = language === "auto" ? this.automaticLanguage() : language;
+    if (resolved === this.language) return;
+    this.language = resolved;
     this.render();
+  }
+
+  automaticLanguage() {
+    const candidates = [this._hass?.language, this._hass?.locale?.language,
+      ...(navigator.languages || []), navigator.language];
+    for (const candidate of candidates) {
+      if (typeof candidate !== "string") continue;
+      const language = candidate.trim().toLowerCase().split(/[-_]/)[0];
+      if (["de", "en"].includes(language)) return language;
+    }
+    return "de";
   }
 
   set hass(value) {
     this._hass = value;
+    if (this.languagePreference === "auto") this.setLanguage("auto");
     if (this.isConnected && !this.compatibilityStarted) this.loadCompatibility();
     if (!this.model && !this.loading) this.load();
     const menuButton = this.shadowRoot.querySelector("ha-menu-button");
@@ -160,6 +178,7 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   connectedCallback() {
+    window.addEventListener("languagechange", this.handleLanguageChange);
     this.compatibilityTimer = window.setInterval(() => this.loadCompatibility(), 30000);
     this.loadCompatibility();
     // HA may assign hass before attaching a custom panel. An otherwise idle
@@ -268,6 +287,7 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener("languagechange", this.handleLanguageChange);
     window.clearInterval(this.compatibilityTimer);
     this.compatibilityStarted = false;
     this.confirmation?.cancel();
@@ -444,6 +464,7 @@ class EnigmaHAPanel extends HTMLElement {
       if (typeof status.version !== "string" || !Array.isArray(status.receivers)) throw new Error("invalid status");
       this.compatibility = status;
       this.compatibilityError = false;
+      this.setLanguage(status.editor_language);
     } catch (_) {
       this.compatibilityError = true;
     } finally {
@@ -737,8 +758,6 @@ class EnigmaHAPanel extends HTMLElement {
       if (child !== this.confirmation?.element) child.remove();
     }
     root.append(this.el("style", `
-      .language-selector {width:140px; flex-shrink:0;}
-      .language-row {display:flex;justify-content:flex-end;flex-shrink:0;margin-bottom:16px;}
       /* HA's custom-panel wrapper can have automatic height. A percentage alone
          then grows with the list, so sticky descendants never stay in view. */
       :host{display:flex;flex-direction:column;height:100dvh;max-height:100%;min-height:0;overflow:hidden;box-sizing:border-box;color:var(--primary-text-color);background:var(--primary-background-color);font-family:var(--ha-font-family-body,Roboto,Arial,sans-serif);font-size:14px;line-height:1.5}
@@ -799,13 +818,6 @@ class EnigmaHAPanel extends HTMLElement {
     root.append(header);
     const main = this.el("main", null);
     root.append(main);
-    const languageRow = this.el("div", null, {class: "language-row"});
-    const language = this.selector("language", this.t("Sprache"), {select: {mode: "dropdown", options: [
-      {value: "de", label: "Deutsch"}, {value: "en", label: "English"},
-    ]}}, this.language, value => this.setLanguage(value));
-    language.className = "language-selector";
-    languageRow.append(language);
-    main.append(languageRow);
     const intro = this.el("div", null, {class: "intro"});
     const title = this.el("div", null);
     title.append(this.el("h2", this.t("Receiver-Menü")),
