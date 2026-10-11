@@ -72,12 +72,25 @@ class CompanionRuntime:
                       if english else "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.")
                      if updates is not None and not updates.get("hacs") else None),
         }
+        job = updates.get("job") if updates else None
+        if job:
+            if job["phase"] == "completed":
+                version = job["release"]["version"]
+                messages[("update", job["id"])] = (
+                    f"Release {version}: Completed: HA and all participating receivers are running the same release."
+                    if english else f"Release {version}: Abgeschlossen: HA und alle beteiligten Receiver verwenden denselben Release.")
+            for receiver in job["receivers"]:
+                if receiver["status"] == "completed" and not receiver.get("error"):
+                    address = receiver["address"]
+                    messages[("receiver_update", job["id"], receiver.get("id"), address)] = (
+                        f"Receiver {address}: Running target version"
+                        if english else f"Receiver {address}: Zielversion läuft")
         for key, message in messages.items():
             if self.editor_status_messages.get(key) == message:
                 continue
             if message:
                 _LOGGER.debug("%s", message)
-            self.editor_status_messages[key] = message
+        self.editor_status_messages = messages
 
     def clear_editor_notifications(self):
         """Remove only the informational notices created by older versions."""

@@ -50,12 +50,10 @@ const ENIGMAHA_EN = {
   "HA-Installation läuft …": "Installing HA …",
   "Am Receiver Installation und GUI-Neustart bestätigen.": "Confirm installation and GUI restart on the receiver.",
   "Receiver verwenden die Zielversion. HA-Neustart erforderlich.": "Receivers are running the target version. HA restart required.",
-  "Abgeschlossen: HA und alle beteiligten Receiver verwenden denselben Release.": "Completed: HA and all participating receivers are running the same release.",
   "HA-Installation fehlgeschlagen oder unterbrochen.": "HA installation failed or was interrupted.",
   "Wartet auf Bestätigung": "Waiting for confirmation",
   "Installation läuft": "Installing",
   "GUI-Neustart erforderlich": "GUI restart required",
-  "Zielversion läuft": "Running target version",
   "Abgelehnt": "Declined",
   "Installation fehlgeschlagen": "Installation failed",
   "Installation unklar. Paketstatus am Receiver manuell prüfen.": "Installation outcome uncertain. Check the package status on the receiver manually.",
@@ -156,7 +154,7 @@ class EnigmaHAPanel extends HTMLElement {
     this.view = "menus";
     this.dirty = false;
     this.loading = false;
-    this.message = "";
+    this.statusMessages = new Map();
     this.entityFilters = {domain: "", area: "", device_class: ""};
     this.selectedEntity = undefined;
     this.selectorsReady = false;
@@ -175,6 +173,21 @@ class EnigmaHAPanel extends HTMLElement {
   t(source, values = {}) {
     const text = this.language === "en" ? ENIGMAHA_EN[source] ?? source : source;
     return text.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match));
+  }
+
+  notify(source, values = {}) {
+    if (!this.isConnected) return;
+    this.dispatchEvent(new CustomEvent("hass-notification", {bubbles: true, composed: true,
+      detail: {message: this.t(source, values)}}));
+  }
+
+  notifyStatus(messages) {
+    if (!this.isConnected) return;
+    // Polling and editor redraws must not repeatedly open the same snackbar.
+    const changed = [...messages].filter(([key, message]) => this.statusMessages.get(key) !== message)
+      .map(([, message]) => message);
+    this.statusMessages = messages;
+    if (changed.length) this.notify([...new Set(changed)].join("\n"));
   }
 
   setLanguage(language) {
@@ -504,7 +517,7 @@ class EnigmaHAPanel extends HTMLElement {
       else { const list = this.el("ul", null); list.append(branch(menu.root)); content.append(list); }
       await this.confirmAction(this.t("Vorschau"), "", this.t("Schließen"), content);
     } catch (_) {
-      this.message = "Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.";
+      this.notify("Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.");
     } finally { this.previewBusy = false; if (this.isConnected) this.render(); }
   }
 
@@ -615,14 +628,11 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   markDirty() {
+    if (!this.dirty) this.notify("Ungespeicherte Änderungen");
     this.dirty = true;
-    const status = this.shadowRoot.querySelector(".save-state");
-    if (status) status.textContent = this.t("Ungespeicherte Änderungen");
     const save = this.shadowRoot.querySelector('[data-action="save"]');
     if (save) save.disabled = this.loading;
-    const notice = this.shadowRoot.querySelector(".notice");
-    if (notice) notice.textContent = "";
-    this.message = "";
+    this.renderCompatibility();
   }
 
   async revealEntry(id) {
@@ -710,7 +720,7 @@ class EnigmaHAPanel extends HTMLElement {
       this.t("Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren."), this.t("Verwerfen und neu laden"))) return;
     if (!this.isConnected) return;
     this.loading = true;
-    this.message = "Menü wird geladen …";
+    this.notify("Menü wird geladen …");
     this.render();
     try {
       const [configuration, users] = await Promise.all([
@@ -721,9 +731,8 @@ class EnigmaHAPanel extends HTMLElement {
       this.users = users.users;
       this.useConfiguration(configuration, this.model?.root?.id);
       this.dirty = false;
-      this.message = "";
     } catch (_) {
-      this.message = "Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.";
+      this.notify("Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.");
     } finally { this.loading = false; this.render(); }
   }
 
@@ -750,8 +759,9 @@ class EnigmaHAPanel extends HTMLElement {
     const box = this.shadowRoot.querySelector(".compatibility");
     if (!box) return;
     box.replaceChildren();
-    if (this.compatibilityError) box.append(this.el("p", this.t("Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen."), {class: "version-warning"}));
-    if (!this.compatibility) return;
+    const messages = new Map();
+    if (this.compatibilityError) messages.set("compatibility", this.t("Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen."));
+    if (!this.compatibility) { this.notifyStatus(messages); return; }
     const {version, protocol_version: protocol, receivers} = this.compatibility;
     for (const receiver of receivers) {
       const message = receiver.status === "compatible"
@@ -761,8 +771,8 @@ class EnigmaHAPanel extends HTMLElement {
           : receiver.status === "protocol_mismatch"
             ? "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen."
           : "Receiver {address}: EnigmaHA-Kennung oder Version fehlt/ist ungültig. Receiver-Plugin prüfen und aktualisieren; Verbindung gesperrt.";
-      box.append(this.el("p", this.t(message, {...receiver, ha: version, protocol: protocol ?? "?", protocol_version: receiver.protocol_version ?? "?"}),
-        {class: ["compatible", "version_mismatch"].includes(receiver.status) ? "" : "version-warning"}));
+      messages.set("receiver:" + (receiver.id || receiver.address),
+        this.t(message, {...receiver, ha: version, protocol: protocol ?? "?", protocol_version: receiver.protocol_version ?? "?"}));
       if (receiver.status === "version_mismatch") {
         for (const release of [...new Set([version, receiver.version])]) {
           if (/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(release)) {
@@ -774,39 +784,44 @@ class EnigmaHAPanel extends HTMLElement {
       }
       if (receiver.status === "protocol_mismatch") box.append(this.el("a", this.t("Reparaturen öffnen"), {href: "/config/repairs"}));
     }
-    this.renderUpdates(box);
+    this.renderUpdates(box, messages);
+    this.notifyStatus(messages);
   }
 
-  renderUpdates(box) {
+  renderUpdates(box, messages) {
     const updates = this.compatibility.updates;
     if (!updates) return;
-    if (this.updateMessage) box.append(this.el("p", this.t(this.updateMessage), {class: "version-warning"}));
     const {job, candidate} = updates;
     if (job) {
-      if (job.error === "ha_restart_failed") box.append(this.el("p", this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."), {class: "version-warning"}));
+      if (job.error === "ha_restart_failed") messages.set("restart:" + job.id, this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."));
       const phases = {ha_installing: "HA-Installation läuft …", receivers: "Am Receiver Installation und GUI-Neustart bestätigen.",
         ha_restart_required: "Receiver verwenden die Zielversion. HA-Neustart erforderlich.",
-        completed: "Abgeschlossen: HA und alle beteiligten Receiver verwenden denselben Release.",
         failed: "HA-Installation fehlgeschlagen oder unterbrochen."};
-      box.append(this.el("p", this.t("Release {version}: {phase}", {version: job.release.version, phase: this.t(phases[job.phase] || "Installation fehlgeschlagen")})));
+      if (job.phase !== "completed") messages.set("update:" + job.id, this.t("Release {version}: {phase}", {version: job.release.version, phase: this.t(phases[job.phase] || "Installation fehlgeschlagen")}));
       const statuses = {pending: "Wartet auf Bestätigung", installing: "Installation läuft", restart_required: "GUI-Neustart erforderlich",
-        completed: "Zielversion läuft", declined: "Abgelehnt", failed: "Installation fehlgeschlagen"};
-      for (const receiver of job.receivers) box.append(this.el("p", this.t("Receiver {address}: {status}", {
-        address: receiver.address, status: this.t(receiver.error === "install_uncertain"
-          ? "Installation unklar. Paketstatus am Receiver manuell prüfen." : statuses[receiver.status] || "Installation fehlgeschlagen")})));
+        declined: "Abgelehnt", failed: "Installation fehlgeschlagen"};
+      for (const receiver of job.receivers) {
+        if (receiver.status === "completed" && !receiver.error) continue;
+        messages.set("update:" + job.id + ":receiver:" + (receiver.id || receiver.address), this.t("Receiver {address}: {status}", {
+          address: receiver.address, status: this.t(receiver.error === "install_uncertain"
+            ? "Installation unklar. Paketstatus am Receiver manuell prüfen." : statuses[receiver.status] || "Installation fehlgeschlagen")}));
+      }
       if (updates.hacs && (job.phase === "failed" || job.receivers.some(receiver => ["failed", "declined"].includes(receiver.status) && receiver.error !== "install_uncertain"))) {
         box.append(this.button(this.t("Fehlgeschlagene Schritte erneut anbieten"), () => this.confirmUpdate("retry", job), this.updateBusy));
       }
       if (job.phase === "ha_restart_required") {
-        if (this.dirty) box.append(this.el("p", this.t("Ungespeicherte Änderungen vor dem Neustart speichern.")));
+        if (this.dirty) messages.set("unsaved_restart:" + job.id, this.t("Ungespeicherte Änderungen vor dem Neustart speichern."));
         box.append(this.button(this.t("Home Assistant neu starten"), () => this.confirmUpdate("restart", job), this.updateBusy || this.dirty, "accent"));
       }
     }
     if (updates.hacs && (!job || ["completed", "failed"].includes(job.phase))) {
       box.append(this.button(this.t("Auf Updates prüfen"), () => this.updateAction({action: "check"}), this.updateBusy));
-      if (candidate) {
+      const current = candidate && this.compatibility.version === candidate.release.version
+        && this.compatibility.receivers.length > 0
+        && this.compatibility.receivers.every(receiver => receiver.version === candidate.release.version && receiver.status === "compatible");
+      if (candidate && !current) {
         const ready = this.compatibility.receivers.length > 0 && this.compatibility.receivers.every(receiver => receiver.id);
-        if (!ready) box.append(this.el("p", this.t("Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren.")));
+        if (!ready) messages.set("receiver_update_unavailable", this.t("Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren."));
         box.append(this.button(this.t("Beide auf {version} aktualisieren", {version: candidate.release.version}),
           () => this.confirmUpdate("start", candidate), this.updateBusy || !ready, "accent"));
       }
@@ -835,11 +850,10 @@ class EnigmaHAPanel extends HTMLElement {
   async updateAction(body) {
     if (this.updateBusy) return;
     this.updateBusy = true;
-    this.updateMessage = "";
     this.renderCompatibility();
     try {
       this.compatibility.updates = await this._hass.callApi("POST", "enigmaha_companion/v1/updates", body);
-      if (body.action === "restart") this.updateMessage = "HA-Neustart angefordert. Nach dem Neustart diese Seite neu laden.";
+      if (body.action === "restart") this.notify("HA-Neustart angefordert. Nach dem Neustart diese Seite neu laden.");
     } catch (error) {
       const messages = {hacs_unavailable: "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.",
         receiver_update_unavailable: "Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren.",
@@ -849,7 +863,7 @@ class EnigmaHAPanel extends HTMLElement {
         invalid_release: "Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
         release_check_failed: "Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
         already_current: "Beide Seiten sind bereits aktuell."};
-      this.updateMessage = messages[error?.body?.error] || "Update konnte nicht ausgeführt werden. Erneut prüfen; der bisherige Fortschritt bleibt erhalten.";
+      this.notify(messages[error?.body?.error] || "Update konnte nicht ausgeführt werden. Erneut prüfen; der bisherige Fortschritt bleibt erhalten.");
     } finally {
       this.updateBusy = false;
       if (this.isConnected) this.renderCompatibility();
@@ -870,13 +884,11 @@ class EnigmaHAPanel extends HTMLElement {
         this.path.push(child);
       }
       this.dirty = false;
-      this.message = "";
-      this.dispatchEvent(new CustomEvent("hass-notification", {bubbles: true, composed: true,
-        detail: {message: this.t("Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.")}}));
+      this.notify("Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.");
     } catch (error) {
-      this.message = Number(error.status_code || error.status) === 409
+      this.notify(Number(error.status_code || error.status) === 409
         ? "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen."
-        : "Speichern fehlgeschlagen. Namen, Schriftgröße und Menüstruktur prüfen; Änderungen bleiben hier erhalten.";
+        : "Speichern fehlgeschlagen. Namen, Schriftgröße und Menüstruktur prüfen; Änderungen bleiben hier erhalten.");
     } finally { this.loading = false; this.render(); }
   }
 
@@ -1038,11 +1050,8 @@ class EnigmaHAPanel extends HTMLElement {
       main{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;max-width:1200px;margin:0 auto;padding:24px}
       .intro{display:flex;align-items:start;justify-content:space-between;gap:16px;margin-bottom:20px}
       .intro h2{font-size:24px;font-weight:400;margin:0 0 4px}.intro p{margin:0;color:var(--secondary-text-color)}
-      .save-state{font-size:12px;color:var(--secondary-text-color);padding-top:8px;text-align:end}
-      .notice{color:var(--secondary-text-color);margin:0 0 20px;overflow-wrap:anywhere}.notice:empty{display:none}
-      .intro,.notice{flex-shrink:0}
+      .intro{flex-shrink:0}
       .compatibility{flex-shrink:0;max-height:25vh;overflow-y:auto;color:var(--secondary-text-color);overflow-wrap:anywhere;margin-bottom:16px}
-      .compatibility p{margin:0 0 8px}.version-warning{color:var(--error-color)}
       .compatibility a{color:var(--primary-color);display:inline-block;margin:0 12px 8px 0}
       .editor-layout{display:grid;flex:1;min-height:0;grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1.65fr) minmax(320px,1fr);gap:24px}
       .column{display:grid;grid-auto-rows:max-content;align-content:start;gap:24px;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-gutter:stable}ha-card{min-width:0;overflow:hidden}
@@ -1076,8 +1085,8 @@ class EnigmaHAPanel extends HTMLElement {
       .menu-create{padding-top:16px;border-top:1px solid var(--divider-color)}
       .entity-add,.menu-add{display:grid;gap:16px}.entity-add ha-button,.menu-add ha-button{justify-self:end}
       .depth-notice{margin:0 0 16px;color:var(--secondary-text-color)}
-      @media(max-width:900px){:host{display:block;overflow:auto}main{display:block;min-height:auto}.editor-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.column{display:contents;overflow:visible;scrollbar-gutter:auto}.row{scroll-margin-block:calc(var(--header-height,64px) + 16px) 16px}.save-state{max-width:150px}}
-      @media(max-width:600px){main{padding:16px}.editor-layout,.column{gap:16px}header{gap:4px;padding-inline-end:8px}h1{font-size:18px}.header-actions{gap:0}.intro{display:block}.save-state{text-align:start;max-width:none}.row{padding:8px 16px}.section-heading{padding:16px}.card-body{padding:0 16px 16px}}
+      @media(max-width:900px){:host{display:block;overflow:auto}main{display:block;min-height:auto}.editor-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.column{display:contents;overflow:visible;scrollbar-gutter:auto}.row{scroll-margin-block:calc(var(--header-height,64px) + 16px) 16px}}
+      @media(max-width:600px){main{padding:16px}.editor-layout,.column{gap:16px}header{gap:4px;padding-inline-end:8px}h1{font-size:18px}.header-actions{gap:0}.intro{display:block}.row{padding:8px 16px}.section-heading{padding:16px}.card-body{padding:0 16px 16px}}
     `));
     this.setAttribute("lang", this.language);
     const header = this.el("header", null);
@@ -1096,9 +1105,8 @@ class EnigmaHAPanel extends HTMLElement {
     const title = this.el("div", null);
     title.append(this.el("h2", this.t("Receiver-Menü")),
       this.el("p", this.t("Gestalte das Menü für deine Enigma2-Receiver.")));
-    intro.append(title, this.el("span", this.dirty ? this.t("Ungespeicherte Änderungen") : "", {class: "save-state", role: "status"}));
-    main.append(intro, this.el("p", this.t(this.message), {class: "notice", role: "status", "aria-live": "polite"}));
-    main.append(this.el("div", null, {class: "compatibility", role: "status", "aria-live": "polite"}));
+    intro.append(title);
+    main.append(intro, this.el("div", null, {class: "compatibility"}));
     this.renderCompatibility();
     if (!this.model) return;
 

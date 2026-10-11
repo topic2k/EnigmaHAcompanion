@@ -3,6 +3,11 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
+    "Receiver auf {version} aktualisieren": "Update receiver to {version}",
+    "Passendes Receiver-Update wird geprüft …": "Checking for the matching receiver update …",
+    "Passender Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.": "Matching release unavailable or incomplete. Check the GitHub connection and release packages.",
+    "Gemeinsames Update im HA-Editor fortsetzen oder erneut anbieten.": "Continue or offer the coordinated update again in the HA editor.",
+    "Receiver auf Release {version} aktualisieren? Das geprüfte IPK wird installiert. Danach ist ein GUI-Neustart nötig.": "Update receiver to release {version}? The verified IPK will be installed. A GUI restart is required afterwards.",
     "Für diesen Benutzer ist kein Menü freigegeben.": "No menu is shared with this user.",
     "Verbunden · Receiver {receiver}, HA {ha} · Protokoll {protocol} passt.": "Connected · Receiver {receiver}, HA {ha} · Protocol {protocol} matches.",
     "Protokolle ungleich: Receiver {receiver}, HA {ha}. Reparatur in Home Assistant unter Einstellungen öffnen.": "Protocols differ: receiver {receiver}, HA {ha}. Open Repairs in Home Assistant Settings.",

@@ -123,6 +123,22 @@ installiert sind. Bestehende Konfigurationen benötigen keine Migration oder
 Neueinrichtung; die Entität wird nach dem Aktualisieren und Neustarten von HA
 automatisch hinzugefügt. Eine vorhandene HACS-Update-Entität bleibt separat bestehen.
 
+## Update direkt bei einem Versionskonflikt
+
+Meldet der Receiver einen Versions- oder Protokollkonflikt und läuft HA mit
+einem neueren Release, bietet der Dialog **Receiver auf … aktualisieren** an.
+Nach der Auswahl das geprüfte Paket und anschließend den GUI-Neustart bestätigen.
+Der Receiver lädt genau den veröffentlichten stabilen Release der laufenden
+HA-Integration und prüft Paket, Größe und SHA-256. Ist dieser Release nicht
+vollständig verfügbar, erfolgt keine Installation. Downgrades bleiben gesperrt.
+
+Ein bereits in HA angebotenes Update wird über den vorhandenen gemeinsamen
+Ablauf fortgesetzt. Ohne solchen Auftrag wird nur der Receiver aktualisiert;
+dafür sind GitHub-Zugang und Root-Rechte auf OpenATV erforderlich. Ein ausstehender
+GUI-Neustart wird auch nach erneutem Öffnen des Plugins angeboten.
+Bestehende Konfigurationen und Updatejournale bleiben nutzbar; eine Migration
+oder Neueinrichtung ist nicht erforderlich.
+
 ## Gemeinsames Update über HACS und IPK
 
 Beide Komponenten müssen einmal in einer Version installiert sein, die diesen

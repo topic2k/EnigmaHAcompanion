@@ -125,7 +125,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     setIntegrationLanguage, renameMenu, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
 }
 
-test("version status refresh warns about all receivers without changing unsaved fields", async () => {
+test("version status uses deduplicated HA snackbars without changing unsaved fields", async () => {
   const ui = await createPanel();
   try {
     assert.equal(ui.compatibilityRequests.length, 1);
@@ -142,30 +142,42 @@ test("version status refresh warns about all receivers without changing unsaved 
     ]});
     await ui.panel.loadCompatibility();
     const status = ui.root.querySelector(".compatibility");
-    assert.match(status.textContent, /Release 0\.9\.0 unterscheidet sich von HA 1\.0\.0/);
-    assert.match(status.textContent, /Protokoll 1 passt; Verbindung freigegeben/);
-    assert.match(status.textContent, /Protokoll 2 passt nicht zu HA 1/);
+    const message = ui.notifications.at(-1).detail.message;
+    assert.match(message, /Release 0\.9\.0 unterscheidet sich von HA 1\.0\.0/);
+    assert.match(message, /Protokoll 1 passt; Verbindung freigegeben/);
+    assert.match(message, /Protokoll 2 passt nicht zu HA 1/);
+    assert.doesNotMatch(status.textContent, /Receiver .*:/);
+    const count = ui.notifications.length;
+    await ui.panel.loadCompatibility();
+    ui.panel.renderCompatibility();
+    assert.equal(ui.notifications.length, count);
     assert.equal(status.querySelector('a[href="/config/repairs"]').textContent, "Reparaturen öffnen");
     assert.deepEqual([...status.querySelectorAll(".release-link")].map(a => a.href), [
       "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v1.0.0",
       "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v0.9.0"]);
-    assert.match(status.textContent, /192\.0\.2\.2: Version 1\.0\.0 passt/);
-    assert.equal(status.querySelectorAll(".version-warning").length, 2);
+    assert.match(message, /192\.0\.2\.2: Version 1\.0\.0 passt/);
+    assert.equal(status.querySelector("p"), null);
     assert.equal(status.querySelector("img"), null);
     assert.equal(JSON.stringify(ui.panel.model), model);
     assert.equal(ui.panel.dirty, true);
     assert.equal(ui.root.querySelector('[data-field="menu-label"]'), field);
     ui.panel.setLanguage("en");
-    assert.match(ui.root.querySelector(".compatibility").textContent, /connection allowed/);
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Protocol 2 does not match HA 1/);
+    assert.match(ui.notifications.at(-1).detail.message, /connection allowed/);
+    assert.match(ui.notifications.at(-1).detail.message, /Protocol 2 does not match HA 1/);
     ui.panel._hass.callApi = async () => ({version: "1.0.0", receivers: [
       {address: "192.0.2.1", version: "1.0.0", status: "compatible"},
     ]});
     await ui.panel.loadCompatibility();
-    assert.equal(ui.root.querySelectorAll(".version-warning").length, 0);
+    assert.equal(ui.root.querySelector(".compatibility").textContent, "");
+    assert.match(ui.notifications.at(-1).detail.message, /version 1\.0\.0 matches/);
     ui.panel._hass.callApi = async () => { throw new Error("offline"); };
     await ui.panel.loadCompatibility();
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Version check unavailable/);
+    assert.match(ui.notifications.at(-1).detail.message, /Version check unavailable/);
+    const offlineCount = ui.notifications.length;
+    await ui.panel.loadCompatibility();
+    ui.panel.render();
+    assert.equal(ui.notifications.length, offlineCount);
+    assert.equal(ui.root.querySelector(".notice, .save-state, .version-warning"), null);
     ui.panel.remove();
     let requests = 0;
     ui.panel._hass.callApi = async () => { requests++; };
@@ -217,6 +229,47 @@ test("coordinated update requires confirmation and pins the release and particip
   } finally { ui.dom.window.close(); }
 });
 
+test("update offer disappears when HA and every receiver already run the candidate release", async () => {
+  const ui = await createPanel();
+  try {
+    const candidate = {id: "release-candidate", release: {version: "1.1.1"}};
+    const receiver = {id: "a".repeat(32), address: "192.0.2.1", version: "1.1.1", status: "compatible"};
+    const compatibility = {version: "1.1.1", receivers: [receiver],
+      updates: {hacs: {entity_id: "update.enigmaha"}, candidate, job: null}};
+    ui.panel._hass.callApi = async (method, route) => route.endsWith("/updates") ? compatibility.updates : compatibility;
+    await ui.panel.loadCompatibility();
+    assert.ok(ui.button("Auf Updates prüfen"));
+    assert.equal(ui.button("Beide auf 1.1.1 aktualisieren"), undefined);
+
+    // Checking again and retaining a completed job must not reoffer the installed release.
+    await ui.panel.updateAction({action: "check"});
+    compatibility.updates.job = {id: "job", release: candidate.release, phase: "completed", receivers: [
+      {...receiver, status: "completed"}]};
+    await ui.panel.loadCompatibility();
+    assert.equal(ui.button("Beide auf 1.1.1 aktualisieren"), undefined);
+
+    compatibility.receivers.push({...receiver, id: "b".repeat(32), address: "192.0.2.2",
+      version: "1.1.0", status: "version_mismatch"});
+    await ui.panel.loadCompatibility();
+    assert.equal(ui.button("Beide auf 1.1.1 aktualisieren").disabled, false);
+    compatibility.receivers[1].version = "1.1.1";
+    compatibility.receivers[1].status = "compatible";
+    await ui.panel.loadCompatibility();
+    assert.equal(ui.button("Beide auf 1.1.1 aktualisieren"), undefined);
+
+    compatibility.version = "1.1.0";
+    await ui.panel.loadCompatibility();
+    assert.ok(ui.button("Beide auf 1.1.1 aktualisieren"));
+    compatibility.version = "1.1.1";
+    receiver.status = "protocol_mismatch";
+    await ui.panel.loadCompatibility();
+    assert.ok(ui.button("Beide auf 1.1.1 aktualisieren"));
+    compatibility.receivers = [];
+    await ui.panel.loadCompatibility();
+    assert.equal(ui.button("Beide auf 1.1.1 aktualisieren").disabled, true);
+  } finally { ui.dom.window.close(); }
+});
+
 test("HA restart requires separate consent and saved edits; HACS absence and failure are visible", async () => {
   const ui = await createPanel();
   try {
@@ -240,20 +293,66 @@ test("HA restart requires separate consent and saved edits; HACS absence and fai
     ui.button("Neu starten").click();
     await tick();
     assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{action: "restart", job_id: "job"}]);
-    assert.match(ui.root.querySelector(".compatibility").textContent, /HA-Neustart angefordert/);
+    assert.match(ui.notifications.at(-1).detail.message, /HA-Neustart angefordert/);
     ui.panel.compatibility.updates = {hacs: null, candidate: null, job: null};
     ui.panel.renderCompatibility();
     assert.doesNotMatch(ui.root.querySelector(".compatibility").textContent, /HACS-Update nicht verfügbar/);
     ui.panel.compatibility.updates.job = job;
     ui.panel.renderCompatibility();
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Receiver verwenden die Zielversion/);
+    assert.match(ui.notifications.at(-1).detail.message, /Receiver verwenden die Zielversion/);
     ui.panel.compatibility.updates.job = null;
     ui.panel.compatibility.updates.hacs = {};
     ui.panel._hass.callApi = async () => { throw {body: {error: "release_check_failed"}}; };
     await ui.panel.updateAction({action: "check"});
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Release nicht verfügbar oder unvollständig/);
+    assert.match(ui.notifications.at(-1).detail.message, /Release nicht verfügbar oder unvollständig/);
     ui.panel.setLanguage("en");
-    assert.match(ui.root.querySelector(".compatibility").textContent, /Release unavailable or incomplete/);
+    await ui.panel.updateAction({action: "check"});
+    assert.match(ui.notifications.at(-1).detail.message, /Release unavailable or incomplete/);
+    assert.equal(ui.root.querySelector(".compatibility p"), null);
+  } finally { ui.dom.window.close(); }
+});
+
+test("update success stays DEBUG-only while progress uses snackbars and actions remain accessible", async () => {
+  const ui = await createPanel();
+  try {
+    const job = {id: "job", release: {version: "2.0.0"}, phase: "completed", receivers: [
+      {address: "192.0.2.1", status: "completed"}]};
+    const initialCount = ui.notifications.length;
+    ui.panel.compatibility.updates = {hacs: {}, candidate: null, job};
+    ui.panel.renderCompatibility();
+    assert.equal(ui.root.querySelector(".compatibility").textContent, "Auf Updates prüfen");
+    ui.panel.setLanguage("en");
+    assert.equal(ui.root.querySelector(".compatibility").textContent, "Check for updates");
+    ui.panel.setLanguage("de");
+    assert.equal(ui.notifications.length, initialCount);
+    job.phase = "receivers";
+    job.receivers.push({address: "192.0.2.2", status: "pending"});
+    for (const [status, error, message] of [
+      ["pending", null, "Wartet auf Bestätigung"],
+      ["installing", null, "Installation läuft"],
+      ["restart_required", null, "GUI-Neustart erforderlich"],
+      ["declined", null, "Abgelehnt"],
+      ["failed", null, "Installation fehlgeschlagen"],
+      ["failed", "install_uncertain", "Installation unklar. Paketstatus am Receiver manuell prüfen."],
+    ]) {
+      Object.assign(job.receivers[1], {status, error});
+      ui.panel.renderCompatibility();
+      const text = ui.notifications.at(-1).detail.message;
+      if (status === "pending") assert.ok(text.includes("Release 2.0.0: Am Receiver Installation und GUI-Neustart bestätigen."));
+      assert.ok(text.includes("Receiver 192.0.2.2: " + message));
+      assert.ok(!text.includes("192.0.2.1"));
+      const count = ui.notifications.length;
+      ui.panel.render();
+      assert.equal(ui.notifications.length, count);
+      assert.equal(ui.root.querySelector(".compatibility p"), null);
+      assert.equal(!!ui.button("Fehlgeschlagene Schritte erneut anbieten"), ["declined", "failed"].includes(status) && !error);
+    }
+    job.phase = "ha_restart_required";
+    job.receivers.pop();
+    ui.panel.renderCompatibility();
+    assert.ok(ui.button("Home Assistant neu starten"));
+    assert.match(ui.notifications.at(-1).detail.message, /HA-Neustart erforderlich/);
+    assert.doesNotMatch(ui.notifications.at(-1).detail.message, /192\.0\.2\.1/);
   } finally { ui.dom.window.close(); }
 });
 
@@ -279,7 +378,7 @@ test("integration language switching preserves the entire unsaved editor", async
     assert.equal(ui.root.querySelector('[data-field="new-menu"]').value, "Noch nicht hinzugefügt");
     assert.equal(ui.root.querySelector('[data-selector="entity"]').value, "sensor.temp");
     assert.equal(ui.root.querySelector('[data-selector="domain"]').value, "sensor");
-    assert.equal(ui.root.querySelector(".save-state").textContent, "Unsaved changes");
+    assert.equal(ui.root.querySelector(".save-state"), null);
     assert.ok(ui.button("Save"));
     assert.ok(ui.button("Add entity"));
     assert.equal(ui.root.querySelector('[data-selector="domain"]').label, "Entity type");
@@ -288,12 +387,12 @@ test("integration language switching preserves the entire unsaved editor", async
     await tick();
     assert.equal(ui.saved().menus[0].children[0].label, "Wohnzimmer");
     assert.equal(ui.saved().menus[0].children[0].children[0].label, "Lampe <img src=x>");
-    assert.equal(ui.root.querySelector(".notice").textContent, "");
+    assert.equal(ui.root.querySelector(".notice"), null);
     assert.equal(ui.notifications.at(-1).detail.message, "Saved. The receiver menu will update on its next refresh.");
     await ui.setIntegrationLanguage("de");
     assert.ok(ui.button("Speichern"));
     assert.equal(ui.panel.dirty, false);
-    assert.equal(ui.root.querySelector(".notice").textContent, "");
+    assert.equal(ui.root.querySelector(".notice"), null);
   } finally {ui.dom.window.close();}
 });
 
@@ -400,7 +499,7 @@ test("English editor translates errors, confirmation dialogs, counts and dynamic
     ui.fail();
     ui.button("Save").click();
     await tick();
-    assert.match(ui.root.querySelector(".notice").textContent, /menu has changed/);
+    assert.match(ui.notifications.at(-1).detail.message, /menu has changed/);
     assert.equal(ui.panel.dirty, true);
     ui.button("Reload").click();
     assert.equal(ui.root.querySelector("dialog h2").textContent, "Discard unsaved changes?");
@@ -480,7 +579,7 @@ test("stale save keeps unsaved edits", async () => {
     await tick();
     assert.equal(ui.panel.dirty, true);
     assert.equal(ui.panel.model.root.children.length, 1);
-    assert.match(ui.panel.message, /inzwischen geändert/);
+    assert.match(ui.notifications.at(-1).detail.message, /inzwischen geändert/);
   } finally {ui.dom.window.close();}
 });
 
@@ -648,8 +747,29 @@ test("failed HA component loading displays an error instead of an inert selector
   const ui = await createPanel({brokenSelectors: true});
   try {
     assert.equal(ui.panel.loading, false);
-    assert.match(ui.panel.message, /Editor konnte nicht geladen/);
+    assert.match(ui.notifications.at(-1).detail.message, /Editor konnte nicht geladen/);
     assert.equal(ui.root.querySelector('[data-selector="entity"]'), null);
+  } finally {ui.dom.window.close();}
+});
+
+test("preview and generic save errors use snackbars and preserve the draft", async () => {
+  const ui = await createPanel({overview: true});
+  try {
+    ui.renameMenu("Entwurf");
+    ui.select("preview-user", "anna");
+    const draft = JSON.stringify(ui.panel.model);
+    ui.panel._hass.callApi = async () => { throw {status: 500}; };
+    await ui.panel.preview();
+    assert.match(ui.notifications.at(-1).detail.message, /Vorschau konnte nicht geladen/);
+    assert.equal(ui.panel.previewBusy, false);
+    await ui.panel.save();
+    assert.match(ui.notifications.at(-1).detail.message, /Speichern fehlgeschlagen/);
+    assert.equal(JSON.stringify(ui.panel.model), draft);
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(ui.root.querySelector(".notice, .save-state, .compatibility p"), null);
+    const count = ui.notifications.length;
+    ui.panel.render();
+    assert.equal(ui.notifications.length, count);
   } finally {ui.dom.window.close();}
 });
 
@@ -815,20 +935,23 @@ test("user labels omit IDs while missing assignments survive editing and languag
   } finally {ui.dom.window.close();}
 });
 
-test("successful saves use the native HA snackbar and failures keep inline errors", async () => {
+test("unsaved changes, successful saves and failures use the native HA snackbar", async () => {
   const ui = await createPanel();
   try {
-    assert.equal(ui.root.querySelector(".save-state").textContent, "");
+    assert.equal(ui.root.querySelector(".save-state, .notice"), null);
     assert.doesNotMatch(ui.root.textContent, /Alle Änderungen gespeichert/);
     ui.renameMenu("Wohnung");
+    assert.equal(ui.notifications.at(-1).detail.message, "Ungespeicherte Änderungen");
+    const count = ui.notifications.length;
+    ui.renameMenu("Wohnung 2");
+    assert.equal(ui.notifications.length, count);
     await ui.panel.save();
-    assert.equal(ui.notifications.length, 1);
-    const event = ui.notifications[0];
+    assert.equal(ui.notifications.length, count + 1);
+    const event = ui.notifications.at(-1);
     assert.equal(event.bubbles, true);
     assert.equal(event.composed, true);
     assert.equal(event.detail.message, "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.");
-    assert.equal(ui.panel.message, "");
-    assert.equal(ui.root.querySelector(".save-state").textContent, "");
+    assert.equal(ui.root.querySelector(".save-state, .notice"), null);
     ui.button("Zur Menüverwaltung").click();
     ui.panel.users.push({id: "private-user-id", name: ""});
     ui.panel.render();
@@ -838,8 +961,11 @@ test("successful saves use the native HA snackbar and failures keep inline error
     ui.fail();
     ui.renameMenu("Privat");
     await ui.panel.save();
-    assert.equal(ui.notifications.length, 1);
-    assert.match(ui.root.querySelector(".notice").textContent, /inzwischen geändert/);
+    assert.match(ui.notifications.at(-1).detail.message, /inzwischen geändert/);
+    const failedCount = ui.notifications.length;
+    await ui.panel.save();
+    assert.equal(ui.notifications.length, failedCount + 1, "Each failed user action reports its error");
+    assert.equal(ui.root.querySelector(".notice"), null);
     assert.equal(ui.panel.dirty, true);
   } finally {ui.dom.window.close();}
 });
@@ -975,7 +1101,7 @@ test("preview submits the unsaved collection, escapes labels and does not save",
     assert.equal(ui.root.querySelector("dialog img"), null);
     assert.match(ui.root.querySelector("dialog").textContent, /<img src=x>/);
     assert.equal(ui.root.querySelector("dialog").querySelectorAll("ha-button").length, 1);
-    assert.equal(ui.panel.message, "");
+    assert.equal(ui.root.querySelector(".notice"), null);
     assert.equal(ui.panel.previewBusy, true);
     ui.button("Schließen").click();
     await tick();

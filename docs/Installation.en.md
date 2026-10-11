@@ -115,6 +115,21 @@ configurations need no migration or setup changes. The entity is added
 automatically after updating and restarting HA. An existing HACS update entity
 remains separate.
 
+## Update directly from a version conflict
+
+When the receiver reports a version or protocol conflict and HA runs a newer
+release, the dialog offers **Update receiver to …**. Select it, confirm the
+verified package installation, then confirm the GUI restart. The receiver
+downloads the exact published stable release running in HA and checks package
+metadata, size and SHA-256. An incomplete or unavailable release cannot be
+installed. Downgrades remain blocked.
+
+An update already offered by HA continues through the existing coordinated
+workflow. Without such a job, only the receiver is updated; GitHub access and
+root permissions on OpenATV are required. A pending GUI restart is offered
+again when reopening the plugin. Existing settings and update journals remain
+usable; no migration or setup changes are required.
+
 ## Coordinated update through HACS and IPK
 
 Both components must first run a version containing this update workflow. Update

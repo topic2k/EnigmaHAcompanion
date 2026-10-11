@@ -155,6 +155,12 @@ class ReceiverTests(unittest.TestCase):
         self.menu = json.loads((ROOT / "protocol/menu.example.json").read_text(encoding="utf-8"))
         self.states = json.loads((ROOT / "protocol/states.example.json").read_text(encoding="utf-8"))["states"]
         self.pending, self.commands, self.dialogs = [], [], []
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        updater = PLUGIN.ReceiverUpdater(str(Path(directory.name) / "update.json"))
+        factory = patch.object(PLUGIN, "ReceiverUpdater", return_value=updater)
+        factory.start()
+        self.addCleanup(factory.stop)
         session = types.SimpleNamespace(open=lambda *args, **kwargs: self.dialogs.append((args, kwargs)),
                                       openWithCallback=lambda *args, **kwargs: self.dialogs.append(args if not kwargs else (args, kwargs)))
         self.screen = PLUGIN.CompanionScreen(session)
@@ -194,7 +200,8 @@ class ReceiverTests(unittest.TestCase):
         self.screen.failed(failure, self.screen.generation)
         self.assertFalse(self.screen.online)
         self.assertIn("Protokolle ungleich", self.screen["status"].text)
-        self.assertIn("Reparatur", self.dialogs[-1][0][1])
+        self.assertIn("Reparatur", self.dialogs[-1][1]["title"])
+        self.assertEqual(self.dialogs[-1][0][1], PLUGIN.ChoiceBox)
         self.screen.failed(failure, self.screen.generation)
         self.assertEqual(len(self.dialogs), 1)
         self.screen.loaded((self.menu, self.states), self.screen.generation)
@@ -650,7 +657,8 @@ class ReceiverTests(unittest.TestCase):
             count = len(self.dialogs)
             self.assertIn(PLUGIN.VERSION, self.screen["status"].text)
             self.assertIn("99.0.0", self.screen["status"].text)
-            self.assertIn("denselben Release" if language == "de" else "same release", self.dialogs[-1][0][1])
+            self.assertIn("denselben Release" if language == "de" else "same release", self.dialogs[-1][1]["title"])
+            self.assertIn("99.0.0", self.dialogs[-1][1]["list"][0][0])
             self.assertFalse(self.screen.online)
             self.press("ok")
             self.assertEqual(self.commands, [])
@@ -673,6 +681,85 @@ class ReceiverTests(unittest.TestCase):
 
     def update_plan(self):
         return {"id": "b" * 32, "release": {"version": "2.0.0"}, "status": "pending", "attempt": 1}
+
+    def test_conflict_update_is_checked_then_requires_local_install_confirmation(self):
+        job = dict(self.update_plan(), local=True)
+        self.screen.updater = types.SimpleNamespace(local_update=Mock(return_value=job), confirm=Mock(), perform=Mock())
+        error = PLUGIN.ClientError("protocol_mismatch", peer_version="2.0.0", peer_protocol=2)
+        self.screen.failed(types.SimpleNamespace(value=error), self.screen.generation)
+        args, options = self.dialogs[-1]
+        self.assertTrue(self.screen.busy)
+        args[0](options["list"][0])
+        self.assertEqual(len(self.pending), 1)
+        self.screen.updater.perform.assert_not_called()
+        self.pending.pop().fire()
+        self.screen.updater.local_update.assert_called_once_with("2.0.0")
+        args, options = self.dialogs[-1]
+        self.assertFalse(options["default"])
+        self.assertIn("Receiver auf Release 2.0.0", args[2])
+        args[0](True)
+        with patch.dict(sys.modules, {"Components.SystemInfo": types.SimpleNamespace(BoxInfo=types.SimpleNamespace(getItem=lambda key: "openatv"))}):
+            self.pending.pop().fire()
+        self.screen.updater.confirm.assert_called_once_with(job)
+        self.screen.updater.perform.assert_called_once_with(job, None)
+        self.assertIn("GUI jetzt neu starten", self.dialogs[-1][0][2])
+        self.assertFalse(self.dialogs[-1][1]["default"])
+
+    def test_conflict_update_cancellation_and_old_or_unknown_peers_never_install(self):
+        self.screen.updater = types.SimpleNamespace(local_update=Mock(), confirm=Mock(), perform=Mock())
+        error = PLUGIN.ClientError("legacy_version_mismatch", peer_version="9.0.0")
+        self.screen.failed(types.SimpleNamespace(value=error), self.screen.generation)
+        args, _ = self.dialogs[-1]
+        args[0](None)
+        self.assertFalse(self.screen.busy)
+        self.assertTrue(self.screen.timer.running)
+        self.assertEqual(self.pending, [])
+        for version in ("0.0.1", PLUGIN.VERSION, None, "invalid"):
+            error = PLUGIN.ClientError("protocol_mismatch", peer_version=version)
+            self.screen.failed(types.SimpleNamespace(value=error), self.screen.generation)
+            self.assertEqual(self.dialogs[-1][0][0], PLUGIN.MessageBox)
+        self.screen.updater.local_update.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+
+    def test_conflict_action_reuses_ha_job_and_ignores_closed_screen(self):
+        job = self.update_plan()
+        self.screen.client.get_update = lambda: job
+        self.screen.updater = types.SimpleNamespace(local_update=Mock())
+        self.screen.mismatch_update_answer(("Update", "update"), "2.0.0", self.screen.generation)
+        self.pending.pop().fire()
+        self.screen.updater.local_update.assert_not_called()
+        self.assertIn("für HA und Receiver", self.dialogs[-1][0][2])
+        self.screen.cleanup()
+        self.screen.mismatch_update_answer(("Update", "update"), "2.0.0", self.screen.generation)
+        self.assertEqual(self.pending, [])
+
+    def test_local_decline_does_not_report_a_nonexistent_ha_job(self):
+        job = dict(self.update_plan(), local=True)
+        self.screen.client.report_update = Mock()
+        self.screen.updater = types.SimpleNamespace(confirm=Mock(), perform=Mock())
+        self.screen.update_answer(job, False)
+        self.screen.client.report_update.assert_not_called()
+        self.screen.updater.confirm.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+        self.assertEqual(self.pending, [])
+
+    def test_missing_conflict_release_is_explained_without_installing(self):
+        self.screen.appearance.language = "en"
+        self.screen.updater = types.SimpleNamespace(local_update=Mock(side_effect=PLUGIN.UpdateError("invalid_release")),
+                                                   confirm=Mock(), perform=Mock())
+        self.screen.mismatch_update_answer(("Update", "update"), "2.0.0", self.screen.generation)
+        self.pending.pop().fire()
+        self.assertIn("Matching release unavailable", self.dialogs[-1][0][1])
+        self.screen.updater.confirm.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+        self.assertFalse(self.screen.busy)
+
+    def test_local_restart_is_offered_even_when_ha_is_offline(self):
+        job = dict(self.update_plan(), local=True, status="restart_required")
+        with patch.object(PLUGIN, "ReceiverUpdater", return_value=types.SimpleNamespace(local_restart=lambda: job)):
+            self.screen.client.get_update = Mock(side_effect=PLUGIN.ClientError("connection_failed"))
+            self.assertEqual(self.screen.snapshot(self.screen.client), {"update": job})
+        self.screen.client.get_update.assert_not_called()
 
     def test_receiver_declining_update_cannot_download_or_install(self):
         job = self.update_plan()

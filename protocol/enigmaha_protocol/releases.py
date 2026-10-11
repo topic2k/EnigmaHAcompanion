@@ -116,13 +116,20 @@ def _read_public(url, limit):
     return data
 
 
-def fetch_latest_release():
+def fetch_release(version=None):
     try:
-        metadata = json.loads(_read_public("https://api.github.com/repos/" + REPOSITORY + "/releases/latest", 1024 * 1024))
-        version, _ = release_metadata(metadata)
-        checksums = _read_public(asset_url(version, "SHA256SUMS.txt"), 128 * 1024).decode("ascii")
+        suffix = "latest" if version is None else "tags/v" + ".".join(map(str, version_tuple(version)))
+        metadata = json.loads(_read_public("https://api.github.com/repos/" + REPOSITORY + "/releases/" + suffix, 1024 * 1024))
+        found, _ = release_metadata(metadata)
+        if version is not None and found != version:
+            raise UpdateError("invalid_release")
+        checksums = _read_public(asset_url(found, "SHA256SUMS.txt"), 128 * 1024).decode("ascii")
         return release_with_checksums(metadata, checksums)
     except UpdateError:
         raise
     except (OSError, ValueError, UnicodeError, HTTPException, RecursionError):
         raise UpdateError("release_check_failed") from None
+
+
+def fetch_latest_release():
+    return fetch_release()

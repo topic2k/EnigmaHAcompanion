@@ -8,14 +8,15 @@ from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaBlend
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
+from Screens.ChoiceBox import ChoiceBox
 from Screens.Screen import Screen
 from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
 
 from .companion.client import ClientError, CompanionClient
 from .companion.updater import ReceiverUpdater, load_receiver_id
-from .enigmaha_protocol.releases import UpdateError
-from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION
+from .enigmaha_protocol.releases import UpdateError, version_tuple
+from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION, valid_version
 from .companion.navigation import Navigator
 from .companion.i18n import translate
 from .appearance import Appearance
@@ -166,6 +167,9 @@ class CompanionScreen(Screen):
 
     @staticmethod
     def snapshot(client):
+        local = ReceiverUpdater().local_restart()
+        if local:
+            return {"update": local}
         job = client.get_update()
         if job and job["status"] in {"pending", "installing", "restart_required"}:
             return {"update": job}
@@ -249,7 +253,10 @@ class CompanionScreen(Screen):
                        "invalid_package": "IPK passt nicht zu diesem Release oder Receiver.",
                        "install_uncertain": "Installation unklar. Paketstatus prüfen; keine automatische Wiederholung.",
                        "permission_denied": "Für das Receiver-Update werden Root-Rechte benötigt.",
-                       "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Dateirechte prüfen."}
+                       "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Dateirechte prüfen.",
+                       "invalid_release": "Passender Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
+                       "release_check_failed": "Passender Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
+                       "update_in_progress": "Gemeinsames Update im HA-Editor fortsetzen oder erneut anbieten."}
             message = self.t(reasons.get(error.code, "Receiver-Update fehlgeschlagen. Fortschritt im HA-Editor prüfen."))
             self["status"].setText(message)
             self.session.open(MessageBox, message, type=MessageBox.TYPE_ERROR)
@@ -281,7 +288,15 @@ class CompanionScreen(Screen):
             notice = (code, error.peer_version, getattr(error, "peer_protocol", None))
             if notice != self.peer_notice:
                 self.peer_notice = notice
-                self.session.open(MessageBox, messages[code], type=MessageBox.TYPE_ERROR)
+                if code != "unidentified_peer" and valid_version(error.peer_version) and version_tuple(error.peer_version) > version_tuple(VERSION):
+                    self.busy = True
+                    self.session.openWithCallback(
+                        lambda choice: self.mismatch_update_answer(choice, error.peer_version, generation), ChoiceBox,
+                        title=messages[code], list=[
+                            (self.t("Receiver auf {version} aktualisieren", version=error.peer_version), "update"),
+                            (self.t("Schließen"), "close")])
+                else:
+                    self.session.open(MessageBox, messages[code], type=MessageBox.TYPE_ERROR)
             # Keep the status line short; the dialog contains the recovery steps.
             self["status"].setText(messages[code] if code in {"protocol_mismatch", "legacy_version_mismatch"} else self.t("Versionen ungleich: Receiver {receiver}, HA {ha}.",
                                          receiver=VERSION, ha=error.peer_version or "?")
@@ -289,6 +304,28 @@ class CompanionScreen(Screen):
         self["heading"].setText("OFFLINE – " + (safe_text(self.nav.breadcrumb) if self.nav else "Home Assistant"))
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
         return None  # Consume Deferred failure; do not log request/token details.
+
+    def mismatch_update_answer(self, choice, version, generation):
+        if self.closed or generation != self.generation:
+            return
+        self.busy = False
+        if choice and choice[1] == "update":
+            client = self.client
+            def work():
+                try:
+                    job = client.get_update()
+                except ClientError as error:
+                    if error.code not in {"not_found", "legacy_version_mismatch"}:
+                        raise
+                    job = None
+                if job and job["status"] != "completed":
+                    if job["status"] not in {"pending", "installing", "restart_required"}:
+                        raise UpdateError("update_in_progress")
+                    return {"update": job}
+                return {"update": self.updater.local_update(version)}
+            self.run(work, self.t("Passendes Receiver-Update wird geprüft …"))
+        else:
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
 
     def update_loaded(self, job):
         self.timer.stop()
@@ -306,9 +343,10 @@ class CompanionScreen(Screen):
             return
         self.update_notice = key
         self.busy = True
+        prompt = ("Receiver auf Release {version} aktualisieren? Das geprüfte IPK wird installiert. Danach ist ein GUI-Neustart nötig."
+                  if job.get("local") else "Release {version} für HA und Receiver verwenden? Das geprüfte IPK wird installiert. Danach ist ein GUI-Neustart nötig.")
         self.session.openWithCallback(lambda answer: self.update_answer(job, answer), MessageBox,
-            self.t("Release {version} für HA und Receiver verwenden? Das geprüfte IPK wird installiert. Danach ist ein GUI-Neustart nötig.",
-                   version=job["release"]["version"]), type=MessageBox.TYPE_YESNO, default=False)
+            self.t(prompt, version=job["release"]["version"]), type=MessageBox.TYPE_YESNO, default=False)
 
     def update_answer(self, job, answer):
         if self.closed:
@@ -316,6 +354,9 @@ class CompanionScreen(Screen):
         self.busy = False
         if answer:
             self.install_update(job, confirmed=True)
+        elif job.get("local"):
+            self["status"].setText(self.t("Update abgelehnt."))
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
         else:
             client = self.client
             def work():
@@ -331,7 +372,7 @@ class CompanionScreen(Screen):
                 raise UpdateError("invalid_package")
             if confirmed:
                 self.updater.confirm(job)
-            self.updater.perform(job, client)
+            self.updater.perform(job, None if job.get("local") else client)
             return {"installed_update": job}
         self.update_installing = True
         self.run(work, self.t("Receiver-Update wird installiert. Bitte warten …"))

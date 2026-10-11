@@ -269,6 +269,54 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("HA integration", logs.records[0].getMessage())
         create.assert_not_called()
 
+    async def test_update_success_is_debug_only_per_job_and_receiver(self):
+        job = {"id": "job-1", "release": {"version": "2.0.0"}, "phase": "receivers", "receivers": [
+            {"id": "a" * 32, "address": "192.0.2.1", "status": "completed"},
+            {"id": "b" * 32, "address": "192.0.2.2", "status": "pending"}]}
+        updates = {"hacs": {"entity_id": "update.enigmaha"}, "job": job}
+        self.runtime.updates = types.SimpleNamespace(snapshot=AsyncMock(return_value=updates))
+        async with await self.request("GET", "/menu", "receiver") as response:
+            self.assertEqual(response.status, 200)
+        with patch.object(API._LOGGER, "isEnabledFor", return_value=False), patch.object(API._LOGGER, "debug") as debug:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual((await response.json())["updates"], updates)
+            debug.assert_not_called()
+        self.assertEqual(self.runtime.editor_status_messages, {})
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(logs.records), 2)
+        self.assertEqual(logs.records[-1].getMessage(), "Receiver 192.0.2.1: Zielversion läuft")
+        with self.assertNoLogs(API._LOGGER, level="DEBUG"):
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        job["phase"] = "completed"
+        job["receivers"][1]["status"] = "completed"
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual((await response.json())["updates"], updates)
+        self.assertEqual([record.getMessage() for record in logs.records], [
+            "Release 2.0.0: Abgeschlossen: HA und alle beteiligten Receiver verwenden denselben Release.",
+            "Receiver 192.0.2.2: Zielversion läuft"])
+        with self.assertNoLogs(API._LOGGER, level="DEBUG"):
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.runtime.config_entry = types.SimpleNamespace(options={"language": "en"})
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(logs.records), 4)
+        self.assertIn("Completed: HA and all participating receivers", logs.records[1].getMessage())
+        self.assertEqual(logs.records[2].getMessage(), "Receiver 192.0.2.1: Running target version")
+        job["id"] = "job-2"
+        with self.assertLogs(API._LOGGER, level="DEBUG") as logs:
+            async with await self.request("GET", "/compatibility") as response:
+                self.assertEqual(response.status, 200)
+        self.assertEqual(len(logs.records), 3, "A new job must log its own success")
+        self.assertTrue(all(record.levelname == "DEBUG" for record in logs.records))
+        self.assertEqual(len(self.runtime.editor_status_messages), 6, "Only current status is retained")
+        API.persistent_notification.async_create.assert_not_called()
+
     async def test_automatic_debug_language_follows_ha_system_language(self):
         self.runtime.config_entry = types.SimpleNamespace(options={"language": "auto"})
         self.hass.config = types.SimpleNamespace(language="en-GB")
