@@ -65,6 +65,7 @@ class ReleaseVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.fixture(root)
+            update_versions(root, "0.1.6")
             (root / "tools").mkdir()
             shutil.copyfile(ROOT / "tools/release_version.py", root / "tools/release_version.py")
             def git(*args):

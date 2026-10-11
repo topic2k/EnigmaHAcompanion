@@ -1,6 +1,6 @@
 DOMAIN = "enigmaha_companion"
 BASE = "/api/enigmaha_companion/v1"
-VERSION = "0.1.8"
+VERSION = "1.0.0"
 
 
 def empty_menu():
