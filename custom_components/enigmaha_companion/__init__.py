@@ -4,6 +4,7 @@ from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.const import Platform
 from homeassistant.helpers.storage import Store
 
 from .api import CompanionRuntime, register_views
@@ -11,6 +12,8 @@ from .const import DOMAIN, VERSION, empty_menu
 from .enigmaha_protocol import validate_menu
 from .updates import UpdateManager
 from .repair_issues import RepairCoordinator
+
+PLATFORMS = [Platform.UPDATE]
 
 
 async def async_setup(hass, config):
@@ -45,10 +48,13 @@ async def async_setup_entry(hass, entry):
         module_url="/enigmaha_companion/panel.js?v=" + VERSION,
         require_admin=True,
     )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass, entry):
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     runtime = hass.data[DOMAIN].get("runtime")
     if runtime is not None:
         await runtime.updates.close()

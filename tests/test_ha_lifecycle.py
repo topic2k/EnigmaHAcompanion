@@ -17,7 +17,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                      "homeassistant.components.panel_custom", "homeassistant.components.http",
                      "homeassistant.helpers", "homeassistant.helpers.storage", "homeassistant.auth",
                      "homeassistant.auth.permissions", "homeassistant.auth.permissions.const",
-                     "homeassistant.core", "homeassistant.exceptions", "homeassistant.helpers.icon",
+                     "homeassistant.core", "homeassistant.const", "homeassistant.exceptions", "homeassistant.helpers.icon",
                      "homeassistant.helpers.entity_registry", "homeassistant.helpers.issue_registry"):
             fake[name] = types.ModuleType(name)
         panels = []
@@ -32,13 +32,16 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         fake["homeassistant.auth.permissions.const"].POLICY_READ = "read"
         fake["homeassistant.auth.permissions.const"].POLICY_CONTROL = "control"
         fake["homeassistant.core"].Context = lambda **kwargs: kwargs
+        fake["homeassistant.const"].Platform = types.SimpleNamespace(UPDATE="update")
         fake["homeassistant.exceptions"].HomeAssistantError = RuntimeError
         fake["homeassistant.helpers.icon"].async_get_icons = AsyncMock(return_value={})
         fake["homeassistant.helpers.issue_registry"].async_delete_issue = lambda *args: None
         store = types.SimpleNamespace(async_load=AsyncMock(return_value=None), async_save=AsyncMock())
         fake["homeassistant.helpers.storage"].Store = lambda *args: store
         views = []
-        hass = types.SimpleNamespace(data={}, http=types.SimpleNamespace(
+        hass = types.SimpleNamespace(data={}, config_entries=types.SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(), async_unload_platforms=AsyncMock(return_value=True)),
+            http=types.SimpleNamespace(
             async_register_static_paths=AsyncMock(), register_view=lambda view: views.append(view)))
         spec = importlib.util.spec_from_file_location("eha_lifecycle_test", BUNDLE / "__init__.py",
                                                       submodule_search_locations=[str(BUNDLE)])
@@ -49,11 +52,21 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await module.async_setup(hass, {}))
             self.assertEqual(len(views), 7)
             hass.http.async_register_static_paths.assert_awaited_once()
-            self.assertTrue(await module.async_setup_entry(hass, object()))
+            entry = object()
+            self.assertTrue(await module.async_setup_entry(hass, entry))
+            hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(entry, ["update"])
             runtime = hass.data[module.DOMAIN]["runtime"]
             self.assertEqual(runtime.menu["root"]["children"], [])
             self.assertTrue(panels[0]["require_admin"])
-            self.assertTrue(await module.async_unload_entry(hass, object()))
+            hass.config_entries.async_unload_platforms.return_value = False
+            self.assertFalse(await module.async_unload_entry(hass, entry))
+            self.assertTrue(runtime.active)
+            self.assertTrue(runtime.updates.active)
+            self.assertIs(hass.data[module.DOMAIN]["runtime"], runtime)
+            self.assertEqual(removed, [])
+            hass.config_entries.async_unload_platforms.return_value = True
+            self.assertTrue(await module.async_unload_entry(hass, entry))
+            hass.config_entries.async_unload_platforms.assert_awaited_with(entry, ["update"])
             self.assertFalse(runtime.active)
             self.assertNotIn("runtime", hass.data[module.DOMAIN])
             self.assertEqual(removed, [module.DOMAIN])

@@ -89,7 +89,7 @@ class PackageTests(unittest.TestCase):
             names = archive.namelist()
             prefix = "custom_components/enigmaha_companion/"
             for filename in ("__init__.py", "manifest.json", "config_flow.py", "api.py", "panel.js",
-                             "icons.py", "updates.py", "repairs.py", "repair_issues.py", "enigmaha_protocol/releases.py",
+                             "icons.py", "update.py", "updates.py", "repairs.py", "repair_issues.py", "enigmaha_protocol/releases.py",
                              "translations/de.json", "translations/en.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertFalse(any("__pycache__" in name or name.endswith(".pyc") for name in names))

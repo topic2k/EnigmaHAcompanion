@@ -92,6 +92,24 @@ Alle Receiver verwenden dasselbe Menü. Die Menüdatei
 `.storage/enigmaha_companion.menu` wird von Home Assistant verwaltet und sollte
 nicht bei laufendem HA manuell bearbeitet werden.
 
+## Update-Anzeige in Home Assistant
+
+Die Integration stellt die Update-Entität `update.enigmaha_companion` bereit.
+Sie zeigt die tatsächlich laufende Integrationsversion, den neuesten vollständigen
+stabilen Release und einen Link zu dessen Release-Informationen. Die Prüfung
+erfolgt beim Laden der Integration und anschließend alle zwölf Stunden. Über
+`homeassistant.update_entity` lässt sich die Prüfung auch manuell anfordern.
+Die Anzeige benötigt Internetzugang zu GitHub, aber kein HACS. Bei einem
+Prüffehler ist die Entität nicht verfügbar; das lokale Receiver-Menü bleibt nutzbar.
+Ein späterer erfolgreicher Abruf stellt die Anzeige wieder her.
+
+Installationen werden weiterhin im EnigmaHA-Editor oder Reparaturassistenten
+bestätigt. Die neue Entität bietet keine Installation an. Bis zum HA-Neustart
+zeigt sie weiterhin die geladene Version, auch wenn neuere Dateien bereits
+installiert sind. Bestehende Konfigurationen benötigen keine Migration oder
+Neueinrichtung; die Entität wird nach dem Aktualisieren und Neustarten von HA
+automatisch hinzugefügt. Eine vorhandene HACS-Update-Entität bleibt separat bestehen.
+
 ## Gemeinsames Update über HACS und IPK
 
 Beide Komponenten müssen einmal in einer Version installiert sein, die diesen

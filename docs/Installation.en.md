@@ -86,6 +86,23 @@ Your own menu and entity names are never automatically translated.
 All receivers use the same menu. HA manages it in
 `.storage/enigmaha_companion.menu`; do not edit that file while HA is running.
 
+## Update indicator in Home Assistant
+
+The integration provides the `update.enigmaha_companion` update entity. It shows
+the integration version actually running, the latest complete stable release and
+a link to its release information. It checks when the integration loads and every
+twelve hours afterwards. Use `homeassistant.update_entity` to request a manual
+check. The indicator needs GitHub internet access but does not require HACS.
+If a check fails, the entity becomes unavailable while the local receiver menu
+remains usable. A later successful check restores the indicator.
+
+Installations still require confirmation in the EnigmaHA editor or repair wizard;
+the new entity does not offer installation. Until HA restarts, it continues to
+show the loaded version even if newer files are already installed. Existing
+configurations need no migration or setup changes. The entity is added
+automatically after updating and restarting HA. An existing HACS update entity
+remains separate.
+
 ## Coordinated update through HACS and IPK
 
 Both components must first run a version containing this update workflow. Update
