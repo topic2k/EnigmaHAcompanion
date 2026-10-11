@@ -186,9 +186,13 @@ erscheinen. Ein Pakettest reproduziert genau diesen Fall.
 Update-Tests prüfen feste HACS-Zielversionen, Benutzer-/Receiverbindung,
 Bestätigungen, Ablehnung, Prüfsummen und Paketmetadaten, verlorene Antworten,
 Speicherfehler, unterbrochene Installationen und Abschluss erst nach tatsächlich
-laufender Zielversion auf beiden Seiten. HACS-Dienste und `opkg` werden dabei
-ersetzt; ein kompletter HACS/IPK-Updatezyklus auf HA und OpenATV-Hardware steht
-noch aus. Vor Freigabe einschließlich GUI-Neustart bei laufender Aufnahme prüfen.
+laufender Zielversion auf beiden Seiten. HACS-Dienste und `opkg` werden in diesen
+automatisierten Tests ersetzt. Der vollständige HACS/IPK-Zyklus von 1.0.1 auf
+1.0.2 wurde am 11. Oktober 2026 auf HA 2026.10.1/HAOS 18.3 und einem Octagon
+SF8008 mit OpenATV 7.6 erfolgreich geprüft, einschließlich Bestätigungen,
+Ablehnung, erneutem Anbieten, GUI- und HA-Neustart sowie Konfigurationserhalt.
+Details und der dabei behobene Cachefehler: [Live-Update-Test](Update-Test-2026-10-11.md).
+Ein GUI-Neustart bei laufender Aufnahme wurde dabei nicht geprüft.
 
 Die automatisierten Tests decken Menüvalidierung, Befehle, echte HTTP-Anfragen
 gegen Testserver, HA-Lebenszyklus und Berechtigungen, Symbolauflösung,
