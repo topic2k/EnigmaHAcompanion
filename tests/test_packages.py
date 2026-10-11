@@ -2,8 +2,12 @@ import ast
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tarfile
+import tempfile
 import unittest
 import zipfile
 
@@ -128,6 +132,32 @@ class PackageTests(unittest.TestCase):
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("enigmaha_protocol"):
                     self.assertGreater(node.level, 0, str(file))
+
+    def test_ipk_postinst_refreshes_same_size_same_timestamp_bytecode(self):
+        members = read_ar((DIST / ("enigma2-plugin-extensions-enigmahacompanion_" + VERSION + "_all.ipk")).read_bytes())
+        with tarfile.open(fileobj=io.BytesIO(members["control.tar.gz"]), mode="r:gz") as archive:
+            self.assertEqual(archive.getmember("postinst").mode, 0o755)
+            script = archive.extractfile("postinst").read().decode()
+        self.assertTrue(script.startswith("#!/bin/sh\nset -e\n"))
+        command = script.splitlines()[2].split()
+        self.assertEqual(command[0], "python3")
+        self.assertEqual(command[-1], "/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion")
+        with tempfile.TemporaryDirectory() as directory:
+            module = Path(directory) / "release_identity.py"
+            def write(version):
+                module.write_text('VERSION = "' + version + '"\n', encoding="ascii")
+                os.utime(module, (0, 0))
+            def running():
+                return subprocess.check_output([sys.executable, "-c",
+                    "import release_identity; print(release_identity.VERSION)"], cwd=directory, text=True).strip()
+            write("1.0.0")
+            self.assertEqual(running(), "1.0.0")
+            write("1.0.1")
+            self.assertEqual(running(), "1.0.0")  # Reproduce the actual OpenATV failure.
+            subprocess.run([sys.executable, *command[1:-1], directory], check=True)
+            self.assertEqual(running(), "1.0.1")
+            write("1.0.2")
+            self.assertEqual(running(), "1.0.2")  # Checked hashes also reject later stale caches.
 
 
 if __name__ == "__main__":

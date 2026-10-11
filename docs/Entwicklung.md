@@ -177,6 +177,12 @@ sowie [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/pyt
 Die bestehenden Python-Paketabhängigkeiten decken auch Hashing, UUID und
 Prozessaufrufe ab; `python3-netclient` zieht `python3-crypt` nach.
 
+Das IPK kompiliert im `postinst` die Python-Dateien des Plugins mit geprüften
+Quellcode-Hashes für alle Optimierungsstufen neu. Die reproduzierbaren
+Tar-Zeitstempel allein reichen zur Cacheprüfung nicht: Bei gleicher Dateigröße
+kann sonst Bytecode des vorherigen Releases nach einem GUI-Neustart gültig
+erscheinen. Ein Pakettest reproduziert genau diesen Fall.
+
 Update-Tests prüfen feste HACS-Zielversionen, Benutzer-/Receiverbindung,
 Bestätigungen, Ablehnung, Prüfsummen und Paketmetadaten, verlorene Antworten,
 Speicherfehler, unterbrochene Installationen und Abschluss erst nach tatsächlich

@@ -113,8 +113,15 @@ def build(output):
                "Section: extra\nPriority: optional\n"
                "Depends: enigma2, python3-core (>= 3.13), python3-json, python3-netclient, python3-io, python3-twisted-core\n"
                "Description: Home Assistant text menu for Enigma2 receivers\n")
+    # Payload timestamps are reproducible (zero). A same-size source change can
+    # otherwise reuse the previous release's timestamp-based bytecode after a
+    # GUI restart. Force compilation during installation, using checked hashes.
+    postinst = ("#!/bin/sh\nset -e\n"
+                "python3 -m compileall -q -f -o 0 -o 1 -o 2 --invalidation-mode checked-hash "
+                "/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion\n")
     ipk = ar_bytes([("debian-binary", b"2.0\n"),
-                    ("control.tar.gz", tar_bytes([("control", control.encode(), 0o644)])),
+                    ("control.tar.gz", tar_bytes([("control", control.encode(), 0o644),
+                                                 ("postinst", postinst.encode(), 0o755)])),
                     ("data.tar.gz", data)])
     receiver_ipk = output / ("enigma2-plugin-extensions-enigmahacompanion_" + VERSION + "_all.ipk")
     receiver_ipk.write_bytes(ipk)

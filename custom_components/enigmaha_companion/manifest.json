@@ -1,7 +1,7 @@
 {
   "domain": "enigmaha_companion",
   "name": "EnigmaHA Companion",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "config_flow": true,
   "single_config_entry": true,
   "integration_type": "service",

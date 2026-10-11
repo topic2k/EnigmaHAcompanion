@@ -2,7 +2,7 @@
 
 import re
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 COMPONENT_HEADER = "X-EnigmaHA-Component"
 VERSION_HEADER = "X-EnigmaHA-Version"
 RECEIVER_HEADER = "X-EnigmaHA-Receiver-ID"

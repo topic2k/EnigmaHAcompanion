@@ -153,6 +153,12 @@ and [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/pytho
 Existing Python package dependencies also cover hashing, UUID and subprocesses;
 `python3-netclient` pulls in `python3-crypt`.
 
+The IPK's `postinst` recompiles the plugin's Python files with checked source
+hashes at all optimization levels. Reproducible tar timestamps alone cannot
+invalidate cached bytecode when a source change keeps the same file size:
+the next GUI start can otherwise load the previous release. A package test
+reproduces this failure and verifies the fix.
+
 Update tests cover pinned HACS versions, user/receiver binding, confirmation,
 declines, checksums, package metadata, lost responses, storage failures,
 interrupted installations and completion only after both sides run the target.
