@@ -11,8 +11,13 @@ const { JSDOM } = dependencyRequire("jsdom");
 const script = fs.readFileSync(path.join(__dirname, "../custom_components/enigmaha_companion/panel.js"), "utf8");
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-async function createPanel({lazySelectors = false, lazySortable = false, brokenSelectors = false} = {}) {
+async function createPanel({lazySelectors = false, lazySortable = false, brokenSelectors = false,
+  savedLanguage, blockedStorage = false, hassBeforeConnect = false} = {}) {
   const dom = new JSDOM("<!doctype html><body></body>", {url: "http://ha.test", runScripts: "outside-only"});
+  if (savedLanguage !== undefined) dom.window.localStorage.setItem("enigmaha_companion.language", savedLanguage);
+  if (blockedStorage) Object.defineProperty(dom.window, "localStorage", {
+    get() { throw new dom.window.DOMException("Storage disabled", "SecurityError"); },
+  });
   for (const method of ["alert", "confirm", "prompt"]) {
     dom.window[method] = () => { throw new Error("Browser dialogs must not be used"); };
   }
@@ -52,7 +57,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   };
   dom.window.eval(script);
   const panel = dom.window.document.createElement("enigmaha-panel");
-  dom.window.document.body.append(panel);
+  if (!hassBeforeConnect) dom.window.document.body.append(panel);
   let saved;
   let failSave = false;
   const model = {schema_version: 1, revision: 1, display: {font_family: "Regular", font_size: 28},
@@ -76,6 +81,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
     }
     return JSON.parse(JSON.stringify(model));
   }};
+  if (hassBeforeConnect) dom.window.document.body.append(panel);
   await tick();
   const root = panel.shadowRoot;
   const button = text => [...root.querySelectorAll("ha-button, ha-icon-button")].find(node => (node.label || node.textContent) === text);
@@ -89,6 +95,111 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   };
   return {dom, panel, root, button, select, requests, scrolled, layoutMedia, loads: () => loads, saved: () => saved, fail: () => {failSave = true;}};
 }
+
+test("initial HA assignment before connection loads the editor without another state update", async () => {
+  const ui = await createPanel({hassBeforeConnect: true});
+  try {
+    assert.equal(ui.requests.length, 1);
+    assert.equal(ui.panel.model.root.label, "Home Assistant");
+    assert.ok(ui.root.querySelector("[data-selector='language']"));
+  } finally { ui.dom.window.close(); }
+});
+
+test("German is first and language switching preserves the entire unsaved editor", async () => {
+  const ui = await createPanel();
+  try {
+    assert.equal(ui.panel.language, "de");
+    assert.deepEqual(Array.from(ui.root.querySelector('[data-selector="language"]').selector.select.options,
+      option => option.value), ["de", "en"]);
+    ui.select("new-menu", "Wohnzimmer");
+    ui.button("Untermenü hinzufügen").click();
+    ui.button("Untermenü bearbeiten").click();
+    ui.select("entity", "light.ceiling");
+    ui.button("Entität hinzufügen").click();
+    ui.select("new-menu", "Noch nicht hinzugefügt");
+    ui.select("domain", "sensor");
+    ui.select("entity", "sensor.temp");
+    const before = JSON.stringify(ui.panel.model);
+    ui.select("language", "en");
+    assert.equal(ui.panel.getAttribute("lang"), "en");
+    assert.equal(ui.panel.dirty, true);
+    assert.equal(JSON.stringify(ui.panel.model), before);
+    assert.equal(ui.panel.path.at(-1).label, "Wohnzimmer");
+    assert.equal(ui.root.querySelector('[data-field="new-menu"]').value, "Noch nicht hinzugefügt");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]').value, "sensor.temp");
+    assert.equal(ui.root.querySelector('[data-selector="domain"]').value, "sensor");
+    assert.equal(ui.root.querySelector(".save-state").textContent, "Unsaved changes");
+    assert.ok(ui.button("Save"));
+    assert.ok(ui.button("Add entity"));
+    assert.equal(ui.root.querySelector('[data-selector="domain"]').label, "Entity type");
+    assert.equal(ui.dom.window.localStorage.getItem("enigmaha_companion.language"), "en");
+    ui.button("Save").click();
+    await tick();
+    assert.equal(ui.saved().root.children[0].label, "Wohnzimmer");
+    assert.equal(ui.saved().root.children[0].children[0].label, "Lampe <img src=x>");
+    assert.equal(ui.root.querySelector(".notice").textContent,
+      "Saved. The receiver menu will update on its next refresh.");
+    ui.select("language", "de");
+    assert.ok(ui.button("Speichern"));
+    assert.equal(ui.panel.dirty, false);
+    assert.match(ui.root.querySelector(".notice").textContent, /^Gespeichert/);
+  } finally {ui.dom.window.close();}
+});
+
+test("language preference survives reopening and unsupported values fall back to German", async () => {
+  for (const [savedLanguage, expected] of [["en", "en"], ["de", "de"], ["fr", "de"]]) {
+    const ui = await createPanel({savedLanguage});
+    try {
+      assert.equal(ui.panel.language, expected);
+      assert.equal(ui.panel.getAttribute("lang"), expected);
+      assert.ok(ui.button(expected === "en" ? "Add entity" : "Entität hinzufügen"));
+      ui.select("language", "fr");
+      assert.equal(ui.panel.language, expected);
+    } finally {ui.dom.window.close();}
+  }
+});
+
+test("language selection still works when browser storage is blocked", async () => {
+  const ui = await createPanel({blockedStorage: true});
+  try {
+    assert.equal(ui.panel.language, "de");
+    ui.select("language", "en");
+    assert.ok(ui.button("Save"));
+  } finally {ui.dom.window.close();}
+});
+
+test("English editor translates errors, confirmation dialogs, counts and dynamic labels safely", async () => {
+  const ui = await createPanel({savedLanguage: "en"});
+  try {
+    const name = "Wohnzimmer <img src=x> {count}";
+    ui.select("new-menu", name);
+    ui.button("Add submenu").click();
+    assert.equal(ui.root.querySelector('[data-field^="label-"]').hint, "0 entries");
+    ui.button("Edit submenu").click();
+    assert.equal(ui.root.querySelector(".section-heading p").textContent, `Edit and sort entries in “${name}”.`);
+    ui.select("entity", "light.ceiling");
+    ui.button("Add entity").click();
+    ui.root.querySelector(".breadcrumbs ha-button").click();
+    assert.equal(ui.root.querySelector('[data-field^="label-"]').hint, "1 entry");
+    ui.button("Remove").click();
+    assert.equal(ui.root.querySelector("dialog h2").textContent, "Remove the submenu and all its entries?");
+    assert.equal(ui.root.querySelector("dialog p").textContent,
+      `“${name}” and all its entries will be removed from the receiver menu.`);
+    assert.equal(ui.root.querySelector("img"), null);
+    ui.button("Cancel").click();
+    await tick();
+    ui.fail();
+    ui.button("Save").click();
+    await tick();
+    assert.match(ui.root.querySelector(".notice").textContent, /menu has changed/);
+    assert.equal(ui.panel.dirty, true);
+    ui.button("Reload").click();
+    assert.equal(ui.root.querySelector("dialog h2").textContent, "Discard unsaved changes?");
+    ui.button("Cancel").click();
+    await tick();
+    assert.equal(ui.panel.model.root.children[0].label, name);
+  } finally {ui.dom.window.close();}
+});
 
 test("create nested menu, select entity, save through HA", async () => {
   const ui = await createPanel();

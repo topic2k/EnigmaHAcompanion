@@ -1,0 +1,50 @@
+# Isolated software test fixtures; no discovery or physical devices.
+homeassistant:
+  name: EnigmaHA Testlabor
+  time_zone: Europe/Berlin
+  unit_system: metric
+  country: DE
+frontend:
+config:
+api:
+http:
+websocket_api:
+history:
+logbook:
+logger:
+  default: warning
+  logs:
+    custom_components.enigmaha_companion: debug
+input_boolean:
+  enigmaha_test_switch:
+    name: Testschalter
+    icon: mdi:toggle-switch
+  enigmaha_test_light:
+    name: Testlampe Zustand
+input_number:
+  enigmaha_test_temperature:
+    name: Testtemperatur
+    min: -20
+    max: 60
+    step: 0.5
+    initial: 21.5
+    unit_of_measurement: "°C"
+template:
+  - sensor:
+      - name: EnigmaHA Testtemperatur
+        unique_id: enigmaha_test_temperature
+        state: "{{ states('input_number.enigmaha_test_temperature') }}"
+        unit_of_measurement: "°C"
+        device_class: temperature
+  - light:
+      - name: EnigmaHA Testlampe
+        unique_id: enigmaha_test_light
+        state: "{{ is_state('input_boolean.enigmaha_test_light', 'on') }}"
+        turn_on:
+          action: input_boolean.turn_on
+          target:
+            entity_id: input_boolean.enigmaha_test_light
+        turn_off:
+          action: input_boolean.turn_off
+          target:
+            entity_id: input_boolean.enigmaha_test_light

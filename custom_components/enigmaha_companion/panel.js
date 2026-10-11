@@ -1,3 +1,71 @@
+/* German is the default; English is an explicit browser preference. */
+const ENIGMAHA_EN = {
+  "Abbrechen": "Cancel",
+  "Ungespeicherte Änderungen": "Unsaved changes",
+  "Ungespeicherte Änderungen verwerfen?": "Discard unsaved changes?",
+  "Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren.": "Reloading will discard your unsaved changes.",
+  "Verwerfen und neu laden": "Discard and reload",
+  "Menü wird geladen …": "Loading menu …",
+  "Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.": "Could not load the editor. Reload the HA page and check that you are signed in as an administrator.",
+  "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.": "Saved. The receiver menu will update on its next refresh.",
+  "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen.": "The menu has changed since it was loaded. Reload it and apply your changes again.",
+  "Speichern fehlgeschlagen. Namen, Schriftgröße und Menüstruktur prüfen; Änderungen bleiben hier erhalten.": "Could not save. Check names, font size and menu structure; your changes are kept here.",
+  "Auswahl filtern ({count} aktiv)": "Filter selection ({count} active)",
+  "Auswahl filtern": "Filter selection",
+  "Licht": "Light",
+  "Schalter": "Switch",
+  "Helfer-Schalter": "Toggle helper",
+  "Sensor": "Sensor",
+  "Binärsensor": "Binary sensor",
+  "Entitätstyp": "Entity type",
+  "Bereich": "Area",
+  "Geräteklasse": "Device class",
+  "Filter zurücksetzen": "Reset filters",
+  "Entität auswählen": "Select entity",
+  "Nach Name oder Entity-ID suchen. Die Filter oben grenzen die Auswahl ein.": "Search by name or entity ID. The filters above narrow down the selection.",
+  "Entität hinzufügen": "Add entity",
+  "Neu laden": "Reload",
+  "Speichern": "Save",
+  "Receiver-Menü": "Receiver menu",
+  "Gestalte das Menü für deine Enigma2-Receiver.": "Build the menu for your Enigma2 receivers.",
+  "Alle Änderungen gespeichert": "All changes saved",
+  "Menüeinträge bearbeiten": "Edit menu entries",
+  "Menüeinstellungen": "Menu settings",
+  "Menüpfad": "Menu path",
+  "Menüeinträge": "Menu entries",
+  "Einträge in „{label}“ bearbeiten und sortieren.": "Edit and sort entries in “{label}”.",
+  "Dieses Menü ist noch leer": "This menu is empty",
+  "Füge Entitäten oder Untermenüs hinzu, die auf dem Receiver erscheinen sollen.": "Add entities or submenus to display on the receiver.",
+  "Zum Sortieren ziehen": "Drag to reorder",
+  "Anzeigename": "Display name",
+  "{count} Eintrag": "{count} entry",
+  "{count} Einträge": "{count} entries",
+  "Untermenü bearbeiten": "Edit submenu",
+  "Entfernen": "Remove",
+  "Untermenü mit allen Einträgen entfernen?": "Remove the submenu and all its entries?",
+  "„{label}“ und alle enthaltenen Einträge werden aus dem Receiver-Menü entfernt.": "“{label}” and all its entries will be removed from the receiver menu.",
+  "Untermenü entfernen": "Remove submenu",
+  "Nach oben": "Move up",
+  "Nach unten": "Move down",
+  "Darstellung auf dem Receiver": "Receiver appearance",
+  "Titel und Schrift für das Receiver-Menü festlegen.": "Set the title and font for the receiver menu.",
+  "Menütitel": "Menu title",
+  "Regular (Standard)": "Regular (default)",
+  "Fixed (feste Zeichenbreite)": "Fixed (monospaced)",
+  "Italic (Skin-Schrift)": "Italic (skin font)",
+  "Schriftfamilie": "Font family",
+  "Verfügbarkeit abhängig vom Receiver-Skin. Ersatzschrift: Regular.": "Availability depends on the receiver skin. Fallback font: Regular.",
+  "28 (Standard)": "28 (default)",
+  "Schriftgröße": "Font size",
+  "Kann in den Receiver-Einstellungen überschrieben werden.": "Can be overridden in the receiver settings.",
+  "Wähle eine Entität aus Home Assistant aus.": "Select an entity from Home Assistant.",
+  "Untermenü hinzufügen": "Add submenu",
+  "Gruppiere Einträge zum Beispiel nach Raum oder Funktion.": "Group entries by room or function, for example.",
+  "Name des Untermenüs": "Submenu name",
+  "Die maximale Menütiefe ist erreicht. Wechsle zum Hinzufügen eine Ebene zurück.": "The maximum menu depth has been reached. Go back one level to add entries.",
+  "Sprache": "Language"
+};
+
 /* EnigmaHA Companion: native HA custom panel, no external assets. */
 class EnigmaHAPanel extends HTMLElement {
   constructor() {
@@ -12,6 +80,22 @@ class EnigmaHAPanel extends HTMLElement {
     this.selectorsReady = false;
     this.filtersOpen = false;
     this.menuDraft = "";
+    this.language = "de";
+    try {
+      if (localStorage.getItem("enigmaha_companion.language") === "en") this.language = "en";
+    } catch (_) { /* Storage can be disabled; German remains the default. */ }
+  }
+
+  t(source, values = {}) {
+    const text = this.language === "en" ? ENIGMAHA_EN[source] ?? source : source;
+    return text.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match));
+  }
+
+  setLanguage(language) {
+    if (!["de", "en"].includes(language) || language === this.language) return;
+    this.language = language;
+    try { localStorage.setItem("enigmaha_companion.language", language); } catch (_) { /* Optional persistence. */ }
+    this.render();
   }
 
   set hass(value) {
@@ -22,6 +106,12 @@ class EnigmaHAPanel extends HTMLElement {
     for (const selector of this.shadowRoot.querySelectorAll("ha-selector")) selector.hass = value;
     this.updateEntryEntities();
     this.updateEntitySelector();
+  }
+
+  connectedCallback() {
+    // HA may assign hass before attaching a custom panel. An otherwise idle
+    // installation may not send another state update to trigger the first load.
+    if (this._hass && !this.model && !this.loading) this.load();
   }
 
   el(tag, text, attrs = {}) {
@@ -102,7 +192,7 @@ class EnigmaHAPanel extends HTMLElement {
       if (previousFocus?.isConnected) previousFocus.focus();
       resolve(accepted);
     };
-    const cancel = this.button("Abbrechen", () => finish(false));
+    const cancel = this.button(this.t("Abbrechen"), () => finish(false));
     const confirm = this.button(confirmText, () => finish(true), false, "filled");
     // Dialog actions remain usable while background editor actions are blocked.
     cancel.onclick = () => finish(false);
@@ -179,7 +269,7 @@ class EnigmaHAPanel extends HTMLElement {
   markDirty() {
     this.dirty = true;
     const status = this.shadowRoot.querySelector(".save-state");
-    if (status) status.textContent = "Ungespeicherte Änderungen";
+    if (status) status.textContent = this.t("Ungespeicherte Änderungen");
     const save = this.shadowRoot.querySelector('[data-action="save"]');
     if (save) save.disabled = this.loading;
     const notice = this.shadowRoot.querySelector(".notice");
@@ -268,8 +358,8 @@ class EnigmaHAPanel extends HTMLElement {
 
   async load() {
     if (this.loading || this.confirmation) return;
-    if (this.dirty && !await this.confirmAction("Ungespeicherte Änderungen verwerfen?",
-      "Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren.", "Verwerfen und neu laden")) return;
+    if (this.dirty && !await this.confirmAction(this.t("Ungespeicherte Änderungen verwerfen?"),
+      this.t("Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren."), this.t("Verwerfen und neu laden"))) return;
     if (!this.isConnected) return;
     this.loading = true;
     this.message = "Menü wird geladen …";
@@ -403,34 +493,34 @@ class EnigmaHAPanel extends HTMLElement {
     details.open = this.filtersOpen;
     details.ontoggle = () => { if (details.isConnected) this.filtersOpen = details.open; };
     const active = Object.values(this.entityFilters).filter(Boolean).length;
-    details.append(this.el("summary", active ? `Auswahl filtern (${active} aktiv)` : "Auswahl filtern"));
+    details.append(this.el("summary", active ? this.t("Auswahl filtern ({count} aktiv)", {count: active}) : this.t("Auswahl filtern")));
     const filters = this.el("div", null, {class: "filters"});
     const states = Object.values(this._hass.states || {});
     const domains = [...new Set(states.map(state => state.entity_id.split(".")[0]))].sort();
-    const domainNames = {light: "Licht", switch: "Schalter", input_boolean: "Helfer-Schalter", sensor: "Sensor", binary_sensor: "Binärsensor"};
-    filters.append(this.selector("domain", "Entitätstyp", {select: {mode: "dropdown", options:
+    const domainNames = {light: this.t("Licht"), switch: this.t("Schalter"), input_boolean: this.t("Helfer-Schalter"), sensor: this.t("Sensor"), binary_sensor: this.t("Binärsensor")};
+    filters.append(this.selector("domain", this.t("Entitätstyp"), {select: {mode: "dropdown", options:
       domains.map(domain => ({value: domain, label: domainNames[domain] || domain}))}},
       this.entityFilters.domain, value => this.setFilter("domain", value)));
-    filters.append(this.selector("area", "Bereich", {area: {}}, this.entityFilters.area,
+    filters.append(this.selector("area", this.t("Bereich"), {area: {}}, this.entityFilters.area,
       value => this.setFilter("area", value)));
     const classes = [...new Set(states.filter(state => !this.entityFilters.domain
       || state.entity_id.split(".")[0] === this.entityFilters.domain)
       .map(state => state.attributes.device_class).filter(Boolean))].sort();
-    filters.append(this.selector("device_class", "Geräteklasse", {select: {mode: "dropdown", options: classes}},
+    filters.append(this.selector("device_class", this.t("Geräteklasse"), {select: {mode: "dropdown", options: classes}},
       this.entityFilters.device_class, value => this.setFilter("device_class", value)));
-    details.append(filters, this.button("Filter zurücksetzen", () => {
+    details.append(filters, this.button(this.t("Filter zurücksetzen"), () => {
       this.entityFilters = {domain: "", area: "", device_class: ""};
       this.selectedEntity = undefined;
       this.render();
     }));
     section.append(details);
     const add = this.el("div", null, {class: "entity-add"});
-    const picker = this.selector("entity", "Entität auswählen", this.entityDefinition(), this.selectedEntity, value => {
+    const picker = this.selector("entity", this.t("Entität auswählen"), this.entityDefinition(), this.selectedEntity, value => {
       this.selectedEntity = typeof value === "string" && this.matchesFilters(value) ? value : undefined;
       this.updateEntitySelector();
     });
-    picker.helper = "Nach Name oder Entity-ID suchen. Die Filter oben grenzen die Auswahl ein.";
-    const button = this.button("Entität hinzufügen", () => {
+    picker.helper = this.t("Nach Name oder Entity-ID suchen. Die Filter oben grenzen die Auswahl ein.");
+    const button = this.button(this.t("Entität hinzufügen"), () => {
       if (!this.selectedEntity || !this.matchesFilters(this.selectedEntity)) return;
       const entityId = this.selectedEntity;
       const state = this._hass.states[entityId];
@@ -459,6 +549,8 @@ class EnigmaHAPanel extends HTMLElement {
       if (child !== this.confirmation?.element) child.remove();
     }
     root.append(this.el("style", `
+      .language-selector {width:140px; flex-shrink:0;}
+      .language-row {display:flex;justify-content:flex-end;flex-shrink:0;margin-bottom:16px;}
       /* HA's custom-panel wrapper can have automatic height. A percentage alone
          then grows with the list, so sticky descendants never stay in view. */
       :host{display:flex;flex-direction:column;height:100dvh;max-height:100%;min-height:0;overflow:hidden;box-sizing:border-box;color:var(--primary-text-color);background:var(--primary-background-color);font-family:var(--ha-font-family-body,Roboto,Arial,sans-serif);font-size:14px;line-height:1.5}
@@ -503,35 +595,43 @@ class EnigmaHAPanel extends HTMLElement {
       @media(max-width:900px){:host{display:block;overflow:auto}main{display:block;min-height:auto}.editor-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}.column{display:contents;overflow:visible;scrollbar-gutter:auto}.row{scroll-margin-block:calc(var(--header-height,64px) + 16px) 16px}.save-state{max-width:150px}}
       @media(max-width:600px){main{padding:16px}.editor-layout,.column{gap:16px}header{gap:4px;padding-inline-end:8px}h1{font-size:18px}.header-actions{gap:0}.intro{display:block}.save-state{text-align:start;max-width:none}.row{padding:8px 16px}.section-heading{padding:16px}.card-body{padding:0 16px 16px}}
     `));
+    this.setAttribute("lang", this.language);
     const header = this.el("header", null);
     const drawer = this.el("ha-menu-button", null);
     drawer.hass = this._hass;
     const actions = this.el("div", null, {class: "header-actions"});
-    const reload = this.iconButton("Neu laden", "refresh", () => this.load());
-    const save = this.button("Speichern", () => this.save(), !this.model || !this.dirty, "accent");
+    const reload = this.iconButton(this.t("Neu laden"), "refresh", () => this.load());
+    const save = this.button(this.t("Speichern"), () => this.save(), !this.model || !this.dirty, "accent");
     save.dataset.action = "save";
     actions.append(reload, save);
     header.append(drawer, this.el("h1", "EnigmaHA Companion"), actions);
     root.append(header);
     const main = this.el("main", null);
     root.append(main);
+    const languageRow = this.el("div", null, {class: "language-row"});
+    const language = this.selector("language", this.t("Sprache"), {select: {mode: "dropdown", options: [
+      {value: "de", label: "Deutsch"}, {value: "en", label: "English"},
+    ]}}, this.language, value => this.setLanguage(value));
+    language.className = "language-selector";
+    languageRow.append(language);
+    main.append(languageRow);
     const intro = this.el("div", null, {class: "intro"});
     const title = this.el("div", null);
-    title.append(this.el("h2", "Receiver-Menü"),
-      this.el("p", "Gestalte das Menü für deine Enigma2-Receiver."));
-    intro.append(title, this.el("span", this.dirty ? "Ungespeicherte Änderungen" : this.model ? "Alle Änderungen gespeichert" : "", {class: "save-state", role: "status"}));
-    main.append(intro, this.el("p", this.message, {class: "notice", role: "status", "aria-live": "polite"}));
+    title.append(this.el("h2", this.t("Receiver-Menü")),
+      this.el("p", this.t("Gestalte das Menü für deine Enigma2-Receiver.")));
+    intro.append(title, this.el("span", this.dirty ? this.t("Ungespeicherte Änderungen") : this.model ? this.t("Alle Änderungen gespeichert") : "", {class: "save-state", role: "status"}));
+    main.append(intro, this.el("p", this.t(this.message), {class: "notice", role: "status", "aria-live": "polite"}));
     if (!this.model) return;
 
     const layout = this.el("div", null, {class: "editor-layout"});
-    const menuColumn = this.el("div", null, {class: "column menu-column", tabindex: "0", role: "region", "aria-label": "Menüeinträge bearbeiten"});
-    const toolsColumn = this.el("div", null, {class: "column tools-column", tabindex: "0", role: "region", "aria-label": "Menüeinstellungen"});
+    const menuColumn = this.el("div", null, {class: "column menu-column", tabindex: "0", role: "region", "aria-label": this.t("Menüeinträge bearbeiten")});
+    const toolsColumn = this.el("div", null, {class: "column tools-column", tabindex: "0", role: "region", "aria-label": this.t("Menüeinstellungen")});
     layout.append(menuColumn, toolsColumn);
     main.append(layout);
     const current = this.path[this.path.length - 1];
     menuColumn.dataset.menuId = current.id;
     const menu = this.el("ha-card", null);
-    const crumbs = this.el("nav", null, {class: "breadcrumbs", "aria-label": "Menüpfad"});
+    const crumbs = this.el("nav", null, {class: "breadcrumbs", "aria-label": this.t("Menüpfad")});
     this.path.forEach((node, index) => {
       if (index) crumbs.append(this.icon("chevron-right"));
       if (index === this.path.length - 1) {
@@ -541,15 +641,15 @@ class EnigmaHAPanel extends HTMLElement {
       }));
     });
     const heading = this.el("div", null, {class: "section-heading"});
-    heading.append(this.el("h2", "Menüeinträge"), this.el("p", `Einträge in „${current.label}“ bearbeiten und sortieren.`));
+    heading.append(this.el("h2", this.t("Menüeinträge")), this.el("p", this.t("Einträge in „{label}“ bearbeiten und sortieren.", {label: current.label})));
     menu.append(crumbs, heading);
     if (!current.children.length) {
       const empty = this.el("div", null, {class: "empty"});
-      empty.append(this.icon("format-list-bulleted"), this.el("strong", "Dieses Menü ist noch leer"),
-        this.el("p", "Füge Entitäten oder Untermenüs hinzu, die auf dem Receiver erscheinen sollen."));
+      empty.append(this.icon("format-list-bulleted"), this.el("strong", this.t("Dieses Menü ist noch leer")),
+        this.el("p", this.t("Füge Entitäten oder Untermenüs hinzu, die auf dem Receiver erscheinen sollen.")));
       menu.append(empty);
     }
-    const entries = this.el("ul", null, {class: "entry-list", "aria-label": "Menüeinträge"});
+    const entries = this.el("ul", null, {class: "entry-list", "aria-label": this.t("Menüeinträge")});
     const sortable = this.el("ha-sortable", null);
     sortable.disabled = this.loading;
     sortable.rollback = true;
@@ -581,32 +681,32 @@ class EnigmaHAPanel extends HTMLElement {
     current.children.forEach((node, index) => {
       const row = this.el("li", null, {class: "row", "data-node-id": node.id});
       const handle = this.el("div", null, {class: "drag-handle", role: "img",
-        "aria-label": "Zum Sortieren ziehen", title: "Zum Sortieren ziehen", "aria-disabled": String(this.loading)});
+        "aria-label": this.t("Zum Sortieren ziehen"), title: this.t("Zum Sortieren ziehen"), "aria-disabled": String(this.loading)});
       handle.append(this.icon("drag-horizontal-variant"));
       const icon = node.type === "menu" ? this.icon("folder-outline")
         : this.el("ha-state-icon", null, {"aria-hidden": "true", "data-entity-id": node.entity_id});
       icon.className = "entry-icon";
       const content = this.el("div", null, {class: "entry-content"});
-      const name = this.field(content, "label-" + node.id, "Anzeigename", node.label, value => { node.label = value; });
+      const name = this.field(content, "label-" + node.id, this.t("Anzeigename"), node.label, value => { node.label = value; });
       const rowActions = this.el("div", null, {class: "entry-actions"});
       if (node.type === "menu") {
-        name.hint = `${node.children.length} ${node.children.length === 1 ? "Eintrag" : "Einträge"}`;
-        rowActions.append(this.iconButton("Untermenü bearbeiten", "pencil", () => { this.path.push(node); this.render(); }));
+        name.hint = this.t(node.children.length === 1 ? "{count} Eintrag" : "{count} Einträge", {count: node.children.length});
+        rowActions.append(this.iconButton(this.t("Untermenü bearbeiten"), "pencil", () => { this.path.push(node); this.render(); }));
       } else {
         name.dataset.entityId = node.entity_id;
         name.hint = this.entityDescription(node.entity_id);
       }
       const move = offset => this.moveEntry(current, index, index + offset);
-      const remove = this.iconButton("Entfernen", "delete-outline", async () => {
+      const remove = this.iconButton(this.t("Entfernen"), "delete-outline", async () => {
         if (node.type === "menu" && node.children.length && !await this.confirmAction(
-          "Untermenü mit allen Einträgen entfernen?", `„${node.label}“ und alle enthaltenen Einträge werden aus dem Receiver-Menü entfernt.`, "Untermenü entfernen")) return;
+          this.t("Untermenü mit allen Einträgen entfernen?"), this.t("„{label}“ und alle enthaltenen Einträge werden aus dem Receiver-Menü entfernt.", {label: node.label}), this.t("Untermenü entfernen"))) return;
         const position = current.children.indexOf(node);
         if (!this.isConnected || this.loading || current !== this.path.at(-1) || position < 0) return;
         current.children.splice(position, 1); this.markDirty(); this.render();
       });
       remove.className = "danger";
-      rowActions.append(this.iconButton("Nach oben", "arrow-up", () => move(-1), index === 0),
-        this.iconButton("Nach unten", "arrow-down", () => move(1), index === current.children.length - 1), remove);
+      rowActions.append(this.iconButton(this.t("Nach oben"), "arrow-up", () => move(-1), index === 0),
+        this.iconButton(this.t("Nach unten"), "arrow-down", () => move(1), index === current.children.length - 1), remove);
       row.append(handle, icon, content, rowActions);
       entries.append(row);
     });
@@ -615,48 +715,48 @@ class EnigmaHAPanel extends HTMLElement {
     menuColumn.append(menu);
     this.updateEntryEntities();
 
-    const display = this.card("Darstellung auf dem Receiver", "Titel und Schrift für das Receiver-Menü festlegen.");
+    const display = this.card(this.t("Darstellung auf dem Receiver"), this.t("Titel und Schrift für das Receiver-Menü festlegen."));
     display.className = "receiver-display";
     const fields = this.el("div", null, {class: "card-body fields"});
-    this.field(fields, "menu-title", "Menütitel", this.model.root.label, value => { this.model.root.label = value; });
+    this.field(fields, "menu-title", this.t("Menütitel"), this.model.root.label, value => { this.model.root.label = value; });
     const fontOptions = [
-      {value: "Regular", label: "Regular (Standard)"},
-      {value: "Fixed", label: "Fixed (feste Zeichenbreite)"},
+      {value: "Regular", label: this.t("Regular (Standard)")},
+      {value: "Fixed", label: this.t("Fixed (feste Zeichenbreite)")},
       {value: "Console", label: "Console"},
-      {value: "Italic", label: "Italic (Skin-Schrift)"},
+      {value: "Italic", label: this.t("Italic (Skin-Schrift)")},
       {value: "Gradient_Font", label: "Gradient_Font (GradientFHD)"},
     ];
     const family = this.model.display.font_family;
     if (!fontOptions.some(option => option.value === family)) {
       fontOptions.push({value: family, label: family});
     }
-    const font = this.selectionField(fields, "font-family", "Schriftfamilie", family, fontOptions,
+    const font = this.selectionField(fields, "font-family", this.t("Schriftfamilie"), family, fontOptions,
       value => { this.model.display.font_family = value; });
-    font.helper = "Verfügbarkeit abhängig vom Receiver-Skin. Ersatzschrift: Regular.";
+    font.helper = this.t("Verfügbarkeit abhängig vom Receiver-Skin. Ersatzschrift: Regular.");
     const sizes = Array.from({length: 49}, (_, index) => {
       const value = String(index + 16);
-      return {value, label: value === "28" ? "28 (Standard)" : value};
+      return {value, label: value === "28" ? this.t("28 (Standard)") : value};
     });
-    const size = this.selectionField(fields, "font-size", "Schriftgröße", this.model.display.font_size, sizes,
+    const size = this.selectionField(fields, "font-size", this.t("Schriftgröße"), this.model.display.font_size, sizes,
       value => { this.model.display.font_size = Number(value); });
-    size.helper = "Kann in den Receiver-Einstellungen überschrieben werden.";
+    size.helper = this.t("Kann in den Receiver-Einstellungen überschrieben werden.");
     display.append(fields);
 
-    const entity = this.card("Entität hinzufügen", "Wähle eine Entität aus Home Assistant aus.");
+    const entity = this.card(this.t("Entität hinzufügen"), this.t("Wähle eine Entität aus Home Assistant aus."));
     const entityBody = this.el("div", null, {class: "card-body"});
     this.renderEntitySelection(entityBody, current);
     entity.append(entityBody);
     toolsColumn.append(entity);
 
-    const submenu = this.card("Untermenü hinzufügen", "Gruppiere Einträge zum Beispiel nach Raum oder Funktion.");
+    const submenu = this.card(this.t("Untermenü hinzufügen"), this.t("Gruppiere Einträge zum Beispiel nach Raum oder Funktion."));
     const addMenu = this.el("div", null, {class: "card-body menu-add"});
-    const menuName = this.textField("new-menu", "Name des Untermenüs", this.menuDraft,
+    const menuName = this.textField("new-menu", this.t("Name des Untermenüs"), this.menuDraft,
       value => {
         this.menuDraft = typeof value === "string" ? value : "";
         addMenuButton.disabled = this.loading || this.path.length >= 9 || !this.menuDraft.trim();
       }, {required: false});
     menuName.disabled = this.loading || this.path.length >= 9;
-    const addMenuButton = this.button("Untermenü hinzufügen", () => {
+    const addMenuButton = this.button(this.t("Untermenü hinzufügen"), () => {
       if (!this.menuDraft.trim()) return;
       const node = {type: "menu", id: this.id(), label: this.menuDraft.trim(), children: []};
       current.children.push(node);
@@ -667,7 +767,7 @@ class EnigmaHAPanel extends HTMLElement {
     addMenu.append(menuName, addMenuButton);
     submenu.append(addMenu);
     if (this.path.length >= 9) {
-      entityBody.prepend(this.el("p", "Die maximale Menütiefe ist erreicht. Wechsle zum Hinzufügen eine Ebene zurück.", {class: "depth-notice"}));
+      entityBody.prepend(this.el("p", this.t("Die maximale Menütiefe ist erreicht. Wechsle zum Hinzufügen eine Ebene zurück."), {class: "depth-notice"}));
     }
     toolsColumn.append(submenu, display);
     // Refreshes (filters, save, deletion) must not reset either scroll region.

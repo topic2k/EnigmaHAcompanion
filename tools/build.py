@@ -79,7 +79,6 @@ def build(output):
     copy_python_tree(ROOT / "enigma2/Plugins/Extensions/EnigmaHACompanion", receiver)
     copy_python_tree(ROOT / "enigma2/companion", receiver / "companion", rewrite=True)
     copy_python_tree(ROOT / "protocol/enigmaha_protocol", receiver / "enigmaha_protocol")
-    shutil.copyfile(ha / "strings.json", ha / "translations/en.json")
 
     ha_zip = output / ("enigmaha-companion-ha-" + VERSION + ".zip")
     with zipfile.ZipFile(ha_zip, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -106,7 +105,7 @@ def build(output):
     control = ("Package: enigma2-plugin-extensions-enigmahacompanion\nVersion: " + VERSION + "\n"
                "Architecture: all\nMaintainer: EnigmaHA Companion contributors\n"
                "Section: extra\nPriority: optional\n"
-               "Depends: enigma2, python3-core, python3-json, python3-netclient, python3-io, python3-twisted-core\n"
+               "Depends: enigma2, python3-core (>= 3.13), python3-json, python3-netclient, python3-io, python3-twisted-core\n"
                "Description: Home Assistant text menu for Enigma2 receivers\n")
     ipk = ar_bytes([("debian-binary", b"2.0\n"),
                     ("control.tar.gz", tar_bytes([("control", control.encode(), 0o644)])),

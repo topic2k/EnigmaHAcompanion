@@ -1,13 +1,16 @@
 """Register a profile once to expose it to detection, settings and validation."""
 
+from ..companion.i18n import translate
+
 from .GradientFHD import GradientProfile
 from .native import NativeProfile
 
 PROFILES = (NativeProfile(), GradientProfile())
 
 
-def profile_choices():
-    return [("auto", "Automatisch")] + [(profile.id, profile.label) for profile in PROFILES]
+def profile_choices(language="de"):
+    return [("auto", translate("Automatisch", language))] + [
+        (profile.id, translate(profile.label, language)) for profile in PROFILES]
 
 
 def resolve_profile(selection, skin_path=""):

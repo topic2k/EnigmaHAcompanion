@@ -1,5 +1,7 @@
 # EnigmaHA Companion
 
+**Deutsch** · [English](README.en.md)
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="custom_components/enigmaha_companion/brand/dark_logo@2x.png">
   <img src="custom_components/enigmaha_companion/brand/logo@2x.png" alt="EnigmaHA Companion – Receiver, Fernbedienung und Zuhause" width="900">
@@ -19,10 +21,20 @@ ist nicht nötig.
 ## Voraussetzungen
 
 - Home Assistant und eingerichtetes HACS.
-- Ein Enigma2-Receiver mit OpenATV und Python 3.8 oder neuer.
+- Ein Enigma2-Receiver mit OpenATV und Python 3.13 oder neuer.
 - Der Receiver muss Home Assistant im Netzwerk erreichen können.
 
 Hinweise zu getesteten Geräten und bekannten Grenzen findest du in der [Entwicklerdokumentation](docs/Entwicklung.md#teststand-und-grenzen).
+
+## Sprache
+
+Deutsch ist die Standardsprache. Im HA-Menüeditor kannst du unter **Sprache** auf
+**English** wechseln; die Auswahl wird in diesem Browser gespeichert. Am Receiver
+unter **Menü/Blau → Sprache** wählen und mit **Grün** speichern. Die Receiver-Sprache
+wird beim nächsten Öffnen des Plugins wirksam. Beide Einstellungen sind unabhängig.
+Die HA-Einrichtungsdialoge und die internen Bedienelemente nativer HA-Auswahlfelder
+folgen der Sprache deines HA-Benutzerprofils. Eigene Menü- und Entitätsnamen werden
+nicht automatisch übersetzt.
 
 ## Installation
 

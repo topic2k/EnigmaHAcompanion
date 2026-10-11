@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "display": {"font_family": "Regular", "font_size": 28},
+  "root": {
+    "type": "menu", "id": "home", "label": "EnigmaHA Testlabor",
+    "children": [
+      {
+        "type": "entity", "id": "test-switch", "label": "Testschalter",
+        "entity_id": "input_boolean.enigmaha_test_switch", "actions": ["toggle"]
+      },
+      {
+        "type": "entity", "id": "test-light", "label": "Testlampe",
+        "entity_id": "light.enigmaha_testlampe", "actions": ["toggle"]
+      },
+      {
+        "type": "entity", "id": "test-temperature", "label": "Testtemperatur",
+        "entity_id": "sensor.enigmaha_testtemperatur", "actions": []
+      }
+    ]
+  }
+}

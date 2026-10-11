@@ -5,35 +5,40 @@ import os
 import tempfile
 
 from .skin import profile_choices
+from .companion.i18n import LANGUAGE_CHOICES, translate
 
 CONFIG_PATH = "/etc/enigma2/enigmaha_companion.json"
 DEFAULTS = {"url": "", "token": "", "refresh_seconds": 10, "font_family": "",
             "font_size": 0, "timeout": 5, "show_in_mainmenu": False,
-            "reverse_channel_paging": False, "skin_profile": "auto"}
+            "reverse_channel_paging": False, "skin_profile": "auto", "language": "de"}
 
 
 def validate_settings(values):
     if not isinstance(values, dict) or set(values) - set(DEFAULTS):
         raise ValueError("Ungültige Konfigurationsfelder")
+    language = values.get("language", "de")
+    t = lambda message: translate(message, language)
     result = dict(DEFAULTS)
     result.update(values)
+    if not isinstance(result["language"], str) or result["language"] not in dict(LANGUAGE_CHOICES):
+        raise ValueError(t("Ungültige Sprache"))
     if not isinstance(result["skin_profile"], str) or result["skin_profile"] not in dict(profile_choices()):
-        raise ValueError("Ungültiges Skin-Profil")
+        raise ValueError(t("Ungültiges Skin-Profil"))
     if type(result["show_in_mainmenu"]) is not bool:
-        raise ValueError("Ungültiger Hauptmenü-Schalter")
+        raise ValueError(t("Ungültiger Hauptmenü-Schalter"))
     if type(result["reverse_channel_paging"]) is not bool:
-        raise ValueError("Ungültige Ch-Blätterrichtung")
+        raise ValueError(t("Ungültige Ch-Blätterrichtung"))
     for name in ("url", "token", "font_family"):
         if not isinstance(result[name], str):
-            raise ValueError("Ungültiger Textwert")
+            raise ValueError(t("Ungültiger Textwert"))
     result["font_family"] = result["font_family"].strip()
     if len(result["font_family"]) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in result["font_family"]):
-        raise ValueError("Ungültige Schriftfamilie")
+        raise ValueError(t("Ungültige Schriftfamilie"))
     for name, low, high in (("refresh_seconds", 5, 300), ("timeout", 1, 30), ("font_size", 0, 64)):
         if type(result[name]) is not int or not low <= result[name] <= high:
-            raise ValueError("Ungültiger Zahlenwert")
+            raise ValueError(t("Ungültiger Zahlenwert"))
     if 0 < result["font_size"] < 16:
-        raise ValueError("Schriftgröße: 0 oder 16–64")
+        raise ValueError(t("Schriftgröße: 0 oder 16–64"))
     return result
 
 

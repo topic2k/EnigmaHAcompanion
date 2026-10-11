@@ -8,7 +8,7 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 
-PATH = Path(__file__).resolve().parents[1] / "enigma2/Plugins/Extensions/EnigmaHACompanion/appearance.py"
+PATH = Path(__file__).resolve().parents[1] / "dist/unpacked/enigma2/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion/appearance.py"
 PACKAGE = types.ModuleType("receiver_appearance")
 PACKAGE.__path__ = [str(PATH.parent)]
 sys.modules[PACKAGE.__name__] = PACKAGE
@@ -45,6 +45,35 @@ class AppearanceTests(unittest.TestCase):
                                ("MyGradientFHD/skin.xml", "native")]:
             with self.environment(path):
                 self.assertEqual(APPEARANCE.active_profile(), expected)
+
+    def test_english_titles_and_gradient_footer_with_and_without_key_images(self):
+        for selection in ("native", "gradient"):
+            for assets_present in (False, True):
+                with self.subTest(profile=selection, assets=assets_present), self.environment(), patch.object(
+                        GRADIENT.os.path, "isfile", return_value=assets_present):
+                    appearance = APPEARANCE.Appearance(
+                        types.SimpleNamespace(width=lambda: 1920, height=lambda: 1080), selection, language="en")
+                    setup = ET.fromstring(appearance.layout(setup=True))
+                    self.assertEqual(setup.get("title"), "EnigmaHA Companion – Settings")
+                    self.assertIn("EnigmaHA – Settings", appearance.text_labels.values())
+                    self.assertEqual(setup.findall("eLabel[@text]"), [])
+                    for name in appearance.text_labels:
+                        self.assertIsNotNone(setup.find("widget[@name='%s']" % name))
+                    if selection == "gradient":
+                        setup_text = list(appearance.text_labels.values())
+                        self.assertIn("Save", setup_text)
+                        self.assertIn("Cancel", setup_text)
+                        self.assertIn("Change value", setup_text)
+                        menu = ET.fromstring(appearance.layout())
+                        self.assertEqual(menu.findall("eLabel[@text]"), [])
+                        menu_text = list(appearance.text_labels.values())
+                        self.assertIn("Settings", menu_text)
+                        self.assertIn("Open/Toggle", menu_text)
+                        if not assets_present:
+                            self.assertIn("Green", menu_text)
+                            self.assertIn("Menu", menu_text)
+        self.assertEqual(PROFILES.profile_choices("en")[:2],
+                         [("auto", "Automatic"), ("native", "Standard (active skin)")])
 
     def test_manual_profile_overrides_detection_and_external_screen_names(self):
         with self.environment():
@@ -154,9 +183,10 @@ class AppearanceTests(unittest.TestCase):
 
     def test_missing_button_assets_keep_readable_action_labels(self):
         with self.environment(), patch.object(GRADIENT.os.path, "isfile", return_value=False):
-            root = ET.fromstring(self.layout().layout())
+            appearance = self.layout()
+            root = ET.fromstring(appearance.layout())
             self.assertEqual(root.findall("ePixmap"), [])
-            texts = {label.get("text") for label in root.findall("eLabel")}
+            texts = set(appearance.text_labels.values())
             self.assertTrue({"Rot", "Schließen", "OK", "Öffnen/Schalten", "Exit", "Zurück"} <= texts)
 
 

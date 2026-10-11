@@ -1,5 +1,7 @@
 # Menü- und Receiver-Protokoll v1
 
+**Deutsch** · [English](Protocol.en.md)
+
 Die HA-Integration und die Enigma2-Extension verwenden dieses Protokoll für
 Menüdefinition, Zustandsabruf und Schaltaktionen. `schema_version: 1` bezeichnet
 das Datenformat unabhängig von der Paketversion. Teststand und bekannte Grenzen

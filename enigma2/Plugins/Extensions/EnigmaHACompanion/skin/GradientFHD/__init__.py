@@ -82,9 +82,9 @@ class GradientProfile(SkinProfile):
                             pixmap=path, alphatest="blend", scale="1")
                 else:
                     width = appearance.px(44)
-                    element("eLabel", x, y, width, appearance.px(26), text=fallback, **attrs)
+                    element("eLabel", x, y, width, appearance.px(26), text=appearance.t(fallback), **attrs)
                 element("eLabel", x + width + appearance.px(5), y,
-                        column - width - appearance.px(9), appearance.px(26), text=text, **attrs)
+                        column - width - appearance.px(9), appearance.px(26), text=appearance.t(text), **attrs)
 
         # Retain the component required by external screen definitions.
         element("widget", 0, 0, 1, 1, name="hint" if setup else "footer", transparent="1")

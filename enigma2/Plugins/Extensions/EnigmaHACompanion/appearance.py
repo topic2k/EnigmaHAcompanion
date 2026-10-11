@@ -2,6 +2,7 @@
 
 import xml.etree.ElementTree as ET
 
+from .companion.i18n import translate
 from .skin import resolve_profile
 from .skin.base import skin_font
 
@@ -19,7 +20,8 @@ def active_profile():
 
 
 class Appearance:
-    def __init__(self, desktop, selection="auto"):
+    def __init__(self, desktop, selection="auto", language="de"):
+        self.language = language
         self.selection = selection
         self.definition = resolve_profile(selection, active_skin())
         self.profile = self.definition.id
@@ -30,6 +32,9 @@ class Appearance:
             setattr(self, name, self.px(getattr(self.definition, source)))
         self.list_width = self.width - 2 * self.margin
         self.list_height = self.height - self.header - self.footer - self.status
+
+    def t(self, message):
+        return translate(message, self.language)
 
     def px(self, value):
         return max(1, int(value * self.scale))
@@ -46,11 +51,19 @@ class Appearance:
         return [name + "Builtin"]
 
     def layout(self, setup=False):
+        self.text_labels = {}
         root = ET.Element("screen", name="EnigmaHASetup" if setup else "EnigmaHACompanion",
                           position="center,center", size="%s,%s" % (self.width, self.height),
-                          title="EnigmaHA Companion – Einstellungen" if setup else "EnigmaHA Companion")
+                          title=self.t("EnigmaHA Companion – Einstellungen") if setup else "EnigmaHA Companion")
 
         def element(tag, x, y, w, h, **attrs):
+            if tag == "eLabel" and "text" in attrs:
+                # OpenATV translates XML text attributes using the system
+                # language. Label components retain the plugin's own language.
+                name = "companion_text_%s" % len(self.text_labels)
+                self.text_labels[name] = attrs.pop("text")
+                tag = "widget"
+                attrs["name"] = name
             return ET.SubElement(root, tag, position="%s,%s" % (x, y),
                                  size="%s,%s" % (w, h), **attrs)
 
@@ -62,7 +75,7 @@ class Appearance:
             skin_font(self.definition.heading_family), self.px(26)))
         element("eLabel" if setup else "widget", self.margin, 0, self.list_width,
                 self.header - self.px(8), **dict(heading, **(
-                    {"text": "EnigmaHA – Einstellungen"} if setup else {"name": "heading"})))
+                    {"text": self.t("EnigmaHA – Einstellungen")} if setup else {"name": "heading"})))
         if setup:
             # ConfigListScreen owns this hidden anchor; the dialog positions the
             # separate help window after Enigma2's default input-helper handling.

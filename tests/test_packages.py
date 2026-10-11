@@ -69,7 +69,7 @@ class PackageTests(unittest.TestCase):
             prefix = "custom_components/enigmaha_companion/"
             for filename in ("__init__.py", "manifest.json", "config_flow.py", "api.py", "panel.js",
                              "icons.py",
-                             "translations/de.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
+                             "translations/de.json", "translations/en.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertFalse(any("__pycache__" in name or name.endswith(".pyc") for name in names))
             self.assertEqual(json.loads(archive.read(prefix + "manifest.json"))["version"], VERSION)
@@ -92,7 +92,7 @@ class PackageTests(unittest.TestCase):
                                 if line.startswith("Depends: ")).split(", ")
             # OpenEmbedded: urllib/http -> netclient, ssl/_ssl/tempfile -> io.
             self.assertEqual(set(dependencies), {
-                "enigma2", "python3-core", "python3-json", "python3-netclient",
+                "enigma2", "python3-core (>= 3.13)", "python3-json", "python3-netclient",
                 "python3-io", "python3-twisted-core",
             })
             self.assertTrue({"python3-urllib", "python3-ssl"}.isdisjoint(dependencies))
@@ -102,16 +102,16 @@ class PackageTests(unittest.TestCase):
             for filename in ("plugin.py", "setup.py", "keymap.xml", "settings.py", "state_icons.py",
                              "skin/__init__.py", "skin/base.py",
                              "skin/native/__init__.py", "skin/GradientFHD/__init__.py",
-                             "companion/client.py", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
+                             "companion/client.py", "companion/i18n.py", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertTrue(all(name.startswith(prefix) and ".." not in name.split("/") for name in names))
             self.assertFalse(any("__pycache__" in name for name in names))
             self.assertEqual(members["data.tar.gz"], (DIST / ("enigmaha-companion-enigma2-" + VERSION + ".tar.gz")).read_bytes())
 
-    def test_receiver_is_self_contained_and_python38_syntax(self):
+    def test_receiver_is_self_contained_and_python313_syntax(self):
         bundle = DIST / "unpacked/enigma2"
         for file in bundle.rglob("*.py"):
-            tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file), feature_version=(3, 8))
+            tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file), feature_version=(3, 13))
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("enigmaha_protocol"):
                     self.assertGreater(node.level, 0, str(file))

@@ -9,6 +9,7 @@ from Screens.VirtualKeyBoard import VirtualKeyBoard
 
 from enigma import getDesktop, getFontFaces
 
+from .companion.i18n import LANGUAGE_CHOICES, translate
 from .appearance import Appearance
 from .skin import profile_choices
 from .companion.client import CompanionClient
@@ -18,24 +19,29 @@ from .settings import DEFAULTS, save_settings, validate_settings
 class CompanionSetup(Screen, ConfigListScreen):
     def __init__(self, session, values=None):
         values = values or DEFAULTS
-        self.appearance = Appearance(getDesktop(0).size(), values["skin_profile"])
+        self.language = values["language"]
+        self.appearance = Appearance(getDesktop(0).size(), values["skin_profile"], self.language)
         self.skin = self.appearance.layout(setup=True)
         Screen.__init__(self, session)
+        for name, text in self.appearance.text_labels.items():
+            self[name] = Label(text)
         self.skinName = self.appearance.screen_names(setup=True)
         families = sorted(set(getFontFaces()) | {"Regular"})
-        font_choices = [("", "Aus HA übernehmen")] + [(name, name) for name in families]
+        font_choices = [("", self.t("Aus HA übernehmen"))] + [(name, name) for name in families]
         if values["font_family"] and values["font_family"] not in families:
             # Keep an existing preference when the active skin no longer has it.
-            font_choices.append((values["font_family"], values["font_family"] + " (Ersatz: Regular)"))
+            font_choices.append((values["font_family"], self.t("{name} (Ersatz: Regular)", name=values["font_family"])))
         self.selection_choices = {
-            "skin_profile": profile_choices(),
+            "language": LANGUAGE_CHOICES,
+            "skin_profile": profile_choices(self.language),
             "font_family": font_choices,
-            "font_size": [("0", "Aus HA übernehmen")] + [(str(size), str(size)) for size in range(16, 65)],
+            "font_size": [("0", self.t("Aus HA übernehmen"))] + [(str(size), str(size)) for size in range(16, 65)],
         }
         self.fields = {
+            "language": ConfigSelection(choices=LANGUAGE_CHOICES, default=self.language),
             "skin_profile": ConfigSelection(choices=self.selection_choices["skin_profile"], default=values["skin_profile"]),
             "url": ConfigText(default=values["url"], fixed_size=False),
-            "token": ConfigPassword(default=values["token"], fixed_size=False),
+            "token": ConfigPassword(default=values["token"], fixed_size=False, visible_width=24),
             "refresh_seconds": ConfigInteger(default=values["refresh_seconds"], limits=(5, 300)),
             "font_family": ConfigSelection(choices=self.selection_choices["font_family"], default=values["font_family"]),
             "font_size": ConfigSelection(choices=self.selection_choices["font_size"], default=str(values["font_size"])),
@@ -43,7 +49,10 @@ class CompanionSetup(Screen, ConfigListScreen):
             "show_in_mainmenu": ConfigYesNo(default=values["show_in_mainmenu"]),
             "reverse_channel_paging": ConfigYesNo(default=values["reverse_channel_paging"]),
         }
-        labels = [("url", "Home-Assistant-Adresse (mit http:// oder https://)"),
+        for key in ("show_in_mainmenu", "reverse_channel_paging"):
+            self.fields[key].descriptions = {False: self.t("Nein"), True: self.t("Ja")}
+        labels = [("language", "Sprache (ab nächstem Öffnen)"),
+                  ("url", "Home-Assistant-Adresse (mit http:// oder https://)"),
                   ("token", "Langlebiger HA-Zugriffstoken"),
                   ("refresh_seconds", "Aktualisierung in Sekunden"),
                   ("skin_profile", "Skin-Profil (ab nächstem Öffnen)"),
@@ -52,12 +61,15 @@ class CompanionSetup(Screen, ConfigListScreen):
                   ("timeout", "Verbindungszeitlimit in Sekunden"),
                   ("show_in_mainmenu", "Im Hauptmenü anzeigen"),
                   ("reverse_channel_paging", "Ch+/− umkehren (Nein: + aufwärts / − abwärts)")]
-        ConfigListScreen.__init__(self, [getConfigListEntry(label, self.fields[key]) for key, label in labels], session=session)
-        self["hint"] = Label("Grün: Speichern   Rot/Exit: Abbrechen\nOK/Gelb: Auswahl/Text   Links/Rechts: Wert ändern")
+        ConfigListScreen.__init__(self, [getConfigListEntry(self.t(label), self.fields[key]) for key, label in labels], session=session)
+        self["hint"] = Label(self.t("Grün: Speichern   Rot/Exit: Abbrechen\nOK/Gelb: Auswahl/Text   Links/Rechts: Wert ändern"))
         self["setupActions"] = ActionMap(["SetupActions", "ColorActions"], {
             "save": self.save, "cancel": self.cancel, "ok": self.edit,
             "green": self.save, "red": self.cancel, "yellow": self.edit,
         }, -3)
+
+    def t(self, message, **values):
+        return translate(message, self.language, **values)
 
     def handleInputHelpers(self):
         handler = getattr(ConfigListScreen, "handleInputHelpers", None)
@@ -113,6 +125,6 @@ class CompanionSetup(Screen, ConfigListScreen):
             CompanionClient(values["url"], values["token"], values["timeout"])
             save_settings(values)
         except (ValueError, OSError):
-            self.session.open(MessageBox, "Einstellungen konnten nicht gespeichert werden. Adresse, Token, Schriftgröße und Dateirechte prüfen.", type=MessageBox.TYPE_ERROR)
+            self.session.open(MessageBox, self.t("Einstellungen konnten nicht gespeichert werden. Adresse, Token, Schriftgröße und Dateirechte prüfen."), type=MessageBox.TYPE_ERROR)
             return
         self.close(values)

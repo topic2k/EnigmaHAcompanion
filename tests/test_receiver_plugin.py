@@ -134,6 +134,7 @@ def load_receiver():
     fake["Screens.ChoiceBox"].ChoiceBox = type("ChoiceBox", (), {})
     enigma = fake["enigma"]
     enigma.eListboxPythonMultiContent, enigma.eTimer = object, Timer
+    enigma.eSize = lambda width, height: types.SimpleNamespace(width=lambda: width, height=lambda: height)
     enigma.getDesktop = lambda _: types.SimpleNamespace(size=lambda: types.SimpleNamespace(width=lambda: 1280, height=lambda: 720))
     enigma.gFont, enigma.RT_VALIGN_CENTER = lambda *args: args, 1
     enigma.getFontFaces = lambda: ["Regular"]
@@ -174,6 +175,59 @@ class ReceiverTests(unittest.TestCase):
 
     def press(self, key):
         self.screen["actions"].actions[key]()
+
+    def test_language_setting_defaults_persists_and_rejects_invalid_values(self):
+        settings = sys.modules[PLUGIN.__package__ + ".settings"]
+        self.assertEqual(settings.validate_settings({})["language"], "de")
+        for invalid in (None, True, [], {}, "fr", "EN"):
+            with self.subTest(language=invalid), self.assertRaises(ValueError):
+                settings.validate_settings({"language": invalid})
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "settings.json")
+            values = dict(self.screen.config)
+            settings.save_settings(values, path)
+            original = Path(path).read_bytes()
+            setup = PLUGIN.CompanionSetup(self.screen.session, values)
+            self.assertEqual(setup.selection_choices["language"], [("de", "Deutsch"), ("en", "English")])
+            setup.fields["language"].value = "en"
+            setup.cancel()
+            self.assertEqual(Path(path).read_bytes(), original)
+            with patch.dict(setup.save.__globals__, {"save_settings": lambda data: settings.save_settings(data, path)}):
+                setup.save()
+            saved = settings.load_settings(path)
+            self.assertEqual(saved["language"], "en")
+            self.assertEqual(saved["url"], values["url"])
+            self.assertEqual(saved["token"], values["token"])
+            self.assertEqual(setup.close_result, saved)
+            reopened = PLUGIN.CompanionSetup(self.screen.session, saved)
+            self.assertEqual(reopened["config"].getCurrent()[0], "Language (from next opening)")
+            self.assertEqual(reopened.selection_choices["font_family"][0], ("", "Use HA setting"))
+            self.assertEqual(reopened.fields["show_in_mainmenu"].descriptions, {False: "No", True: "Yes"})
+            self.assertIn("Green: Save", reopened["hint"].text)
+            def fail_save(data):
+                raise OSError()
+            with patch.dict(reopened.save.__globals__, {"save_settings": fail_save}):
+                reopened.save()
+            self.assertIn("Could not save settings", self.dialogs[-1][0][1])
+
+    def test_english_screen_help_errors_and_state_text(self):
+        with patch.object(PLUGIN, "load_settings", return_value=dict(self.screen.config, language="en")):
+            screen = PLUGIN.CompanionScreen(self.screen.session)
+        self.addCleanup(screen.cleanup)
+        self.assertEqual(screen["status"].text, "Preparing connection …")
+        self.assertIn("Menu/Blue: Settings", screen["footer"].text)
+        screen.loaded((self.menu, self.states), screen.generation)
+        self.assertEqual(screen["status"].text, "Connected")
+        self.assertEqual(screen.nav.language, "en")
+        screen.help()
+        self.assertIn("Up/Down: Select entry", self.dialogs[-1][0][1])
+        self.assertIn("Ch+ up / − down", self.dialogs[-1][0][1])
+        screen.config["reverse_channel_paging"] = True
+        screen.help()
+        self.assertIn("Ch+ down / − up", self.dialogs[-1][0][1])
+        screen.failed(types.SimpleNamespace(value=PLUGIN.ClientError("unauthorized")), screen.generation)
+        self.assertEqual(screen["status"].text, "Token rejected. Menu: Settings")
+        self.assertEqual(screen["heading"].text, "OFFLINE – " + screen.nav.breadcrumb)
 
     def test_skin_xml_and_all_required_keys(self):
         ET.fromstring(self.screen.skin)
@@ -291,12 +345,16 @@ class ReceiverTests(unittest.TestCase):
                 settings.validate_settings(dict(self.screen.config, reverse_channel_paging=invalid))
 
     def test_external_skin_list_geometry_is_used_after_layout(self):
+        resized = []
         self.screen["list"].instance = types.SimpleNamespace(size=lambda: types.SimpleNamespace(
-            width=lambda: 850, height=lambda: 360))
+            width=lambda: 850, height=lambda: 360), resize=resized.append)
         for callback in self.screen.onLayoutFinish:
             callback()
         self.assertEqual((self.screen.list_width, self.screen.list_height), (850, 360))
         self.assertEqual(self.screen.page_size(), 360 // self.screen.row_height)
+        self.assertEqual(resized[-1].height() % self.screen.row_height, 0)
+        self.assertLessEqual(resized[-1].height(), 360)
+        self.assertEqual(resized[-1].width(), 850)
         self.assertEqual(self.screen.skinName[0], "EnigmaHACompanion")
         for row in self.screen["list"].rows:
             for entry in row[1:]:
@@ -363,6 +421,7 @@ class ReceiverTests(unittest.TestCase):
 
     def test_settings_input_help_uses_desktop_coordinates_above_footer(self):
         setup = PLUGIN.CompanionSetup(self.screen.session, self.screen.config)
+        setup["config"].getCurrent = lambda: ("Adresse", setup.fields["url"])
         positions = []
         setup.fields["url"].help_window = types.SimpleNamespace(instance=types.SimpleNamespace(
             size=lambda: types.SimpleNamespace(width=lambda: 520, height=lambda: 120),

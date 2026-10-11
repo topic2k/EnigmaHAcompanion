@@ -1,10 +1,13 @@
 """Text-menu controller; adapters handle drawing and asynchronous I/O."""
 
+from .i18n import translate
+
 from enigmaha_protocol.menu import index_nodes, validate_display, validate_menu
 
 
 class Navigator:
-    def __init__(self, document, display_override=None):
+    def __init__(self, document, display_override=None, language="de"):
+        self.language = language
         self.menu = validate_menu(document)
         self.nodes = index_nodes(self.menu)
         self.stack = [(self.menu["root"]["id"], 0)]
@@ -62,13 +65,13 @@ class Navigator:
                 state = states.get(node["entity_id"], {})
                 value = state.get("state")
                 if value is None:
-                    value = "Nicht vorhanden"
+                    value = translate("Nicht vorhanden", self.language)
                 elif value == "unavailable":
-                    value = "Nicht verfügbar"
+                    value = translate("Nicht verfügbar", self.language)
                 elif value == "unknown":
-                    value = "Unbekannt"
+                    value = translate("Unbekannt", self.language)
                 elif value in {"on", "off"} and node["entity_id"].split(".", 1)[0] in {"light", "switch", "input_boolean"}:
-                    value = "Ein" if value == "on" else "Aus"
+                    value = translate("Ein", self.language) if value == "on" else translate("Aus", self.language)
                 else:
                     unit = state.get("unit_of_measurement")
                     value = str(value) + (" " + unit if unit else "")

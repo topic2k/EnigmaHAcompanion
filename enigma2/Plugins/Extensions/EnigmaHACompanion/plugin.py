@@ -9,11 +9,12 @@ from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixm
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.Screen import Screen
-from enigma import eListboxPythonMultiContent, eTimer, getDesktop, gFont, RT_VALIGN_CENTER
+from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
 
 from .companion.client import ClientError, CompanionClient
 from .companion.navigation import Navigator
+from .companion.i18n import translate
 from .appearance import Appearance
 from .settings import DEFAULTS, load_settings
 from .setup import CompanionSetup
@@ -38,18 +39,20 @@ class CompanionScreen(Screen):
         except (ValueError, OSError):
             self.config = dict(DEFAULTS)
             self.config_error = True
-        self.appearance = Appearance(getDesktop(0).size(), self.config["skin_profile"])
+        self.appearance = Appearance(getDesktop(0).size(), self.config["skin_profile"], self.config["language"])
         self.ui_scale = self.appearance.scale
         self.list_width = self.appearance.list_width
         self.list_height = self.appearance.list_height
         self.skin = self.appearance.layout()
         Screen.__init__(self, session)
+        for name, text in self.appearance.text_labels.items():
+            self[name] = Label(text)
         self.skinName = self.appearance.screen_names()
         self.onLayoutFinish.append(self.layout_finished)
         self["heading"] = Label("Home Assistant")
         self["list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self["status"] = Label("Verbindung wird vorbereitet …")
-        self["footer"] = Label("OK/Grün: Öffnen/Schalten   Gelb: Laden\nMenü/Blau: Einstellungen   Rot: Schließen   Exit: Zurück")
+        self["status"] = Label(self.t("Verbindung wird vorbereitet …"))
+        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden\nMenü/Blau: Einstellungen   Rot: Schließen   Exit: Zurück"))
         self["actions"] = ActionMap(["EnigmaHACompanionActions"], {
             "up": lambda: self.move(-1), "down": lambda: self.move(1),
             "channelPlus": lambda: self.move_channel_page(-1),
@@ -76,6 +79,9 @@ class CompanionScreen(Screen):
         # Opening first-run settings is only safe once execution has begun.
         self.onFirstExecBegin.append(self.start)
 
+    def t(self, message, **values):
+        return translate(message, self.appearance.language, **values)
+
     def layout_finished(self):
         # A skin-provided screen may choose a different list geometry.
         instance = getattr(self["list"], "instance", None)
@@ -86,7 +92,7 @@ class CompanionScreen(Screen):
 
     def start(self):
         if self.config_error:
-            self["status"].setText("Konfiguration nicht lesbar. Bitte Einstellungen prüfen.")
+            self["status"].setText(self.t("Konfiguration nicht lesbar. Bitte Einstellungen prüfen."))
         if not self.config["url"] or not self.config["token"]:
             self.settings()
         else:
@@ -96,7 +102,7 @@ class CompanionScreen(Screen):
         try:
             self.client = CompanionClient(self.config["url"], self.config["token"], self.config["timeout"])
         except ValueError:
-            self["status"].setText("Adresse oder Token ungültig. Menü: Einstellungen")
+            self["status"].setText(self.t("Adresse oder Token ungültig. Menü: Einstellungen"))
             return
         self.refresh()
 
@@ -138,17 +144,17 @@ class CompanionScreen(Screen):
             self.open_menu()
             return
         if self.busy or not self.online:
-            self["status"].setText("Bitte aktuelle Zustände abwarten. Gelb: erneut laden.")
+            self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
             return
         command = self.nav.activate(self.states)
         if command is None:
-            self["status"].setText("Dieser Eintrag ist nur lesbar oder nicht verfügbar.")
+            self["status"].setText(self.t("Dieser Eintrag ist nur lesbar oder nicht verfügbar."))
             return
         client = self.client
         def work():
             client.execute(command)
             return self.snapshot(client)
-        self.run(work, "Schaltbefehl wird gesendet …")
+        self.run(work, self.t("Schaltbefehl wird gesendet …"))
 
     @staticmethod
     def snapshot(client):
@@ -159,7 +165,7 @@ class CompanionScreen(Screen):
         if self.closed or self.busy or not hasattr(self, "client"):
             return
         client = self.client
-        self.run(lambda: self.snapshot(client), "Zustände werden geladen …")
+        self.run(lambda: self.snapshot(client), self.t("Zustände werden geladen …"))
 
     def run(self, work, message):
         self.timer.stop()
@@ -179,7 +185,7 @@ class CompanionScreen(Screen):
             overrides["font_family"] = self.config["font_family"]
         if self.config["font_size"]:
             overrides["font_size"] = self.config["font_size"]
-        new_nav = Navigator(menu, overrides)
+        new_nav = Navigator(menu, overrides, language=self.appearance.language)
         # Preserve menu path and selected entry by ID across edits and refreshes.
         if self.nav:
             old = self.nav
@@ -197,7 +203,7 @@ class CompanionScreen(Screen):
         self.nav, self.states = new_nav, states
         self.online, self.busy = True, False
         self.render()
-        self["status"].setText("Verbunden" if self.nav.current["children"] else "Menü ist leer. Einträge in Home Assistant hinzufügen.")
+        self["status"].setText(self.t("Verbunden") if self.nav.current["children"] else self.t("Menü ist leer. Einträge in Home Assistant hinzufügen."))
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
 
     def failed(self, failure, generation):
@@ -206,14 +212,14 @@ class CompanionScreen(Screen):
         self.busy, self.online = False, False
         error = failure.value
         code = error.code if isinstance(error, ClientError) else "unknown"
-        messages = {"unauthorized": "Token abgelehnt. Menü: Einstellungen",
-                    "forbidden": "Keine Berechtigung für diese Aktion.",
-                    "not_found": "HA-Integration nicht erreichbar. Installation prüfen.",
-                    "conflict": "Menü/Zustand geändert. Gelb: neu laden.",
-                    "stale_menu": "Menü geändert. Wird erneut geladen.",
-                    "connection_failed": "Verbindung fehlgeschlagen. Schaltzustand unklar; keine Wiederholung.",
-                    "invalid_menu": "HA hat ein ungültiges Menü geliefert."}
-        self["status"].setText(messages.get(code, "Abruf fehlgeschlagen. Gelb: erneut laden."))
+        messages = {"unauthorized": self.t("Token abgelehnt. Menü: Einstellungen"),
+                    "forbidden": self.t("Keine Berechtigung für diese Aktion."),
+                    "not_found": self.t("HA-Integration nicht erreichbar. Installation prüfen."),
+                    "conflict": self.t("Menü/Zustand geändert. Gelb: neu laden."),
+                    "stale_menu": self.t("Menü geändert. Wird erneut geladen."),
+                    "connection_failed": self.t("Verbindung fehlgeschlagen. Schaltzustand unklar; keine Wiederholung."),
+                    "invalid_menu": self.t("HA hat ein ungültiges Menü geliefert.")}
+        self["status"].setText(messages.get(code, self.t("Abruf fehlgeschlagen. Gelb: erneut laden.")))
         self["heading"].setText("OFFLINE – " + (safe_text(self.nav.breadcrumb) if self.nav else "Home Assistant"))
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
         return None  # Consume Deferred failure; do not log request/token details.
@@ -225,6 +231,13 @@ class CompanionScreen(Screen):
             self.nav.display["font_family"], self.nav.display["font_size"])
         self["list"].l.setFont(0, gFont(face, font_size))
         self["list"].l.setItemHeight(self.row_height)
+        instance = getattr(self["list"], "instance", None)
+        if instance is not None:
+            # Font-dependent row heights need a whole-row viewport. Otherwise
+            # OpenATV can draw the next entry cut off above the status line.
+            height = self.page_size() * self.row_height
+            if instance.size().height() != height:
+                instance.resize(eSize(self.list_width, height))
         value_width = int(self.list_width * .30)
         label_width = self.list_width - value_width - 24
         rows = []
@@ -246,7 +259,7 @@ class CompanionScreen(Screen):
 
     def settings(self):
         if self.busy:
-            self["status"].setText("Bitte laufenden Abruf abwarten; danach Menü erneut drücken.")
+            self["status"].setText(self.t("Bitte laufenden Abruf abwarten; danach Menü erneut drücken."))
             return
         self.timer.stop()
         self.session.openWithCallback(self.settings_done, CompanionSetup, self.config)
@@ -262,11 +275,12 @@ class CompanionScreen(Screen):
         elif hasattr(self, "client"):
             self.refresh()
         else:
-            self["status"].setText("Menü drücken, um Home Assistant einzurichten.")
+            self["status"].setText(self.t("Menü drücken, um Home Assistant einzurichten."))
 
     def help(self):
-        direction = "abwärts / − aufwärts" if self.config["reverse_channel_paging"] else "aufwärts / − abwärts"
-        self.session.open(MessageBox, HELP.format(channel_help="Ch+ " + direction + ": seitenweise blättern"),
+        channel_help = ("Ch+ abwärts / − aufwärts: seitenweise blättern" if self.config["reverse_channel_paging"]
+                        else "Ch+ aufwärts / − abwärts: seitenweise blättern")
+        self.session.open(MessageBox, self.t(HELP, channel_help=self.t(channel_help)),
                           type=MessageBox.TYPE_INFO)
 
     def cleanup(self):
@@ -293,6 +307,11 @@ def menu(menuid, **kwargs):
 
 
 def Plugins(**kwargs):
+    try:
+        language = load_settings()["language"]
+    except (ValueError, OSError):
+        language = "de"
+    t = lambda message: translate(message, language)
     global _KEYMAP_LOADED
     if not _KEYMAP_LOADED:
         try:
@@ -301,7 +320,7 @@ def Plugins(**kwargs):
             from Components.ActionMap import loadKeymap as readKeymap
         readKeymap(os.path.join(os.path.dirname(__file__), "keymap.xml"))
         _KEYMAP_LOADED = True
-    return [PluginDescriptor(name="EnigmaHA Companion", description="Home Assistant auf deinem Receiver",
+    return [PluginDescriptor(name="EnigmaHA Companion", description=t("Home Assistant auf deinem Receiver"),
                              where=[PluginDescriptor.WHERE_PLUGINMENU, PluginDescriptor.WHERE_EXTENSIONSMENU], fnc=main),
-            PluginDescriptor(name="EnigmaHA Companion", description="Home Assistant auf deinem Receiver",
+            PluginDescriptor(name="EnigmaHA Companion", description=t("Home Assistant auf deinem Receiver"),
                              where=PluginDescriptor.WHERE_MENU, fnc=menu)]

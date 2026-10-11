@@ -1,5 +1,7 @@
 # Installation und Bedienung
 
+**Deutsch** · [English](Installation.en.md)
+
 EnigmaHA Companion verbindet Home Assistant mit deinem Enigma2-Receiver.
 Du richtest das Menü in Home Assistant ein und bedienst es auf dem Fernseher
 mit der Fernbedienung. Die Installation besteht aus einer HA-Integration und
@@ -11,7 +13,7 @@ ein zusätzlicher Server oder MQTT-Broker ist nicht erforderlich.
 - Home Assistant mit Administratorrechten für Installation und Menüeditor.
 - Für die empfohlene Installation: eingerichtetes HACS und ein veröffentlichtes
   [EnigmaHA-Release](https://github.com/topic2k/EnigmaHAcompanion/releases).
-- OpenATV mit Enigma2, Python 3.8 oder neuer und Twisted.
+- OpenATV mit Enigma2, Python 3.13 oder neuer und Twisted.
   Python-2-Images werden nicht unterstützt. Verwende einen HD- oder Full-HD-Skin.
 - Der Receiver erreicht die HA-Adresse im Netzwerk.
 - Ein langlebiger HA-Zugriffstoken eines aktiven Benutzers mit Lese- und
@@ -48,6 +50,11 @@ Das separate ZIP `enigmaha_companion.zip` ist für HACS bestimmt.
 5. In der Seitenleiste **EnigmaHA Companion** öffnen.
 
 ## 2. Menü zusammenstellen
+
+Unter **Sprache** zwischen **Deutsch** (Standard) und **English** wechseln.
+Die Auswahl gilt für diesen Browser und ändert keine Menünamen. HA-eigene
+Einrichtungsdialoge und die internen Texte nativer Auswahlfelder folgen der
+Sprache im HA-Benutzerprofil.
 
 1. Bei Bedarf Untermenüs anlegen und öffnen.
 2. Im Entitätsfeld nach einer HA-Entität suchen, auswählen und hinzufügen.
@@ -131,7 +138,7 @@ Danach unter **Erweiterungen/Plugins → EnigmaHA Companion** öffnen.
 Das Plugin erscheint auch im Erweiterungsmenü, sofern das Image dieses anzeigt.
 
 Fehlende Abhängigkeiten aus dem Feed des jeweiligen Images installieren.
-Das IPK benötigt `enigma2`, `python3-core`, `python3-json`,
+Das IPK benötigt `enigma2`, `python3-core (>= 3.13)`, `python3-json`,
 `python3-netclient`, `python3-io` und `python3-twisted-core`.
 Keine Abhängigkeiten mit `--force-depends` übergehen.
 
@@ -163,6 +170,7 @@ Später sind sie über **Menü/Blau** erreichbar.
 
 | Einstellung | Bedeutung |
 | --- | --- |
+| Sprache | **Deutsch** (Standard) oder **English**; wirksam beim nächsten Öffnen des Plugins |
 | Home-Assistant-Adresse | Zum Beispiel `http://192.168.1.20:8123` oder deine HTTPS-Adresse; kein `/api` und keinen Unterpfad anfügen |
 | Token | Vollständiger langlebiger HA-Zugriffstoken |
 | Aktualisierung | Abrufintervall bei geöffnetem Plugin; Standard 10 Sekunden |
@@ -198,6 +206,7 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
   "url": "http://192.168.1.20:8123",
   "token": "HIER_DEN_EIGENEN_TOKEN_EINTRAGEN",
   "refresh_seconds": 10,
+  "language": "de",
   "skin_profile": "auto",
   "font_family": "",
   "font_size": 0,
@@ -208,6 +217,7 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
 ```
 
 Leere Schriftfamilie und Schriftgröße `0` bedeuten **Aus HA übernehmen**.
+`language` akzeptiert `de` (Deutsch, Standard) und `en` (English).
 `skin_profile` akzeptiert `auto`, `native` (Standard) und `gradient` (GradientFHD).
 Bei manueller Anlage mit `chmod 600 /etc/enigma2/enigmaha_companion.json` die
 Dateirechte setzen. Das Plugin speichert die Datei selbst mit diesen Rechten.
@@ -250,8 +260,13 @@ automatisch wiederholt, auch wenn seine Antwort verloren ging.
 4. Sensor mit OK wählen: Es darf kein Schaltbefehl ausgelöst werden.
 5. Mit Links zurück, mit Exit auf oberster Ebene schließen.
 6. Im HA-Menüeditor einen Eintrag umbenennen, speichern und am Receiver Gelb drücken.
+7. Beide Sprachen im Editor und am Receiver einschließlich Hilfe und Fehlermeldungen
+   prüfen. Eigene Namen müssen unverändert bleiben.
 
 ## Aktualisieren
+
+Für die Zweisprachigkeit ist keine Neueinrichtung erforderlich. Ohne Sprachauswahl
+starten Menüeditor und Receiver auf Deutsch. Menüs und Zugangsdaten bleiben erhalten.
 
 Die HA-Integration über HACS oder das manuelle ZIP aktualisieren und HA neu
 starten. Das Receiver-Paket aus demselben Release installieren und die

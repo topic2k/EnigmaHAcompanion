@@ -1,5 +1,7 @@
 # Enigma2-Extension
 
+**Deutsch** · [English](README.en.md)
+
 Die Extension zeigt das in Home Assistant zusammengestellte Menü auf dem Receiver.
 `Plugins/Extensions/EnigmaHACompanion/` enthält Screen, Tastenbelegung, lokale
 Einstellungen und Darstellung. `companion/` enthält den GUI-unabhängigen
@@ -9,10 +11,19 @@ Für die Einrichtung siehe [Installation und Bedienung](../docs/Installation.md)
 Build und Tests stehen in der [Entwicklerdokumentation](../docs/Entwicklung.md),
 ebenso der [Teststand und bekannte Grenzen](../docs/Entwicklung.md#teststand-und-grenzen).
 
+## Sprache
+
+Deutsch ist die erste Auswahl und der Standard. **Menü/Blau → Sprache** bietet
+**Deutsch** und **English**. Mit Grün speichern und das Plugin erneut öffnen.
+`language` in `/etc/enigma2/enigmaha_companion.json` verwendet `de` oder `en`.
+Die Auswahl gilt für Texte, Hilfe, Zustände und die eingebauten Skin-Layouts.
+Die Systemdialoge von OpenATV und vom aktiven Skin fest vorgegebene Texte folgen
+weiterhin deren Sprache. Eigene HA-Menünamen bleiben erhalten.
+
 ## Paket und Laufzeit
 
 Entwicklung und Tests erfolgen ausschließlich für und auf OpenATV mit
-Python 3.8 oder neuer und Twisted.
+Python 3.13 oder neuer und Twisted.
 Mit `python tools/build.py` im Projektstamm entstehen IPK und TAR unter `dist/`.
 Der Build bettet `companion` und `enigmaha_protocol` in den Plugin-Ordner ein
 und passt die Imports an. Zusätzliche globale Python-Pakete aus diesem Projekt

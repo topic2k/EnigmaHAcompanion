@@ -1,5 +1,7 @@
 # EnigmaHA Companion entwickeln
 
+**Deutsch** · [English](Development.en.md)
+
 EnigmaHA Companion besteht aus einer Home-Assistant-Integration mit Menüeditor
 und einer Enigma2-Extension. Die Integration speichert das gemeinsame Menü und
 stellt Zustände und Schaltaktionen über authentifizierte HTTP-Routen bereit.
@@ -27,7 +29,8 @@ die [Release-Anleitung](Releases.md) Paketierung und Veröffentlichung.
 ## Lokal bauen und testen
 
 Die Release-CI verwendet Python 3.13 und Node.js 24. Der ausgelieferte Receiver-Code
-muss Python-3.8-kompatible Syntax verwenden. Der Paketbau benötigt nur die
+muss Python-3.13-kompatible Syntax verwenden; Python 3.13 ist die Mindestversion
+auf dem Receiver. Der Paketbau benötigt nur die
 Python-Standardbibliothek; für die Tests kommen aiohttp sowie die npm-Abhängigkeiten
 aus `package-lock.json` hinzu.
 
@@ -82,6 +85,23 @@ Speicherung verändert weder das laufende Menü noch seine Revision.
 
 Der Menüeditor und GET/PUT `/config` sind Administratoren vorbehalten.
 Receiver-Zugangsdaten werden nicht im Editor gespeichert.
+
+### Übersetzungen
+
+Deutsch ist Standard und erste Auswahl. Der Menüeditor enthält sein englisches
+Wörterbuch in `panel.js`; `t()` übersetzt deutsche Quelltexte und setzt benannte
+Platzhalter ein. Die Sprachauswahl wird unter `enigmaha_companion.language` im
+Browser gespeichert. Der Wechsel erhält Menüentwurf, Navigation und Filter.
+HA-Konfigurationsdialoge verwenden `translations/de.json` und `translations/en.json`
+und folgen der HA-Profilsprache; beide Kataloge liegen auch im Quellbaum.
+
+Der Receiver nutzt `companion/i18n.py` und die lokale Einstellung `language`
+(`de` oder `en`, Standard `de`). Navigation, Hilfe, Einstellungen und eingebaute
+Skin-Texte werden damit übersetzt. Ein Wechsel gilt ab dem nächsten Öffnen,
+damit auch die Skin-Tastenleiste dieselbe Sprache verwendet. Eigene Labels,
+Entity-IDs, Rohzustände und Protokoll-Fehlercodes bleiben unverändert.
+Neue Oberflächentexte in den passenden Katalog aufnehmen und Platzhalter in
+beiden Sprachen beibehalten. Spracheinstellungen benötigen keine Neueinrichtung.
 
 ### Menüeditor
 
@@ -152,31 +172,33 @@ Die automatisierten Tests decken Menüvalidierung, Befehle, echte HTTP-Anfragen
 gegen Testserver, HA-Lebenszyklus und Berechtigungen, Symbolauflösung,
 Receiver-Navigation, Layouts sowie Inhalt und Metadaten der Pakete ab.
 HA-Dienste und Enigma2-Gerätefunktionen werden dabei durch Testobjekte ersetzt.
-Die Receiver-Pakete werden auch auf Python-3.8-kompatible Syntax geprüft.
+Die Receiver-Pakete werden auch auf Python-3.13-kompatible Syntax geprüft.
+Sprachtests prüfen Deutsch als Standard, englische Texte, Platzhalter, gespeicherte
+Sprachauswahl und unveränderte Menüentwürfe beim Wechsel.
 Die Skin-Profiltests prüfen automatische und manuelle Auswahl, Speicherung und
 Abbrechen, Übernahme beim erneuten Öffnen sowie fehlende Skin-Ressourcen.
-Die neue manuelle Profilauswahl ist noch nicht auf OpenATV-Hardware geprüft.
 
 Die Frontendtests verwenden jsdom und ersetzen native HA-Komponenten durch
 Custom-Element-Testobjekte. Sie prüfen Filter, Modelländerungen, Sortierereignisse,
-Scrollaufrufe und Dialogaktionen. Tatsächliche Darstellung, Scrollbewegungen,
-Maus-/Touchgesten und modaler Fokusfang im HA-Browser sind damit nicht geprüft.
-Die Symbolauflösung wurde zusätzlich gegen originale HA-Frontenddateien geprüft.
-Ein Test in einer vollständigen HA-Installation steht aus.
-
-Auf echter Hardware wurden am 27.09.2026 Installation, Start, Einstellungen,
-HA-Menü-/Zustandsabruf und Navigation auf einer Octagon SF8008 mit OpenATV 7.6.0
-(Image 20260831, Python 3.13.12) geprüft. Mit GradientFHD wurden Hauptansicht,
-Skin-Schrift, Tastenbilder, Eingabehilfe, Untermenüs, manuelle Aktualisierung,
-Hauptmenüeintrag und die umkehrbare Kanal-Tastenrichtung geprüft. Die Tasten wurden
-über OpenWebif ausgelöst; physisches Gedrückthalten wurde nicht geprüft.
-Der aktuelle Standard ist Ch+ aufwärts / Ch− abwärts.
-
-Reale Schaltbefehle, die dynamischen Receiver-Symbole und Vu+ sind noch
-nicht auf Hardware geprüft. Als Zielsysteme dienen Octagon SF8008 4K Supreme und
-Vu+ Solo² mit OpenATV 7.6.0 sowie Home Assistant 2026.9.3. Automatisierte Tests
-ersetzen keine Prüfung auf diesen Systemen.
+Scrollaufrufe und Dialogaktionen. Sie ersetzen keine Browserprüfung von Darstellung,
+Gesten und modaler Fokusführung.
 
 Vor einer Veröffentlichung die Schritte im Abschnitt „Funktionsprüfung“ der
 [Installationsanleitung](Installation.md) auf den OpenATV-Zielreceivern mit
-Home Assistant durchführen und den Teststand aktualisieren.
+Home Assistant durchführen.
+
+## Eigene HA-Testinstanz
+
+Mit Docker und Compose startet `python tools/ha_dev.py start` eine separate
+HA-Instanz unter **http://127.0.0.1:18123**. Der Befehl baut und installiert das
+vollständige Entwicklungspaket, erledigt das HA-Onboarding und richtet die
+Integration samt Testmenü automatisch ein. Frische Labore verwenden den
+Testzugang `enigma2ha:notsecret`. Benutzer, Menü und Datenbank bleiben in einem
+eigenen Docker-Volume erhalten. Virtuelle Testentitäten benötigen keine Geräte
+oder Zugangsdaten aus der produktiven Installation.
+
+`python tools/ha_dev.py check` prüft die Konfiguration, `logs` zeigt Protokolle,
+`stop` beendet den Container und erhält seine Daten. Einrichtung und Grenzen:
+[Docker-Testumgebung](../dev/ha/README.md). Für HA-Core-Entwicklung selbst ist die
+[offizielle Devcontainer-Umgebung](https://developers.home-assistant.io/docs/development_environment/)
+geeignet; für diese Custom Integration genügt der kleinere HA-Container.

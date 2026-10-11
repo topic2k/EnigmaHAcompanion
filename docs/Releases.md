@@ -1,5 +1,7 @@
 # HACS und GitHub-Releases
 
+**Deutsch** · [English](Releases.en.md)
+
 Diese Anleitung beschreibt den Paketbau und die Veröffentlichung. Für die
 Benutzereinrichtung siehe [Installation und Bedienung](Installation.md), für
 lokale Tests die [Entwicklerdokumentation](Entwicklung.md).
