@@ -156,6 +156,7 @@ class EnigmaHAPanel extends HTMLElement {
     this.loading = false;
     this.statusMessages = new Map();
     this.entityFilters = {domain: "", area: "", device_class: ""};
+    this.filterTranslations = new Map();
     this.selectedEntity = undefined;
     this.selectorsReady = false;
     this.filtersOpen = false;
@@ -220,6 +221,8 @@ class EnigmaHAPanel extends HTMLElement {
     for (const selector of this.shadowRoot.querySelectorAll("ha-selector")) selector.hass = value;
     this.updateEntryEntities();
     this.updateEntitySelector();
+    this.updateFilterOptions();
+    this.loadFilterTranslations();
   }
 
   connectedCallback() {
@@ -979,6 +982,70 @@ class EnigmaHAPanel extends HTMLElement {
     this.render();
   }
 
+  async loadFilterTranslations() {
+    if (!this.shadowRoot.querySelector('[data-selector="domain"]') || !this._hass?.callWS) return;
+    const language = this.language;
+    if (!this.filterTranslations.has(language)) {
+      this.filterTranslations.set(language, {resources: {}, domains: new Set()});
+    }
+    const translations = this.filterTranslations.get(language);
+    const domains = [...new Set(Object.keys(this._hass.states || {}).map(id => id.split(".")[0]))]
+      .filter(domain => !translations.domains.has(domain));
+    if (!domains.length) return;
+    domains.forEach(domain => translations.domains.add(domain));
+    try {
+      // Request HA's names in the editor language, including when it differs
+      // from the HA profile language. Cache requests across editor redraws.
+      const result = await this._hass.callWS({type: "frontend/get_translations", language,
+        category: "entity_component", integration: domains});
+      Object.assign(translations.resources, result.resources);
+      if (this.isConnected && this.language === language) this.updateFilterOptions();
+    } catch (_) { /* Keep usable fallback labels and avoid retrying on every state update. */ }
+  }
+
+  filterLabel(domain, deviceClass) {
+    const key = `component.${domain}.entity_component.${deviceClass || "_"}.name`;
+    const translated = this.filterTranslations.get(this.language)?.resources[key];
+    if (typeof translated === "string" && translated) return translated;
+    const haLanguage = (this._hass.locale?.language || this._hass.language || "").split(/[-_]/)[0];
+    if (haLanguage === this.language) {
+      const label = this._hass.localize?.(key);
+      if (label && label !== key) return label;
+    }
+    if (deviceClass) return undefined;
+    const fallback = {light: "Licht", switch: "Schalter", input_boolean: "Helfer-Schalter",
+      sensor: "Sensor", binary_sensor: "Binärsensor"};
+    return fallback[domain] ? this.t(fallback[domain]) : domain;
+  }
+
+  entityFilterOptions() {
+    const states = Object.values(this._hass.states || {});
+    const domains = [...new Set(states.map(state => state.entity_id.split(".")[0]))].sort();
+    const classes = new Map();
+    for (const state of states) {
+      const domain = state.entity_id.split(".")[0];
+      const deviceClass = state.attributes.device_class;
+      if (!deviceClass || this.entityFilters.domain && domain !== this.entityFilters.domain) continue;
+      if (!classes.has(deviceClass)) classes.set(deviceClass, new Set());
+      classes.get(deviceClass).add(domain);
+    }
+    const sort = options => options.sort((a, b) => a.label.localeCompare(b.label, this.language));
+    return {
+      domains: sort(domains.map(domain => ({value: domain, label: this.filterLabel(domain)}))),
+      classes: sort([...classes].map(([value, classDomains]) => ({value,
+        label: [...classDomains].sort().map(domain => this.filterLabel(domain, value)).find(Boolean) || value}))),
+    };
+  }
+
+  updateFilterOptions() {
+    const domain = this.shadowRoot.querySelector('[data-selector="domain"]');
+    const deviceClass = this.shadowRoot.querySelector('[data-selector="device_class"]');
+    if (!domain || !deviceClass) return;
+    const options = this.entityFilterOptions();
+    domain.selector = {select: {mode: "dropdown", options: options.domains}};
+    deviceClass.selector = {select: {mode: "dropdown", options: options.classes}};
+  }
+
   renderEntitySelection(section, current) {
     const details = this.el("details", null, {class: "filter-details"});
     details.open = this.filtersOpen;
@@ -986,18 +1053,13 @@ class EnigmaHAPanel extends HTMLElement {
     const active = Object.values(this.entityFilters).filter(Boolean).length;
     details.append(this.el("summary", active ? this.t("Auswahl filtern ({count} aktiv)", {count: active}) : this.t("Auswahl filtern")));
     const filters = this.el("div", null, {class: "filters"});
-    const states = Object.values(this._hass.states || {});
-    const domains = [...new Set(states.map(state => state.entity_id.split(".")[0]))].sort();
-    const domainNames = {light: this.t("Licht"), switch: this.t("Schalter"), input_boolean: this.t("Helfer-Schalter"), sensor: this.t("Sensor"), binary_sensor: this.t("Binärsensor")};
+    const options = this.entityFilterOptions();
     filters.append(this.selector("domain", this.t("Entitätstyp"), {select: {mode: "dropdown", options:
-      domains.map(domain => ({value: domain, label: domainNames[domain] || domain}))}},
+      options.domains}},
       this.entityFilters.domain, value => this.setFilter("domain", value)));
     filters.append(this.selector("area", this.t("Bereich"), {area: {}}, this.entityFilters.area,
       value => this.setFilter("area", value)));
-    const classes = [...new Set(states.filter(state => !this.entityFilters.domain
-      || state.entity_id.split(".")[0] === this.entityFilters.domain)
-      .map(state => state.attributes.device_class).filter(Boolean))].sort();
-    filters.append(this.selector("device_class", this.t("Geräteklasse"), {select: {mode: "dropdown", options: classes}},
+    filters.append(this.selector("device_class", this.t("Geräteklasse"), {select: {mode: "dropdown", options: options.classes}},
       this.entityFilters.device_class, value => this.setFilter("device_class", value)));
     details.append(filters, this.button(this.t("Filter zurücksetzen"), () => {
       this.entityFilters = {domain: "", area: "", device_class: ""};
@@ -1005,6 +1067,8 @@ class EnigmaHAPanel extends HTMLElement {
       this.render();
     }));
     section.append(details);
+    // The section is attached later in render(); start loading after that.
+    queueMicrotask(() => this.loadFilterTranslations());
     const add = this.el("div", null, {class: "entity-add"});
     const picker = this.selector("entity", this.t("Entität auswählen"), this.entityDefinition(), this.selectedEntity, value => {
       this.selectedEntity = typeof value === "string" && this.matchesFilters(value) ? value : undefined;

@@ -13,7 +13,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 
 async function createPanel({lazySelectors = false, lazySortable = false, brokenSelectors = false,
   savedLanguage, integrationLanguage, haLanguage, haLocale, browserLanguages,
-  blockedStorage = false, hassBeforeConnect = false, overview = false} = {}) {
+  blockedStorage = false, hassBeforeConnect = false, overview = false, callWS} = {}) {
   const dom = new JSDOM("<!doctype html><body></body>", {url: "http://ha.test", runScripts: "outside-only"});
   if (browserLanguages !== undefined) {
     Object.defineProperty(dom.window.navigator, "languages", {configurable: true, value: browserLanguages});
@@ -74,6 +74,7 @@ async function createPanel({lazySelectors = false, lazySortable = false, brokenS
   panel.hass = {
     language: haLanguage,
     locale: {language: haLocale},
+    callWS,
     states: {
       "light.ceiling": {entity_id: "light.ceiling", attributes: {friendly_name: "Lampe <img src=x>"}, state: "off"},
       "sensor.temp": {entity_id: "sensor.temp", attributes: {friendly_name: "Temperatur", device_class: "temperature"}, state: "22"},
@@ -716,6 +717,115 @@ test("domain, class and inherited area filters combine and reject stale selectio
     ui.button("Filter zurücksetzen").click();
     assert.equal(ui.panel.model.root.children.length, 1);
     assert.equal(ui.root.querySelector('[data-selector="entity"]').selector.entity.filter, undefined);
+  } finally {ui.dom.window.close();}
+});
+
+test("filter options use HA names in the editor language and retain native values", async () => {
+  const requests = [];
+  const labels = {
+    de: {"component.cover.entity_component._.name": "Abdeckung",
+      "component.sensor.entity_component.temperature.name": "Temperatur",
+      "component.sensor.entity_component.power.name": "Leistung",
+      "component.binary_sensor.entity_component._.name": "Binärsensor",
+      "component.sensor.entity_component.battery.name": "Batteriestand",
+      "component.binary_sensor.entity_component.battery.name": "Batterie"},
+    en: {"component.cover.entity_component._.name": "Cover",
+      "component.sensor.entity_component.temperature.name": "Temperature",
+      "component.sensor.entity_component.power.name": "Power"},
+  };
+  const ui = await createPanel({haLanguage: "en", callWS: async request => {
+    requests.push(request);
+    return {resources: labels[request.language]};
+  }});
+  try {
+    const states = {...ui.panel._hass.states};
+    for (const [entity_id, device_class] of [["cover.blind", ""], ["sensor.battery", "battery"],
+      ["binary_sensor.battery", "battery"], ["sensor.custom", "custom_class"], ["custom.example", ""]]) {
+      states[entity_id] = {entity_id, attributes: {device_class}, state: "0"};
+    }
+    ui.panel.hass = {...ui.panel._hass, states};
+    await tick();
+    const options = name => Array.from(ui.root.querySelector(`[data-selector="${name}"]`).selector.select.options);
+    const label = (name, value) => options(name).find(option => option.value === value)?.label;
+    assert.equal(label("domain", "cover"), "Abdeckung");
+    assert.equal(label("domain", "custom"), "custom");
+    assert.equal(label("device_class", "temperature"), "Temperatur");
+    assert.equal(label("device_class", "power"), "Leistung");
+    assert.equal(label("device_class", "custom_class"), "custom_class");
+    assert.equal(options("device_class").filter(option => option.value === "battery").length, 1);
+    assert.deepEqual(options("device_class").map(option => option.label),
+      options("device_class").map(option => option.label).sort((a, b) => a.localeCompare(b, "de")));
+    ui.select("domain", "sensor");
+    assert.equal(label("device_class", "battery"), "Batteriestand");
+    ui.select("device_class", "temperature");
+    ui.select("entity", "sensor.temp");
+    assert.equal(ui.button("Entität hinzufügen").disabled, false);
+    ui.panel.setLanguage("en");
+    await tick();
+    assert.equal(label("domain", "cover"), "Cover");
+    assert.equal(label("device_class", "temperature"), "Temperature");
+    assert.equal(ui.root.querySelector('[data-selector="device_class"]').value, "temperature");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]').selector.entity.filter.domain, "sensor");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]').selector.entity.filter.device_class, "temperature");
+    ui.button("Add entity").click();
+    assert.equal(ui.panel.model.root.children[0].entity_id, "sensor.temp");
+    ui.panel.setLanguage("de");
+    ui.select("domain", "binary_sensor");
+    assert.equal(label("device_class", "battery"), "Batterie");
+    assert.equal(label("device_class", "temperature"), undefined);
+    await tick();
+    assert.equal(requests.length, 3, "Load only new domains and languages, reusing earlier translations");
+    assert.ok(requests.every(request => request.type === "frontend/get_translations"
+      && request.category === "entity_component"));
+  } finally {ui.dom.window.close();}
+});
+
+test("late filter translations preserve controls, selection and unsaved input across language changes", async () => {
+  const pending = [];
+  const ui = await createPanel({callWS: request => new Promise(resolve => pending.push({request, resolve}))});
+  try {
+    ui.select("domain", "sensor");
+    ui.select("device_class", "temperature");
+    ui.select("entity", "sensor.temp");
+    ui.select("new-menu", "Unfertiger Entwurf");
+    ui.panel.setLanguage("en");
+    await tick();
+    const picker = ui.root.querySelector('[data-selector="entity"]');
+    const classes = ui.root.querySelector('[data-selector="device_class"]');
+    const draft = ui.root.querySelector('[data-field="new-menu"]');
+    pending.find(item => item.request.language === "en").resolve({resources: {
+      "component.sensor.entity_component.temperature.name": "Temperature"}});
+    await tick();
+    pending.find(item => item.request.language === "de").resolve({resources: {
+      "component.sensor.entity_component.temperature.name": "Temperatur"}});
+    await tick();
+    assert.equal(classes.selector.select.options.find(option => option.value === "temperature").label, "Temperature");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]'), picker);
+    assert.equal(ui.root.querySelector('[data-selector="device_class"]'), classes);
+    assert.equal(picker.value, "sensor.temp");
+    assert.equal(classes.value, "temperature");
+    assert.equal(ui.root.querySelector('[data-field="new-menu"]'), draft);
+    assert.equal(draft.value, "Unfertiger Entwurf");
+    assert.equal(ui.panel.dirty, false);
+  } finally {ui.dom.window.close();}
+});
+
+test("unavailable filter translations keep the native entity picker usable without repeated requests", async () => {
+  let requests = 0;
+  const ui = await createPanel({haLanguage: "de", callWS: async () => { requests++; throw new Error("offline"); }});
+  try {
+    ui.panel.hass = {...ui.panel._hass, localize: key =>
+      key === "component.sensor.entity_component.temperature.name" ? "Temperatur" : key};
+    ui.select("domain", "sensor");
+    ui.select("device_class", "temperature");
+    ui.select("entity", "sensor.temp");
+    await tick();
+    assert.equal(ui.button("Entität hinzufügen").disabled, false);
+    const options = ui.root.querySelector('[data-selector="device_class"]').selector.select.options;
+    assert.equal(options.find(option => option.value === "temperature").label, "Temperatur");
+    assert.equal(options.find(option => option.value === "power").label, "power");
+    assert.equal(ui.panel.loading, false);
+    assert.equal(requests, 1);
   } finally {ui.dom.window.close();}
 });
 
