@@ -1,6 +1,4 @@
- ###### <sup>Deutsch &nbsp; | &nbsp; [English](#English) </sup>
-
-
+[English](#English)
 
 # EnigmaHA Companion [^1]
 
@@ -118,8 +116,7 @@ enthalten zusätzlich die Apache-Lizenz und Herkunftshinweise unter `brand/`.
 
 ---
 
-##### <sup> [Deutsch](#deutsch) &nbsp; | &nbsp; English </sup>
-
+#### English
 
 # EnigmaHA Companion [^1]
 
