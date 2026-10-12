@@ -98,6 +98,21 @@ dieselbe Filterlogik wie Menü-, Zustands- und Aktionsabrufe. Details zu Freigab
 und Migration stehen unter [Benutzer-Menüs](Benutzermenues.md).
 Receiver-Zugangsdaten werden nicht im Editor gespeichert.
 
+### Schriftoptionen und Kompatibilität
+
+Der HA-Options-Flow bietet nur `language` an. Beim Speichern der Sprache bleiben
+Menükonfiguration, `display` und Menürevision unverändert. Die bisherigen
+`display.font_family`- und `display.font_size`-Felder bleiben im Speicher und in
+den API-Dokumenten erhalten, damit ältere Receiver weiterhin funktionieren.
+
+Der aktuelle Receiver validiert diese Felder weiterhin, verwendet zum Zeichnen
+aber ausschließlich seine lokalen Schriftoptionen. Leere Schriftfamilie und
+Größe `0` bedeuten Auto. Die Vorgaben kommen aus dem Skin-Layout beziehungsweise
+Skin-Profil; feste Werte überschreiben beide unabhängig voneinander. Lokale
+Zahlenwerte behalten die Skalierung von der Referenzauflösung 1280 × 720.
+Bestehende Konfigurationsdateien benötigen keine Migration. Details stehen unter
+[Schrifteinstellungen](Installation.md#schriftfamilie-und-schriftgröße).
+
 ### Übersetzungen
 
 Neue Installationen verwenden `auto`. Der Menüeditor enthält sein englisches

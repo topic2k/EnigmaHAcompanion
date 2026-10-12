@@ -145,8 +145,9 @@ administrator receiver tokens. These rules do not change other HA API permission
 
 Entry IDs are unique across the collection. Existing receiver size/depth limits
 include the additional selection root for multiple menus: at most 500 nodes
-and eight levels below the receiver root. Display settings and revision are
-shared by all menus. Empty collections are valid.
+and eight levels below the receiver root. The revision and the `display` fields
+retained for older receivers are shared by all menus. Current receivers use
+their own local font settings for every displayed menu. Empty collections are valid.
 
 PUT `/configuration` shares the action lock, increments the revision and returns
 the saved collection. A stale revision returns HTTP 409 `stale_menu`; an exhausted

@@ -83,6 +83,10 @@ Neueinrichtung ist nicht nötig. Menünamen bleiben unverändert. HA-eigene
 Einrichtungsdialoge und die internen Texte nativer Auswahlfelder folgen der
 Sprache im HA-Benutzerprofil.
 
+Die Integrationsoptionen enthalten ausschließlich diese Sprachauswahl.
+Schriftfamilie und Schriftgröße werden am jeweiligen Receiver eingestellt;
+sie lassen sich in HA nicht auswählen.
+
 1. Bei Bedarf Untermenüs anlegen und öffnen.
 2. Im Entitätsfeld nach einer HA-Entität suchen, auswählen und hinzufügen.
    Die Filter für Entitätstyp, Bereich und Geräteklasse grenzen die Auswahl ein.
@@ -313,11 +317,38 @@ erkennt den aktiven Skin und verwendet bei unbekannten Skins das Standardprofil.
 Eine manuelle Auswahl überschreibt die Erkennung und etwaige vom Skin bereitgestellte
 Plugin-Screens. Sie ändert nur die Plugin-Darstellung. Keine Neueinrichtung nötig.
 
-**Auto** verwendet für Schriftfamilie und Schriftgröße jeweils die Vorgabe des
-Skins beziehungsweise des Receiver-Profils. Eine fest gewählte Schrift oder Größe
-hat in allen Profilen Vorrang, auch bei GradientFHD. Feste Größen werden wie bisher
-von der Referenzauflösung 1280 × 720 auf die Desktopauflösung skaliert; die Zeilenhöhe
-passt sich an. Eine fehlende Schrift wird durch `Regular` ersetzt.
+### Schriftfamilie und Schriftgröße
+
+Im Receiver-Plugin **Menü/Blau** drücken und **Schriftfamilie** beziehungsweise
+**Schriftgröße** auswählen. Mit **Grün** speichern. Die Auswahl gilt für alle
+Menüs auf diesem Receiver; andere Receiver behalten ihre eigenen Einstellungen.
+
+| Einstellung | Auswahl | Verhalten |
+| --- | --- | --- |
+| Schriftfamilie | **Auto (Skin-/Receiver-Standard)** | Schrift des Skins beziehungsweise Receiver-Profils verwenden |
+| Schriftfamilie | Registrierte Schrift | Diese Schrift anstelle der Skin-/Receiver-Vorgabe verwenden; fehlt sie, auf `Regular` zurückfallen |
+| Schriftgröße | **Auto (Skin-/Receiver-Standard)** | Größe des Skins beziehungsweise Receiver-Profils verwenden |
+| Schriftgröße | Zahlenwert von 16 bis 64 | Skin-/Receiver-Vorgabe ignorieren und die gewählte Größe verwenden |
+
+Beide Einstellungen wirken unabhängig: Du kannst beispielsweise die Schriftfamilie
+auf **Auto** lassen und nur die Größe festlegen. Feste Werte haben in allen
+Profilen Vorrang, auch bei GradientFHD. Die bisherige Auflösungsskalierung fester
+Größen bleibt erhalten: Die Werte beziehen sich auf 1280 × 720; bei Full HD
+entspricht beispielsweise `32` einer Schriftgröße von 48 Pixeln. Die Zeilenhöhe
+passt sich an die verwendete Größe an.
+
+### Bisherige Schrifteinstellungen
+
+Vorhandene lokale Schriftwerte bleiben erhalten. Die bisherige Auswahl
+**Aus HA übernehmen** wird als **Auto (Skin-/Receiver-Standard)** angezeigt und
+verwendet jetzt die Skin-/Receiver-Vorgabe. Gespeichert bleiben dafür die leere
+Schriftfamilie und die Größe `0`.
+
+Bisherige HA-Schriftwerte bleiben für ältere Receiver gespeichert; aktualisierte
+Receiver verwenden sie nicht mehr. Falls du die bisher in HA gewählte Schrift
+weiterverwenden möchtest, wähle sie am jeweiligen Receiver. Eine automatische
+Übernahme aus HA erfolgt nicht. Menüs, Freigaben und Verbindungsdaten bleiben
+erhalten; eine Migration oder Neueinrichtung ist nicht erforderlich.
 
 ### Token per Datei eintragen
 
@@ -341,10 +372,6 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
 ```
 
 Leere Schriftfamilie und Schriftgröße `0` bedeuten **Auto (Skin-/Receiver-Standard)**.
-Bestehende Receiver-Einstellungen bleiben erhalten. Bisherige HA-Schriftwerte
-bleiben für ältere Receiver gespeichert; aktualisierte Receiver verwenden sie
-nicht mehr. Eine Migration oder Neueinrichtung ist nicht erforderlich. Falls du
-die bisher in HA gewählte Schrift weiterverwenden möchtest, wähle sie am Receiver.
 `language` akzeptiert `de` (Deutsch), `en` (English) und `auto`
 (Standard bei neuen Installationen, OpenATV-Systemsprache; Deutsch als Rückfall
 für nicht unterstützte Sprachen). Fehlt der Wert in einer vorhandenen Datei,

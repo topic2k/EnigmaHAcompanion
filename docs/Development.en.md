@@ -88,6 +88,20 @@ use the same projection as menu, state and action requests. See
 [user-specific menus](User-menus.en.md) for access rules and migration.
 Receiver credentials are not stored in the editor.
 
+### Font options and compatibility
+
+The HA options flow exposes only `language`. Saving it leaves the menu
+configuration, `display` and menu revision unchanged. The existing
+`display.font_family` and `display.font_size` fields remain in storage and
+API documents so older receivers continue to work.
+
+The current receiver still validates those fields but renders using only its
+local font settings. An empty family and size `0` mean auto. Defaults come from
+the skin layout or profile; explicit choices override each independently.
+Local numeric sizes retain scaling from the 1280 × 720 reference resolution.
+Existing configuration files require no migration. See
+[font settings](Installation.en.md#font-family-and-size).
+
 ### Translations
 
 New installations default to `auto`. `panel.js` contains the English catalog;

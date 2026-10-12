@@ -79,6 +79,9 @@ language preference remains in use. No reconfiguration is required and menu name
 remain unchanged. HA setup dialogs and the internal texts of
 native selectors follow your HA profile language.
 
+The integration options contain only this language setting. Set the font family
+and size on each receiver; these choices are not available in HA.
+
 1. Add and open submenus as needed.
 2. Search for an HA entity, select it and choose **Add entity**. Filter by entity
    type, area or device class to narrow the selection.
@@ -288,11 +291,37 @@ Language and skin profile changes apply when the plugin is reopened.
 skins. A manual profile overrides detection and skin-provided plugin screens;
 it changes only the plugin's appearance.
 
-**Auto** uses the skin or receiver profile default for each font setting.
-Explicit font families and sizes take precedence in every profile, including
-GradientFHD. Fixed sizes retain their scaling from the 1280 × 720 reference to
-the desktop resolution; row height adjusts accordingly. Missing fonts fall back to `Regular`.
 OpenATV system dialogs and fixed text in external skins follow their own language.
+
+### Font family and size
+
+Press **Menu/Blue** in the receiver plugin and choose **Font family** or
+**Font size**. Save with **Green**. These choices apply to all menus on that
+receiver; other receivers keep their own settings.
+
+| Setting | Choice | Behavior |
+| --- | --- | --- |
+| Font family | **Auto (skin/receiver default)** | Use the skin or receiver profile font |
+| Font family | Registered font | Use this font instead of the skin/receiver default; fall back to `Regular` if unavailable |
+| Font size | **Auto (skin/receiver default)** | Use the skin or receiver profile size |
+| Font size | Number from 16 to 64 | Ignore the skin/receiver default and use the selected size |
+
+The settings are independent: for example, keep the family on **Auto** and
+select a fixed size. Explicit choices take precedence in every profile,
+including GradientFHD. Fixed sizes retain their resolution scaling: values
+refer to 1280 × 720, so `32` corresponds to 48 pixels at Full HD. Row height
+adjusts to the size used.
+
+### Existing font settings
+
+Existing local font values are retained. The former **Use HA setting** choice
+is now shown as **Auto (skin/receiver default)** and uses the skin/receiver
+default. Its stored values remain an empty font family and size `0`.
+
+Previous HA font settings remain stored for older receivers; updated receivers
+ignore them. To keep a font previously selected in HA, select it on each receiver.
+There is no automatic transfer from HA. Menus, access rules and connection
+settings are retained; no migration or reconfiguration is required.
 
 ### Enter the token through a file
 
@@ -316,11 +345,9 @@ You can use an editor or SFTP for a long token. Close the plugin before editing
 
 `language` accepts `de` (German), `en` (English) and `auto` (default for new installations,
 OpenATV system language, falling back to German for unsupported languages). An existing
-file without this value keeps German. No migration or reconfiguration is required. An empty font
-family and font size `0` mean **Auto (skin/receiver default)**. Existing receiver
-settings are retained. Previous HA font settings remain stored for older receivers;
-updated receivers ignore them. To keep a font previously selected in HA, select
-it on the receiver. `skin_profile` accepts `auto`,
+file without this value keeps German. No migration or reconfiguration is required.
+An empty font family and font size `0` mean **Auto (skin/receiver default)**.
+`skin_profile` accepts `auto`,
 `native` and `gradient`. If you create the file manually, set its permissions
 with `chmod 600 /etc/enigma2/enigmaha_companion.json`; the plugin saves it with
 these permissions itself.

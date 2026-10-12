@@ -150,8 +150,10 @@ Rechte für andere HA-APIs.
 
 Knoten-IDs sind über alle Menüs eindeutig. Die bisherigen Grenzen gelten
 einschließlich einer zusätzlichen Auswahlwurzel bei mehreren Menüs: maximal 500
-Knoten und acht Ebenen unter der Receiver-Wurzel. Schriftvorgaben und Revision
-gelten gemeinsam für die Sammlung. Eine leere Sammlung ist zulässig.
+Knoten und acht Ebenen unter der Receiver-Wurzel. Die Revision und die für ältere
+Receiver beibehaltenen `display`-Felder gelten gemeinsam für die Sammlung.
+Aktuelle Receiver verwenden ihre eigenen lokalen Schriftoptionen für alle
+angezeigten Menüs. Eine leere Sammlung ist zulässig.
 
 PUT `/configuration` erhöht die Revision unter derselben Sperre wie Aktionen und
 liefert die gespeicherte Sammlung. Eine veraltete Revision ergibt HTTP 409
