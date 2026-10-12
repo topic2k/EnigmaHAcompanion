@@ -27,6 +27,7 @@ class Appearance:
         self.profile = self.definition.id
         self.scale = min(desktop.width() / 1280.0, desktop.height() / 720.0)
         self.font = skin_font(self.definition.font_family)
+        self.list_font = None
         for name, source in (("width", "width"), ("height", "height"), ("margin", "margin"),
                              ("header", "header"), ("footer", "footer_height"), ("status", "status")):
             setattr(self, name, self.px(getattr(self.definition, source)))
@@ -40,7 +41,26 @@ class Appearance:
         return max(1, int(value * self.scale))
 
     def menu_font(self, family, size):
-        return self.definition.menu_font(self, family, size)
+        # Profile and external skin defaults apply independently to each auto
+        # choice. Explicit receiver choices always take precedence.
+        face, pixels, row_height = self.definition.menu_font(self, self.font, 28)
+        if self.list_font is not None:
+            face, pixels = self.list_font
+            row_height = int(pixels * 1.5)
+        if family:
+            face = skin_font(family)
+        if size:
+            pixels = max(16, self.px(size))
+            row_height = int(pixels * 1.5)
+        return face, pixels, row_height
+
+    def apply_list_skin(self, attributes, scale):
+        self.list_font = None
+        for name, value in attributes:
+            if name == "font":
+                from skin import parseFont
+                font = parseFont(value, scale)
+                self.list_font = (font.family, font.pointSize)
 
     def screen_names(self, setup=False):
         name = "EnigmaHASetup" if setup else "EnigmaHACompanion"

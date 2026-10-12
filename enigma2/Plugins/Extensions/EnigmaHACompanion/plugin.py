@@ -96,6 +96,8 @@ class CompanionScreen(Screen):
         if instance is not None:
             size = instance.size()
             self.list_width, self.list_height = size.width(), size.height()
+        self.appearance.apply_list_skin(getattr(self["list"], "skinAttributes", None) or [],
+                                        getattr(self, "scale", ((1, 1), (1, 1))))
         self.render()
 
     def start(self):
@@ -205,12 +207,7 @@ class CompanionScreen(Screen):
             self.offer_restart(result["installed_update"])
             return
         menu, states = result
-        overrides = {}
-        if self.config["font_family"]:
-            overrides["font_family"] = self.config["font_family"]
-        if self.config["font_size"]:
-            overrides["font_size"] = self.config["font_size"]
-        new_nav = Navigator(menu, overrides, language=self.appearance.language)
+        new_nav = Navigator(menu, language=self.appearance.language)
         # Preserve menu path and selected entry by ID across edits and refreshes.
         if self.nav:
             old = self.nav
@@ -410,7 +407,7 @@ class CompanionScreen(Screen):
             self["heading"].setText("Home Assistant")
             return
         face, font_size, self.row_height = self.appearance.menu_font(
-            self.nav.display["font_family"], self.nav.display["font_size"])
+            self.config["font_family"], self.config["font_size"])
         self["list"].l.setFont(0, gFont(face, font_size))
         self["list"].l.setItemHeight(self.row_height)
         instance = getattr(self["list"], "instance", None)

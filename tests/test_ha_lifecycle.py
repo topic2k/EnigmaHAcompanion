@@ -139,17 +139,15 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(entry.options, {"future_option": "preserved"})
             self.assertEqual(form["data_schema"][("language", "de")]["options"], ["de", "en", "auto"])
             self.assertEqual(form["data_schema"][("language", "de")]["translation_key"], "language")
-            fonts = form["data_schema"][("font_family", "MySkinFont")]
-            self.assertIn("MySkinFont", fonts["options"])
-            sizes = form["data_schema"][("font_size", "31")]["options"]
-            self.assertEqual((sizes[0], sizes[-1]), ("16", "64"))
+            self.assertEqual(len(form["data_schema"]), 1)
             for language in ("auto", "en", "de"):
                 result = await options.async_step_init({"language": language})
                 self.assertEqual(result, {"type": "create_entry", "title": "", "data": {
                     "language": language, "future_option": "preserved"}})
                 entry.options = result["data"]
                 self.assertIn(("language", language), (await options.async_step_init())["data_schema"])
-                runtime.async_set_display.assert_awaited_with({"font_family": "MySkinFont", "font_size": 31})
+                runtime.async_set_display.assert_not_awaited()
+                self.assertEqual(runtime.menu["display"], {"font_family": "MySkinFont", "font_size": 31})
             for invalid in ("fr", "", None, [], {}):
                 with self.subTest(language=invalid):
                     result = await options.async_step_init({"language": invalid})
@@ -161,17 +159,11 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             # Newly created entries retain auto when their options are opened.
             entry.options = created["options"]
             self.assertIn(("language", "auto"), (await options.async_step_init())["data_schema"])
-            runtime.async_set_display.reset_mock()
-            for key, values in {"font_size": ["", "15", "65", "31.5", None, True],
-                                "font_family": ["", "unlisted font", None, []]}.items():
-                for value in values:
-                    result = await options.async_step_init({"language": "auto", key: value})
-                    self.assertEqual(result["errors"], {key: "invalid_" + key})
-            runtime.async_set_display.assert_not_awaited()
-            self.assertEqual((await options.async_step_init({"language": "en", "font_family": "Fixed", "font_size": "36"}))["type"], "create_entry")
-            runtime.async_set_display.assert_awaited_once_with({"font_family": "Fixed", "font_size": 36})
+            # A stale form must not change the retained legacy display data or
+            # write menu storage when saving the editor language.
             runtime.async_set_display.side_effect = OSError("disk full")
             result = await options.async_step_init({"language": "en", "font_family": "Fixed", "font_size": "36"})
-            self.assertEqual(result["errors"], {"base": "storage_failed"})
+            self.assertEqual(result["data"], {"language": "en"})
+            runtime.async_set_display.assert_not_awaited()
             runtime.active = False
             self.assertEqual(await options.async_step_init(), {"type": "abort", "reason": "integration_unavailable"})

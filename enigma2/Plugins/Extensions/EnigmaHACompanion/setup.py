@@ -27,7 +27,7 @@ class CompanionSetup(Screen, ConfigListScreen):
             self[name] = Label(text)
         self.skinName = self.appearance.screen_names(setup=True)
         families = sorted(set(getFontFaces()) | {"Regular"})
-        font_choices = [("", self.t("Aus HA übernehmen"))] + [(name, name) for name in families]
+        font_choices = [("", self.t("Auto (Skin-/Receiver-Standard)"))] + [(name, name) for name in families]
         if values["font_family"] and values["font_family"] not in families:
             # Keep an existing preference when the active skin no longer has it.
             font_choices.append((values["font_family"], self.t("{name} (Ersatz: Regular)", name=values["font_family"])))
@@ -35,7 +35,7 @@ class CompanionSetup(Screen, ConfigListScreen):
             "language": [(value, self.t(label)) for value, label in LANGUAGE_CHOICES],
             "skin_profile": profile_choices(self.language),
             "font_family": font_choices,
-            "font_size": [("0", self.t("Aus HA übernehmen"))] + [(str(size), str(size)) for size in range(16, 65)],
+            "font_size": [("0", self.t("Auto (Skin-/Receiver-Standard)"))] + [(str(size), str(size)) for size in range(16, 65)],
         }
         self.fields = {
             "language": ConfigSelection(choices=self.selection_choices["language"], default=values["language"]),
@@ -56,8 +56,8 @@ class CompanionSetup(Screen, ConfigListScreen):
                   ("token", "Langlebiger HA-Zugriffstoken"),
                   ("refresh_seconds", "Aktualisierung in Sekunden"),
                   ("skin_profile", "Skin-Profil (ab nächstem Öffnen)"),
-                  ("font_family", "Schriftfamilie (Standard-Profil)"),
-                  ("font_size", "Schriftgröße (Standard-Profil)"),
+                  ("font_family", "Schriftfamilie"),
+                  ("font_size", "Schriftgröße"),
                   ("timeout", "Verbindungszeitlimit in Sekunden"),
                   ("show_in_mainmenu", "Im Hauptmenü anzeigen"),
                   ("reverse_channel_paging", "Ch+/− umkehren (Nein: + aufwärts / − abwärts)")]

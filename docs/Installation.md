@@ -88,9 +88,8 @@ Sprache im HA-Benutzerprofil.
    Die Filter für Entitätstyp, Bereich und Geräteklasse grenzen die Auswahl ein.
 3. Anzeigenamen bearbeiten und die Reihenfolge mit dem Ziehgriff oder ↑/↓ ändern.
    Beim Ziehen an den Listenrand scrollt die Liste automatisch.
-4. Schriftfamilie und Schriftgröße bei Bedarf unter **Einstellungen → Geräte &
-   Dienste → EnigmaHA Companion → Optionen** wählen. Menütitel lassen sich direkt
-   in der Menüübersicht bearbeiten.
+4. Menütitel direkt in der Menüübersicht bearbeiten. Schriftfamilie und
+   Schriftgröße werden ausschließlich am jeweiligen Receiver eingestellt.
 5. **Speichern** wählen.
 
 Lampen, Schalter und `input_boolean` werden automatisch als schaltbar eingerichtet.
@@ -298,8 +297,8 @@ bleiben erhalten; ältere Konfigurationsdateien ohne `language` verwenden weiter
 | Token | Vollständiger langlebiger HA-Zugriffstoken |
 | Aktualisierung | Abrufintervall bei geöffnetem Plugin; Standard 10 Sekunden |
 | Skin-Profil | **Automatisch**, **Standard (aktiver Skin)** oder **GradientFHD**; Standard automatisch |
-| Schriftfamilie | Auf dem Receiver registrierte Schrift oder **Aus HA übernehmen** |
-| Schriftgröße | Lokaler Wert von 16 bis 64 oder **Aus HA übernehmen** |
+| Schriftfamilie | Auf dem Receiver registrierte Schrift oder **Auto (Skin-/Receiver-Standard)** |
+| Schriftgröße | Lokaler Wert von 16 bis 64 oder **Auto (Skin-/Receiver-Standard)** |
 | Verbindungszeitlimit | Standard 5 Sekunden |
 | Im Hauptmenü anzeigen | Direkter Einstieg im Enigma2-Hauptmenü; Standard aus |
 | Ch+/− umkehren | Richtung des seitenweisen Blätterns tauschen; Standard aus |
@@ -314,9 +313,11 @@ erkennt den aktiven Skin und verwendet bei unbekannten Skins das Standardprofil.
 Eine manuelle Auswahl überschreibt die Erkennung und etwaige vom Skin bereitgestellte
 Plugin-Screens. Sie ändert nur die Plugin-Darstellung. Keine Neueinrichtung nötig.
 
-Im Standardprofil überschreiben lokale Schriftoptionen die HA-Vorgaben. Bei einem
-automatisch oder manuell gewählten Profil wie GradientFHD hat dessen Schrift Vorrang. Eine fehlende Schrift
-wird durch `Regular` ersetzt.
+**Auto** verwendet für Schriftfamilie und Schriftgröße jeweils die Vorgabe des
+Skins beziehungsweise des Receiver-Profils. Eine fest gewählte Schrift oder Größe
+hat in allen Profilen Vorrang, auch bei GradientFHD. Feste Größen werden wie bisher
+von der Referenzauflösung 1280 × 720 auf die Desktopauflösung skaliert; die Zeilenhöhe
+passt sich an. Eine fehlende Schrift wird durch `Regular` ersetzt.
 
 ### Token per Datei eintragen
 
@@ -339,7 +340,11 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
 }
 ```
 
-Leere Schriftfamilie und Schriftgröße `0` bedeuten **Aus HA übernehmen**.
+Leere Schriftfamilie und Schriftgröße `0` bedeuten **Auto (Skin-/Receiver-Standard)**.
+Bestehende Receiver-Einstellungen bleiben erhalten. Bisherige HA-Schriftwerte
+bleiben für ältere Receiver gespeichert; aktualisierte Receiver verwenden sie
+nicht mehr. Eine Migration oder Neueinrichtung ist nicht erforderlich. Falls du
+die bisher in HA gewählte Schrift weiterverwenden möchtest, wähle sie am Receiver.
 `language` akzeptiert `de` (Deutsch), `en` (English) und `auto`
 (Standard bei neuen Installationen, OpenATV-Systemsprache; Deutsch als Rückfall
 für nicht unterstützte Sprachen). Fehlt der Wert in einer vorhandenen Datei,

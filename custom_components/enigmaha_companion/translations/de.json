@@ -15,25 +15,14 @@
     "step": {
       "init": {
         "title": "EnigmaHA Companion",
-        "description": "Wähle die Sprache des Menüeditors und die gemeinsame Schrift für alle Receiver-Menüs. Automatisch folgt der HA-Profilsprache, ersatzweise dem Browser. Menütitel bearbeitest du in der Menüübersicht. Die Sprache am Receiver stellst du im Receiver-Plugin ein.",
+        "description": "Wähle die Sprache des Menüeditors. Automatisch folgt der HA-Profilsprache, ersatzweise dem Browser. Menütitel bearbeitest du in der Menüübersicht. Sprache, Schriftfamilie und Schriftgröße am Receiver stellst du im Receiver-Plugin ein.",
         "data": {
-          "language": "Sprache des Menüeditors",
-          "font_family": "Schriftfamilie auf dem Receiver",
-          "font_size": "Schriftgröße auf dem Receiver"
-        },
-        "data_description": {
-          "font_family": "Verfügbarkeit abhängig vom Receiver-Skin. Ersatzschrift: Regular.",
-          "font_size": "Gilt für alle Menüs. Kann in den Receiver-Einstellungen überschrieben werden."
+          "language": "Sprache des Menüeditors"
         }
       }
     },
     "error": {
-      "invalid_language": "Wähle Deutsch, English oder Automatisch.",
-      "invalid_font_family": "Wähle eine der angebotenen Schriftfamilien.",
-      "invalid_font_size": "Wähle eine ganze Schriftgröße zwischen 16 und 64.",
-      "storage_failed": "Die Darstellung konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
-      "revision_limit": "Die Menürevision hat ihr Limit erreicht. Die Darstellung wurde nicht geändert.",
-      "integration_unavailable": "Die Integration ist nicht geladen. Lade sie und öffne die Optionen erneut."
+      "invalid_language": "Wähle Deutsch, English oder Automatisch."
     },
     "abort": {
       "integration_unavailable": "Die Integration ist nicht geladen. Lade sie und öffne die Optionen erneut."
@@ -45,20 +34,6 @@
         "de": "Deutsch",
         "en": "English",
         "auto": "Automatisch"
-      }
-    },
-    "font_family": {
-      "options": {
-        "Regular": "Regular (Standard)",
-        "Fixed": "Fixed (feste Zeichenbreite)",
-        "Console": "Console",
-        "Italic": "Italic (Skin-Schrift)",
-        "Gradient_Font": "Gradient_Font (GradientFHD)"
-      }
-    },
-    "font_size": {
-      "options": {
-        "28": "28 (Standard)"
       }
     }
   },

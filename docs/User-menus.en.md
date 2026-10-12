@@ -14,9 +14,9 @@ individual entries can be shared with selected HA users.
 2. Reorder menus using the drag handle or arrow icons. The pencil opens the menu's
    entries. **Back to menu management** returns to the overview; changes remain in the draft
    until saved.
-3. Edit the title directly in the menu list. Choose the font family and size under
-   **Settings → Devices & services → EnigmaHA Companion → Options**; they apply to
-   all menus. Existing font settings are retained. No reconfiguration is needed.
+3. Edit the title directly in the menu list. Choose the font family and size only
+   on each receiver under **Menu/Blue → Settings**. **Auto** uses the skin/receiver
+   default; fixed choices take precedence. No reconfiguration is needed.
 4. Open the user icon above the menu entries. For entries and submenus, the user
    icon (`mdi:account-edit`) immediately before the delete icon opens the same
    dialog. Choose the **Access** rule there:

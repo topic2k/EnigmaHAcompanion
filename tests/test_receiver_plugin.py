@@ -233,7 +233,7 @@ class ReceiverTests(unittest.TestCase):
             self.assertEqual(setup.close_result, saved)
             reopened = PLUGIN.CompanionSetup(self.screen.session, saved)
             self.assertEqual(reopened["config"].getCurrent()[0], "Language (from next opening)")
-            self.assertEqual(reopened.selection_choices["font_family"][0], ("", "Use HA setting"))
+            self.assertEqual(reopened.selection_choices["font_family"][0], ("", "Auto (skin/receiver default)"))
             self.assertEqual(reopened.fields["show_in_mainmenu"].descriptions, {False: "No", True: "Yes"})
             self.assertIn("Green: Save", reopened["hint"].text)
             def fail_save(data):
@@ -361,14 +361,14 @@ class ReceiverTests(unittest.TestCase):
         self.assertIsInstance(setup.fields["font_size"], ConfigSelection)
         self.assertNotIsInstance(setup.fields["font_family"], ConfigText)
         self.assertEqual(setup.selection_choices["font_family"], [
-            ("", "Aus HA übernehmen"), ("Italic", "Italic"), ("Regular", "Regular"),
+            ("", "Auto (Skin-/Receiver-Standard)"), ("Italic", "Italic"), ("Regular", "Regular"),
             ("SkinFont", "SkinFont"), ("OldFont", "OldFont (Ersatz: Regular)")])
         self.assertEqual(setup.fields["font_family"].value, "OldFont")
         self.assertEqual(setup.fields["font_size"].value, "31")
         self.assertEqual([value for value, _ in setup.selection_choices["font_size"]],
                          ["0"] + [str(size) for size in range(16, 65)])
 
-    def test_receiver_font_choice_dialog_cancel_select_save_and_ha_inheritance(self):
+    def test_receiver_font_choice_dialog_cancel_select_save_and_auto(self):
         settings = __import__("eha_receiver_test.settings", fromlist=["save_settings"])
         dialogs = []
         session = types.SimpleNamespace(open=lambda *args, **kwargs: dialogs.append((args, kwargs)),
@@ -447,6 +447,37 @@ class ReceiverTests(unittest.TestCase):
         for row in self.screen["list"].rows:
             for entry in row[1:]:
                 self.assertLessEqual(entry["pos"][0] + entry["size"][0], 850)
+
+    def test_receiver_fonts_ignore_legacy_ha_display_and_apply_local_choices(self):
+        fonts, heights = [], []
+        self.screen["list"].l.setFont = lambda index, font: fonts.append(font)
+        self.screen["list"].l.setItemHeight = heights.append
+        self.menu["display"] = {"font_family": "LegacyHAFont", "font_size": 64}
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.assertEqual(fonts[-1], ("Regular", 28))
+        self.assertEqual(heights[-1], 42)
+        # The skin default is already in desktop pixels; it is not scaled again.
+        parse = types.SimpleNamespace(parseFont=Mock(return_value=types.SimpleNamespace(
+            family="SkinFont", pointSize=37)))
+        self.screen["list"].skinAttributes = [("font", "MenuFont")]
+        with patch.dict(sys.modules, {"skin": parse}):
+            self.screen.layout_finished()
+        parse.parseFont.assert_called_once_with("MenuFont", self.screen.scale)
+        self.assertEqual(fonts[-1], ("SkinFont", 37))
+        self.screen.refresh()
+        self.pending.pop().fire()
+        self.assertEqual(fonts[-1], ("SkinFont", 37))
+        self.screen.config["font_size"] = 32
+        self.screen.render()
+        self.assertEqual(fonts[-1], ("SkinFont", 32))
+        self.assertEqual(heights[-1], 48)
+        self.screen.config["font_family"] = "Regular"
+        self.screen.render()
+        self.assertEqual(fonts[-1], ("Regular", 32))
+        self.screen.config["font_size"] = 0
+        self.screen.render()
+        self.assertEqual(fonts[-1], ("Regular", 37))
+        self.assertEqual(self.menu["display"], {"font_family": "LegacyHAFont", "font_size": 64})
 
     def test_skin_profile_choice_cancel_save_and_next_open(self):
         settings = __import__("eha_receiver_test.settings", fromlist=["save_settings"])

@@ -89,7 +89,7 @@ const ENIGMAHA_EN = {
   "Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.": "Could not load the editor. Reload the HA page and check that you are signed in as an administrator.",
   "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.": "Saved. The receiver menu will update on its next refresh.",
   "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen.": "The menu has changed since it was loaded. Reload it and apply your changes again.",
-  "Speichern fehlgeschlagen. Namen, Schriftgröße und Menüstruktur prüfen; Änderungen bleiben hier erhalten.": "Could not save. Check names, font size and menu structure; your changes are kept here.",
+  "Speichern fehlgeschlagen. Namen und Menüstruktur prüfen; Änderungen bleiben hier erhalten.": "Could not save. Check names and menu structure; your changes are kept here.",
   "Auswahl filtern ({count} aktiv)": "Filter selection ({count} active)",
   "Auswahl filtern": "Filter selection",
   "Licht": "Light",
@@ -888,7 +888,7 @@ class EnigmaHAPanel extends HTMLElement {
     } catch (error) {
       this.notify(Number(error.status_code || error.status) === 409
         ? "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen."
-        : "Speichern fehlgeschlagen. Namen, Schriftgröße und Menüstruktur prüfen; Änderungen bleiben hier erhalten.");
+        : "Speichern fehlgeschlagen. Namen und Menüstruktur prüfen; Änderungen bleiben hier erhalten.");
     } finally { this.loading = false; this.render(); }
   }
 

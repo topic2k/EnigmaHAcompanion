@@ -98,9 +98,11 @@ of the still-running HA process. Repair issues clear only after observed complet
 - `revision`: positive integer up to 2147483647. HA increments it on each saved
   change and persists it; restarting does not reset it.
 - `display`: `font_family` (1–64 characters) and `font_size` (16–64). Size is in
-  pixels at a reference height of 720. The renderer scales it to the receiver
-  display and falls back to `Regular`. Skin profiles may supply their own fonts;
-  the portable core validates values and applies local overrides.
+  pixels at a reference height of 720 for older renderers, which scale it to the
+  display and fall back to `Regular`. These fields remain for compatibility with
+  older receivers. Current receivers still validate the document but render using
+  local font settings only: auto follows the skin or receiver profile, while
+  explicit choices take precedence.
 - `root`: menu with `type`, `id`, `label` and `children`.
 - Entity entry: `type: entity`, `id`, `label`, `entity_id` and `actions`.
 - `children` defines ordering and may mix menus and entities.

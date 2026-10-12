@@ -16,9 +16,9 @@ lassen sich für HA-Benutzer freigeben.
    Das Stiftsymbol öffnet die Menüeinträge. **Zur Menüverwaltung** führt zurück;
    Änderungen bleiben bis zum Speichern im Entwurf erhalten.
 3. Den Titel direkt in der Menüliste ändern. Schriftfamilie und Schriftgröße
-   unter **Einstellungen → Geräte & Dienste → EnigmaHA Companion → Optionen**
-   wählen; sie gelten gemeinsam für alle Menüs. Vorhandene Schriftwerte werden
-   übernommen. Eine Neueinrichtung ist nicht nötig.
+   ausschließlich am jeweiligen Receiver unter **Menü/Blau → Einstellungen**
+   wählen. **Auto** verwendet den Skin-/Receiver-Standard; feste Werte haben
+   Vorrang. Eine Neueinrichtung ist nicht nötig.
 4. Das Benutzer-Symbol oberhalb der Menüeinträge öffnen. Bei Menüeinträgen und
    Untermenüs öffnet das Benutzer-Symbol (`mdi:account-edit`) direkt vor dem
    Löschen-Symbol denselben Dialog. Dort die **Freigabe** wählen:

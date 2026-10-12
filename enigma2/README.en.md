@@ -41,10 +41,14 @@ title gradient and blue selection. It uses available skin colors, fonts and key
 images. Gradients and rounded corners depend on the available Enigma2 APIs;
 otherwise simple color surfaces are used.
 
-Profile fonts take precedence over HA and local font choices. GradientFHD uses
-`Gradient_Font` at 42 pixels with 60-pixel rows at Full HD. Missing fonts fall
-back to `Regular`. The standard profile uses local overrides or HA settings.
-Saved font preferences are retained when switching profiles.
+Font family and size are configured only on the receiver. **Auto (skin/receiver
+default)** uses the skin or profile default for each setting. GradientFHD defaults
+to `Gradient_Font` at 42 pixels with 60-pixel rows at Full HD. Explicit families
+and sizes take precedence in every profile; fixed sizes retain scaling from
+1280 × 720 to the desktop resolution. Missing fonts fall back to `Regular`.
+An empty family and size `0` remain the stored auto values. Existing local
+preferences are retained; updated receivers ignore HA font settings.
+No reconfiguration is required.
 
 The footer loads color-key, OK, Menu and Exit images from
 `/usr/share/enigma2/GradientFHD/buttons/`, plus Left/Right in settings. Missing
@@ -63,6 +67,8 @@ layouts with reserved names `EnigmaHACompanionBuiltin` and `EnigmaHASetupBuiltin
 | `EnigmaHASetup` | `config`, `hint`, hidden `HelpWindow` anchor |
 
 After layout, actual list geometry determines columns and page navigation.
+The `list` widget's `font` attribute supplies the auto family and size;
+explicit receiver settings override each independently.
 
 ### Add a profile
 
@@ -103,7 +109,8 @@ folder. Translate descriptive profile labels through `companion/i18n.py`.
 
 Dimensions use the 1280 × 720 reference; `Appearance.px()` scales them. Profile hooks:
 
-- `menu_font(appearance, family, size)` returns font, size and row height.
+- `menu_font(appearance, family, size)` returns profile defaults for font, size
+  and row height. `Appearance` then applies explicit receiver choices.
 - `decorate(appearance, root, element, label_attrs, list_attrs)` adds backgrounds
   and updates label/list attributes.
 - `footer(appearance, element, label_attrs, setup)` builds the footer and must

@@ -15,25 +15,14 @@
     "step": {
       "init": {
         "title": "EnigmaHA Companion",
-        "description": "Choose the menu editor language and the shared font for all receiver menus. Automatic follows the HA profile language, falling back to the browser. Edit menu titles in the menu overview. Set the receiver language in the receiver plugin.",
+        "description": "Choose the menu editor language. Automatic follows the HA profile language, falling back to the browser. Edit menu titles in the menu overview. Set the receiver language, font family and font size in the receiver plugin.",
         "data": {
-          "language": "Menu editor language",
-          "font_family": "Receiver font family",
-          "font_size": "Receiver font size"
-        },
-        "data_description": {
-          "font_family": "Availability depends on the receiver skin. Fallback font: Regular.",
-          "font_size": "Applies to all menus. Can be overridden in the receiver settings."
+          "language": "Menu editor language"
         }
       }
     },
     "error": {
-      "invalid_language": "Choose Deutsch, English or Automatic.",
-      "invalid_font_family": "Choose one of the offered font families.",
-      "invalid_font_size": "Choose a whole font size between 16 and 64.",
-      "storage_failed": "Could not save the appearance. Check free space and file permissions.",
-      "revision_limit": "The menu revision has reached its limit. The appearance was not changed.",
-      "integration_unavailable": "The integration is not loaded. Load it and reopen the options."
+      "invalid_language": "Choose Deutsch, English or Automatic."
     },
     "abort": {
       "integration_unavailable": "The integration is not loaded. Load it and reopen the options."
@@ -45,20 +34,6 @@
         "de": "Deutsch",
         "en": "English",
         "auto": "Automatic"
-      }
-    },
-    "font_family": {
-      "options": {
-        "Regular": "Regular (default)",
-        "Fixed": "Fixed (monospaced)",
-        "Console": "Console",
-        "Italic": "Italic (skin font)",
-        "Gradient_Font": "Gradient_Font (GradientFHD)"
-      }
-    },
-    "font_size": {
-      "options": {
-        "28": "28 (default)"
       }
     }
   },

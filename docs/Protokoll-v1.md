@@ -105,9 +105,11 @@ Die maßgebliche Validierung liegt in `protocol/enigmaha_protocol/menu.py`.
   Änderung und speichert sie dauerhaft mit dem Menü. Kein Zurücksetzen bei Neustart.
 - `display`: `font_family` (1–64 Zeichen) und `font_size` (16–64).
   Die Größe entspricht Pixeln bei einer Referenzhöhe von 720 Pixeln. Der
-  Receiver-Renderer skaliert mit seiner Höhe und verwendet bei fehlender Schrift
-  `Regular`. Ein Skin-Profil kann eigene Schriftvorgaben setzen; der portable Kern
-  prüft Werte und verarbeitet lokale Überschreibungen.
+  bisherige Receiver-Renderer skaliert mit seiner Höhe und verwendet bei fehlender
+  Schrift `Regular`. Diese Felder bleiben zur Kompatibilität mit älteren Receivern
+  erhalten. Aktuelle Receiver prüfen das Dokument weiterhin, verwenden für die
+  Darstellung aber ausschließlich lokale Schriftoptionen: Auto folgt dem Skin
+  beziehungsweise Receiver-Profil, feste Werte haben Vorrang.
 - `root`: Menü mit `type`, `id`, `label` und `children`.
 - Entitätseintrag: `type: entity`, `id`, `label`, `entity_id`, `actions`.
 - `children` bestimmt die Reihenfolge; Menü- und Entitätseinträge dürfen gemischt sein.

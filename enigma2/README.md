@@ -51,11 +51,15 @@ Vorhandene Skin-Farben, Schriften und Tastengrafiken werden direkt verwendet.
 Verläufe und Rundungen werden bei vorhandenen Enigma2-APIs aktiviert,
 andernfalls kommen einfache Farbflächen zum Einsatz.
 
-Bei einem automatisch oder manuell gewählten Skin-Profil hat dessen Schrift Vorrang vor HA und
-lokalen Schriftoptionen. GradientFHD verwendet `Gradient_Font` mit 42 Pixeln
-und 60 Pixeln Zeilenhöhe bei Full HD. Fehlende Schriften fallen auf `Regular`
-zurück. Im Standardprofil gelten die lokalen Schriftoptionen beziehungsweise
-die HA-Vorgaben. Gespeicherte Schriftoptionen bleiben dabei unverändert.
+Schriftfamilie und Schriftgröße werden ausschließlich am Receiver eingestellt.
+**Auto (Skin-/Receiver-Standard)** verwendet jeweils die Skin- beziehungsweise
+Profilvorgabe. GradientFHD verwendet dabei `Gradient_Font` mit 42 Pixeln
+und 60 Pixeln Zeilenhöhe bei Full HD. Feste Schriftfamilien und Größen haben in
+allen Profilen Vorrang; feste Größen behalten die Skalierung von 1280 × 720 auf
+die Desktopauflösung. Fehlende Schriften fallen auf `Regular` zurück.
+Leere Schriftfamilie und Größe `0` bleiben die gespeicherten Auto-Werte.
+Vorhandene lokale Einstellungen bleiben erhalten; HA-Schriftwerte werden vom
+aktualisierten Receiver ignoriert. Eine Neueinrichtung ist nicht nötig.
 
 Die Tastenleiste lädt die farbigen Pfeile und Symbole für OK, Menü und Exit aus
 `/usr/share/enigma2/GradientFHD/buttons/`, in den Einstellungen zusätzlich
@@ -75,7 +79,8 @@ Eine manuelle Profilauswahl verwendet das eingebaute Layout. Die Screen-Namen
 | `EnigmaHASetup` | `config`, `hint`, versteckter `HelpWindow`-Anker |
 
 Nach dem Layout wird die tatsächliche Listengröße für Textspalten und
-seitenweises Blättern übernommen.
+seitenweises Blättern übernommen. Das `font`-Attribut des Widgets `list` liefert
+bei Auto Schriftfamilie und Größe; feste Receiver-Werte überschreiben sie einzeln.
 
 ### Weitere Profile ergänzen
 
@@ -120,7 +125,8 @@ die Erkennung ignoriert Groß-/Kleinschreibung und vergleicht keine Teilnamen.
 Maße sind in der Referenzauflösung 1280 × 720 angegeben. `Appearance.px()`
 skaliert sie. Für weitere Anpassungen gibt es drei Methoden:
 
-- `menu_font(appearance, family, size)` liefert Schrift, Pixelgröße und Zeilenhöhe.
+- `menu_font(appearance, family, size)` liefert die Profilvorgaben für Schrift,
+  Pixelgröße und Zeilenhöhe. `Appearance` wendet danach feste Receiver-Werte an.
 - `decorate(appearance, root, element, label_attrs, list_attrs)` ergänzt Hintergründe
   und passt XML-Attribute für Beschriftungen und Listen an.
 - `footer(appearance, element, label_attrs, setup)` baut die Tastenleiste und muss

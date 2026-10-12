@@ -166,11 +166,31 @@ class AppearanceTests(unittest.TestCase):
             sys.modules["enigma"].getFontFaces = lambda: ["Regular"]
             self.assertEqual(self.layout().font, "Regular")
 
-    def test_supported_skin_font_and_size_override_ha_and_local_choices(self):
+    def test_auto_uses_profile_defaults_and_local_choices_override_each_setting(self):
         with self.environment():
-            self.assertEqual(self.layout().menu_font("SomeOtherFont", 64), ("Gradient_Font", 42, 60))
+            appearance = self.layout()
+            self.assertEqual(appearance.menu_font("", 0), ("Gradient_Font", 42, 60))
+            self.assertEqual(appearance.menu_font("Italic", 0), ("Italic", 42, 60))
+            self.assertEqual(appearance.menu_font("", 64), ("Gradient_Font", 96, 144))
+            self.assertEqual(appearance.menu_font("Italic", 32), ("Italic", 48, 72))
+            self.assertEqual(appearance.menu_font("Missing", 32), ("Regular", 48, 72))
         with self.environment("Other/skin.xml"):
+            self.assertEqual(self.layout().menu_font("", 0), ("Regular", 42, 63))
             self.assertEqual(self.layout().menu_font("Italic", 32), ("Italic", 48, 72))
+
+    def test_external_skin_font_is_default_and_explicit_choices_take_precedence(self):
+        with self.environment():
+            appearance = self.layout()
+            parse = types.SimpleNamespace(parseFont=lambda value, scale:
+                types.SimpleNamespace(family="Italic", pointSize=37))
+            with patch.dict(sys.modules, {"skin": parse}):
+                appearance.apply_list_skin([("font", "MenuFont")], ((1, 1), (1, 1)))
+            self.assertEqual(appearance.menu_font("", 0), ("Italic", 37, 55))
+            self.assertEqual(appearance.menu_font("Regular", 0), ("Regular", 37, 55))
+            self.assertEqual(appearance.menu_font("", 32), ("Italic", 48, 72))
+            self.assertEqual(appearance.menu_font("Regular", 32), ("Regular", 48, 72))
+            appearance.apply_list_skin([], ((1, 1), (1, 1)))
+            self.assertEqual(appearance.menu_font("", 0), ("Gradient_Font", 42, 60))
 
     def test_gradient_buttons_use_installed_assets_for_their_actions(self):
         with self.environment(), patch.object(GRADIENT.os.path, "isfile", return_value=True):

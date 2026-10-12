@@ -84,8 +84,8 @@ native selectors follow your HA profile language.
    type, area or device class to narrow the selection.
 3. Edit display names and reorder entries with the drag handle or up/down arrows.
    Drag near the list's edge to scroll automatically.
-4. Choose the font family and size under **Settings → Devices & services → EnigmaHA
-   Companion → Options** as needed. Edit menu titles directly in the menu overview.
+4. Edit menu titles directly in the menu overview. Set the font family and size
+   only on each receiver.
 5. Choose **Save**.
 
 Lights, switches and `input_boolean` helpers are configured as toggleable.
@@ -273,8 +273,8 @@ older configuration files without `language` keep German. Choose **English** und
 | Long-lived HA access token | The complete token |
 | Refresh interval | Interval while the plugin is open; default 10 seconds |
 | Skin profile | **Automatic**, **Standard (active skin)**, or **GradientFHD**; automatic by default |
-| Font family | A registered receiver font or **Use HA setting** |
-| Font size | A local value from 16 to 64 or **Use HA setting** |
+| Font family | A registered receiver font or **Auto (skin/receiver default)** |
+| Font size | A local value from 16 to 64 or **Auto (skin/receiver default)** |
 | Connection timeout | Default 5 seconds |
 | Show in main menu | Direct entry in the Enigma2 main menu; off by default |
 | Reverse Ch+/− | Reverse page navigation; off by default |
@@ -288,8 +288,10 @@ Language and skin profile changes apply when the plugin is reopened.
 skins. A manual profile overrides detection and skin-provided plugin screens;
 it changes only the plugin's appearance.
 
-In the standard profile, local font choices override HA settings. Profiles such
-as GradientFHD use their own font settings. Missing fonts fall back to `Regular`.
+**Auto** uses the skin or receiver profile default for each font setting.
+Explicit font families and sizes take precedence in every profile, including
+GradientFHD. Fixed sizes retain their scaling from the 1280 × 720 reference to
+the desktop resolution; row height adjusts accordingly. Missing fonts fall back to `Regular`.
 OpenATV system dialogs and fixed text in external skins follow their own language.
 
 ### Enter the token through a file
@@ -315,7 +317,10 @@ You can use an editor or SFTP for a long token. Close the plugin before editing
 `language` accepts `de` (German), `en` (English) and `auto` (default for new installations,
 OpenATV system language, falling back to German for unsupported languages). An existing
 file without this value keeps German. No migration or reconfiguration is required. An empty font
-family and font size `0` mean **Use HA setting**. `skin_profile` accepts `auto`,
+family and font size `0` mean **Auto (skin/receiver default)**. Existing receiver
+settings are retained. Previous HA font settings remain stored for older receivers;
+updated receivers ignore them. To keep a font previously selected in HA, select
+it on the receiver. `skin_profile` accepts `auto`,
 `native` and `gradient`. If you create the file manually, set its permissions
 with `chmod 600 /etc/enigma2/enigmaha_companion.json`; the plugin saves it with
 these permissions itself.
