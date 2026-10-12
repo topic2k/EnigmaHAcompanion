@@ -1,4 +1,4 @@
-# EnigmaHA Companion
+# EnigmaHA Companion [^1]
 
 **Deutsch** · [English](README.en.md)
 
@@ -111,3 +111,6 @@ enthalten zusätzlich die Apache-Lizenz und Herkunftshinweise unter `brand/`.
 [Entwicklung und Tests](docs/Entwicklung.md) ·
 [Protokoll](docs/Protokoll-v1.md) ·
 [Pakete und Releases](docs/Releases.md)
+
+ [^1]: Mit Unterstützung generativer KI entwickelt.
+ 
