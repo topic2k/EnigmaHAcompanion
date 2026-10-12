@@ -118,7 +118,7 @@ enthalten zusätzlich die Apache-Lizenz und Herkunftshinweise unter `brand/`.
 
 #### English
 
-# EnigmaHA Companion [^1]
+# EnigmaHA Companion [^2]
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="custom_components/enigmaha_companion/brand/dark_logo@2x.png">
@@ -210,4 +210,4 @@ installation without HACS, all settings, remote keys and troubleshooting.
 [Packages and releases](docs/Releases.en.md) ·
 [Receiver skins](enigma2/README.en.md)
 
-[^1]: Developed with assistance from generative AI.
+[^2]: Developed with assistance from generative AI.
