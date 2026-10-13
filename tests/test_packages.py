@@ -154,7 +154,7 @@ class PackageTests(unittest.TestCase):
             prefix = "usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion/"
             for filename in ("plugin.py", "setup.py", "keymap.xml", "settings.py", "state_icons.py",
                              "skin/__init__.py", "skin/base.py",
-                             "skin/native/__init__.py", "skin/GradientFHD/__init__.py",
+                             "skin/native/__init__.py", "skin/GradientFHD/__init__.py", "skin/GradientFHD/buttons/key_recall.png",
                              "companion/client.py", "companion/updater.py", "companion/i18n.py",
                              "enigmaha_protocol/releases.py", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)

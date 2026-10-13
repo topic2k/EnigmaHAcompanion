@@ -18,6 +18,7 @@ from .companion.updater import ReceiverUpdater, load_receiver_id
 from .enigmaha_protocol.releases import UpdateError, version_tuple
 from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION, valid_version
 from .companion.navigation import Navigator
+from .companion.position import MenuPosition
 from .companion.i18n import translate
 from .appearance import Appearance
 from .settings import DEFAULTS, load_settings
@@ -25,9 +26,9 @@ from .setup import CompanionSetup
 from .state_icons import StateIcons
 
 _KEYMAP_LOADED = False
-HELP = ("Auf/Ab: Eintrag wählen\nRechts: Untermenü öffnen\nLinks/Exit: zurück; im Hauptmenü schließen\n"
+HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
         "OK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\n"
-        "Gelb: Aktualisieren\n{channel_help}\nRot: sofort schließen\n"
+        "Gelb: Aktualisieren\n{channel_help}\nRot/Exit: Menü komplett schließen\nInfo: Programminformationen\n"
         "Sensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.")
 
 
@@ -56,16 +57,18 @@ class CompanionScreen(Screen):
         self["heading"] = Label("Home Assistant")
         self["list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         self["status"] = Label(self.t("Verbindung wird vorbereitet …"))
-        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden\nMenü/Blau: Einstellungen   Rot: Schließen   Exit: Zurück"))
+        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nMenü/Blau: Einstellungen   Recall: Zurück   Info: Informationen"))
         self["actions"] = ActionMap(["EnigmaHACompanionActions"], {
             "up": lambda: self.move(-1), "down": lambda: self.move(1),
             "channelPlus": lambda: self.move_channel_page(-1),
             "channelMinus": lambda: self.move_channel_page(1),
+            "pageUp": lambda: self.move_page(-1), "pageDown": lambda: self.move_page(1),
             "back": self.back, "open": self.open_menu, "ok": self.activate,
             "settings": self.settings, "refresh": self.refresh, "close": self.close,
-            "help": self.help,
+            "help": self.help, "info": self.information,
         }, -2)
         self.nav = None
+        self.menu_position = MenuPosition()
         self.states = {}
         self.state_icons = StateIcons()
         self.busy = False
@@ -76,6 +79,7 @@ class CompanionScreen(Screen):
         self.updater = ReceiverUpdater()
         self.closed = False
         self.generation = 0
+        self.info_pending = None
         self.row_height = max(28, int(40*self.ui_scale))
         self.timer = eTimer()
         try:
@@ -140,8 +144,6 @@ class CompanionScreen(Screen):
     def back(self):
         if self.nav and self.nav.back():
             self.render()
-        else:
-            self.close()
 
     def open_menu(self):
         if self.nav and self.nav.selection and self.nav.selection["type"] == "menu":
@@ -222,6 +224,8 @@ class CompanionScreen(Screen):
                         if depth + 1 < len(old.stack) and child["type"] == "menu" and child["id"] == old.stack[depth+1][0]:
                             new_nav.stack.append((child["id"], 0))
                         break
+        elif self.config.get("remember_menu_position", True):
+            new_nav.restore_position(self.menu_position.load(self.config))
         self.nav, self.states = new_nav, states
         self.online, self.busy = True, False
         self.peer_notice = None
@@ -399,6 +403,11 @@ class CompanionScreen(Screen):
         if self.update_installing:
             self["status"].setText(self.t("Receiver-Update wird installiert. Bitte warten …"))
             return
+        if not self.closed and self.nav and self.config.get("remember_menu_position", True):
+            try:
+                self.menu_position.save(self.config, self.nav)
+            except OSError:
+                pass  # A storage failure must not prevent Exit/Red from closing.
         Screen.close(self, *args, **kwargs)
 
     def render(self):
@@ -465,6 +474,41 @@ class CompanionScreen(Screen):
                         else "Ch+ aufwärts / − abwärts: seitenweise blättern")
         self.session.open(MessageBox, self.t(HELP, channel_help=self.t(channel_help)),
                           type=MessageBox.TYPE_INFO)
+
+    def information(self):
+        if self.closed or self.info_pending is not None:
+            return
+        if not self.online or not hasattr(self, "client"):
+            self.show_information(None)
+            return
+        generation = self.generation
+        client = self.client
+        self.info_pending = generation
+
+        def done(data):
+            if self.info_pending == generation:
+                self.info_pending = None
+            if not self.closed and generation == self.generation:
+                self.show_information(data)
+
+        # Information must not interrupt refreshes or change menu navigation.
+        deferToThread(client.get_info).addCallbacks(done, lambda failure: done(None))
+
+    def show_information(self, data):
+        unavailable = self.t("Nicht verfügbar")
+        client = getattr(self, "client", None)
+        lines = ["EnigmaHA Companion", self.t("Version auf dem Receiver: {version}", version=VERSION),
+                 self.t("Version in Home Assistant: {version}", version=getattr(client, "peer_version", None) or unavailable),
+                 self.t("Angemeldeter Benutzer: {name}", name=safe_text(data["user_name"]) if data and data["user_name"] else unavailable)]
+        if data:
+            lines.extend(["", self.t("Für diesen Benutzer sichtbare Einträge:"),
+                          self.t("Menüs: {count}", count=data["menus"]),
+                          self.t("Untermenüs: {count}", count=data["submenus"]),
+                          self.t("Entitäten: {count}", count=sum(data[key] for key in
+                                 ("lights", "switches", "sensors", "other_entities")))])
+        else:
+            lines.extend(["", self.t("Benutzer und Menüumfang derzeit nicht abrufbar.")])
+        self.session.open(MessageBox, "\n".join(lines), type=MessageBox.TYPE_INFO)
 
     def cleanup(self):
         self.closed = True

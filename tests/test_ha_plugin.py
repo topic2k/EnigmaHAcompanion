@@ -121,7 +121,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
                 request["hass_user"] = self.users[token]
             return await handler(request)
         app = web.Application(middlewares=[test_auth])
-        for cls in (API.MenuView, API.StatesView, API.ActionsView, API.ConfigView, API.ConfigurationView,
+        for cls in (API.MenuView, API.InfoView, API.StatesView, API.ActionsView, API.ConfigView, API.ConfigurationView,
                     API.UsersView, API.PreviewView, API.CompatibilityView, API.UpdateAdminView, API.ReceiverUpdateView):
             view = cls(self.hass)
             self.assertTrue(view.requires_auth)
@@ -139,6 +139,50 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         await self.session.close()
         await self.runner.cleanup()
 
+    async def test_info_is_available_to_receiver_and_counts_only_visible_entries(self):
+        # Legacy v1 configuration remains supported.
+        async with await self.request("GET", "/info", "receiver") as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(await response.json(), {"user_name": "receiver", "menus": 1,
+                "submenus": 3, "lights": 1, "switches": 1, "sensors": 2, "other_entities": 0})
+        config = API.validate_configuration(self.menu)
+        first = config["menus"][0]
+        first["children"][0]["access"] = {"mode": "users", "users": ["admin-id"]}
+        second = {"type": "menu", "id": "second", "label": "Zweitmenü", "access": {"mode": "all"},
+                  "children": [{"type": "entity", "id": "boolean", "label": "Schalter",
+                                "entity_id": "input_boolean.test", "actions": ["toggle"]},
+                               {"type": "entity", "id": "other", "label": "Weitere",
+                                "entity_id": "climate.test", "actions": []},
+                               {"type": "entity", "id": "duplicate", "label": "Kopie",
+                                "entity_id": "switch.flurlicht", "actions": ["toggle"]}]}
+        config["menus"].append(second)
+        self.runtime.menu = API.validate_configuration(config)
+        async with await self.request("GET", "/info", "receiver") as response:
+            self.assertEqual(await response.json(), {"user_name": "receiver", "menus": 2,
+                "submenus": 1, "lights": 0, "switches": 3, "sensors": 0, "other_entities": 1})
+        # Read permission filters entities even within shared menus.
+        self.users["receiver"].permissions = Permissions(read=False)
+        async with await self.request("GET", "/info", "receiver") as response:
+            data = await response.json()
+            self.assertEqual(data["switches"], 0)
+            self.assertEqual(data["other_entities"], 0)
+        for menu in config["menus"]:
+            menu["access"] = {"mode": "none"}
+        self.runtime.menu = API.validate_configuration(config)
+        async with await self.request("GET", "/info", "receiver") as response:
+            data = await response.json()
+            self.assertEqual(data, dict.fromkeys(data, 0) | {"user_name": "receiver"})
+
+    async def test_info_requires_active_authenticated_user_and_never_lists_other_users(self):
+        for token in ("invalid", "reader", "receiver"):
+            async with await self.request("GET", "/info", token) as response:
+                self.assertEqual(response.status, 401 if token == "invalid" else 200)
+                if token != "invalid":
+                    self.assertEqual((await response.json())["user_name"], token)
+        self.users["receiver"].is_active = False
+        async with await self.request("GET", "/info", "receiver") as response:
+            self.assertEqual(response.status, 401)
+
     async def request(self, method, route, user="admin", body=None, peer_headers=None):
         return await self.session.request(method, self.url + API.BASE + route,
             headers={"Authorization": "Bearer " + user,
@@ -150,7 +194,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
                                 ({}, "unidentified_peer"),
                                 ({COMPONENT_HEADER: "other", VERSION_HEADER: VERSION}, "unidentified_peer"),
                                 ({COMPONENT_HEADER: "receiver", VERSION_HEADER: "invalid"}, "unidentified_peer")]:
-            for method, route in [("GET", "/menu"), ("GET", "/states"), ("POST", "/actions")]:
+            for method, route in [("GET", "/menu"), ("GET", "/info"), ("GET", "/states"), ("POST", "/actions")]:
                 async with await self.request(method, route, "receiver", self.command() if method == "POST" else None,
                                               peer_headers=headers) as response:
                     self.assertEqual(response.status, 426)
@@ -366,7 +410,7 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_different_release_same_protocol_allows_menu_states_and_action(self):
         headers = {COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
-        for method, route in [("GET", "/menu"), ("GET", "/states"), ("POST", "/actions")]:
+        for method, route in [("GET", "/menu"), ("GET", "/info"), ("GET", "/states"), ("POST", "/actions")]:
             async with await self.request(method, route, "receiver", self.command() if method == "POST" else None,
                                           peer_headers=headers) as response:
                 self.assertEqual(response.status, 200)

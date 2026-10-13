@@ -197,8 +197,14 @@ class AppearanceTests(unittest.TestCase):
             for setup in (False, True):
                 root = ET.fromstring(self.layout().layout(setup))
                 assets = {Path(p.get("pixmap")).stem for p in root.findall("ePixmap")}
-                self.assertTrue({"key_red", "key_green", "key_yellow", "ok", "exit"} <= assets)
+                self.assertTrue({"key_red", "key_green", "key_yellow", "exit"} <= assets)
                 self.assertIn("key_leftright" if setup else "menu", assets)
+                self.assertTrue(({"ok"} if setup else {"key_recall", "info"}) <= assets)
+                if not setup:
+                    recall = next(p for p in root.findall("ePixmap") if Path(p.get("pixmap")).stem == "key_recall")
+                    self.assertEqual(Path(recall.get("pixmap")), PATH.parent / "skin/GradientFHD/buttons/key_recall.png")
+                    self.assertEqual(recall.get("size"), "60,38")
+                    self.assertTrue(Path(recall.get("pixmap")).is_file())
                 self.assertEqual("key_blue" in assets, not setup)
 
     def test_missing_button_assets_keep_readable_action_labels(self):
@@ -207,7 +213,7 @@ class AppearanceTests(unittest.TestCase):
             root = ET.fromstring(appearance.layout())
             self.assertEqual(root.findall("ePixmap"), [])
             texts = set(appearance.text_labels.values())
-            self.assertTrue({"Rot", "Schließen", "OK", "Öffnen/Schalten", "Exit", "Zurück"} <= texts)
+            self.assertTrue({"Rot", "Schließen", "Recall", "Info", "Informationen", "Öffnen/Schalten", "Exit", "Zurück"} <= texts)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,19 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
+    "Menüposition beim Beenden merken": "Remember menu position on exit",
+    "Ungültige Menüpositions-Einstellung": "Invalid menu position setting",
+    "Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\nOK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\nGelb: Aktualisieren\n{channel_help}\nRot/Exit: Menü komplett schließen\nInfo: Programminformationen\nSensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.": "Up/Down: Select entry\nLeft/Right: Page up/down\nRecall: Go back one level; no action at the root menu\nOK/Green: Open submenu or toggle light/switch\nMenu/Blue: Settings\nYellow: Refresh\n{channel_help}\nRed/Exit: Close the entire menu\nInfo: Program information\nSensors are read-only. The menu structure is configured in Home Assistant.",
+    "OK/Grün: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nMenü/Blau: Einstellungen   Recall: Zurück   Info: Informationen": "OK/Green: Open/Toggle   Yellow: Reload   Red/Exit: Close\nMenu/Blue: Settings   Recall: Back   Info: Information",
+    "Informationen": "Information",
+    "Version auf dem Receiver: {version}": "Version on the receiver: {version}",
+    "Version in Home Assistant: {version}": "Version in Home Assistant: {version}",
+    "Angemeldeter Benutzer: {name}": "Logged-in user: {name}",
+    "Für diesen Benutzer sichtbare Einträge:": "Entries visible to this user:",
+    "Menüs: {count}": "Menus: {count}",
+    "Untermenüs: {count}": "Submenus: {count}",
+    "Entitäten: {count}": "Entities: {count}",
+    "Benutzer und Menüumfang derzeit nicht abrufbar.": "User and menu counts are currently unavailable.",
     "Receiver auf {version} aktualisieren": "Update receiver to {version}",
     "Passendes Receiver-Update wird geprüft …": "Checking for the matching receiver update …",
     "Passender Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.": "Matching release unavailable or incomplete. Check the GitHub connection and release packages.",
@@ -59,7 +72,6 @@ ENGLISH = {
     "Menü": "Menu",
     "Blau": "Blue",
     "Verbindung wird vorbereitet …": "Preparing connection …",
-    "OK/Grün: Öffnen/Schalten   Gelb: Laden\nMenü/Blau: Einstellungen   Rot: Schließen   Exit: Zurück": "OK/Green: Open/Toggle   Yellow: Reload\nMenu/Blue: Settings   Red: Close   Exit: Back",
     "Konfiguration nicht lesbar. Bitte Einstellungen prüfen.": "Cannot read configuration. Please check the settings.",
     "Adresse oder Token ungültig. Menü: Einstellungen": "Invalid address or token. Menu: Settings",
     "Bitte aktuelle Zustände abwarten. Gelb: erneut laden.": "Please wait for current states. Yellow: Reload.",
@@ -99,7 +111,6 @@ ENGLISH = {
     "Ungültige Schriftfamilie": "Invalid font family",
     "Ungültiger Zahlenwert": "Invalid numeric value",
     "Schriftgröße: 0 oder 16–64": "Font size: 0 or 16–64",
-    "Auf/Ab: Eintrag wählen\nRechts: Untermenü öffnen\nLinks/Exit: zurück; im Hauptmenü schließen\nOK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\nGelb: Aktualisieren\n{channel_help}\nRot: sofort schließen\nSensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.": "Up/Down: Select entry\nRight: Open submenu\nLeft/Exit: Back; close at the root menu\nOK/Green: Open submenu or toggle light/switch\nMenu/Blue: Settings\nYellow: Refresh\n{channel_help}\nRed: Close immediately\nSensors are read-only. The menu structure is configured in Home Assistant.",
     "Ja": "Yes",
     "Nein": "No"
 }

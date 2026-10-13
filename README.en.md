@@ -80,7 +80,8 @@ On the receiver's first plugin launch, enter the HA address (for example
 the language.
 
 Use **Up/Down** to select entries, **OK** to open a submenu or toggle an entity,
-and **Left/Exit** to go back. **Menu/Blue** opens settings.
+and **Recall** to go back one level. **Red/Exit** closes the menu.
+**Left/Right** pages through the list; **Info** shows program, user and menu information. **Menu/Blue** opens settings.
 
 The [installation and usage guide](docs/Installation.en.md) covers manual
 installation without HACS, all settings, remote keys and troubleshooting.

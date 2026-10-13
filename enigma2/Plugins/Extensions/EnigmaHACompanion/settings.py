@@ -10,7 +10,8 @@ from .companion.i18n import LANGUAGE_CHOICES, translate
 CONFIG_PATH = "/etc/enigma2/enigmaha_companion.json"
 DEFAULTS = {"url": "", "token": "", "refresh_seconds": 10, "font_family": "",
             "font_size": 0, "timeout": 5, "show_in_mainmenu": False,
-            "reverse_channel_paging": False, "skin_profile": "auto", "language": "auto"}
+            "reverse_channel_paging": False, "remember_menu_position": True,
+            "skin_profile": "auto", "language": "auto"}
 
 
 def validate_settings(values):
@@ -31,6 +32,8 @@ def validate_settings(values):
         raise ValueError(t("Ungültiger Hauptmenü-Schalter"))
     if type(result["reverse_channel_paging"]) is not bool:
         raise ValueError(t("Ungültige Ch-Blätterrichtung"))
+    if type(result["remember_menu_position"]) is not bool:
+        raise ValueError(t("Ungültige Menüpositions-Einstellung"))
     for name in ("url", "token", "font_family"):
         if not isinstance(result[name], str):
             raise ValueError(t("Ungültiger Textwert"))

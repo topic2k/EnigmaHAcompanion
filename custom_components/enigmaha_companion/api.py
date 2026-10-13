@@ -184,6 +184,32 @@ class MenuView(CompanionView):
         return self.reply(filtered_menu(runtime.menu, user))
 
 
+class InfoView(CompanionView):
+    url, name = BASE + "/info", DOMAIN + ":info"
+
+    async def get(self, request):
+        runtime, user = self.access(request)
+        error = await self.receiver_error(runtime, request, user)
+        if error is not None:
+            return error
+        menu = filtered_menu(runtime.menu, user)
+        nodes = index_nodes(menu)
+        roots = {root["id"] for root in validate_configuration(runtime.menu)["menus"] if root["id"] in nodes}
+        counts = dict.fromkeys(("menus", "submenus", "lights", "switches", "sensors", "other_entities"), 0)
+        counts["menus"] = len(roots)
+        for node in nodes.values():
+            if node["type"] == "menu":
+                # The generated selection/empty root is not a configured menu.
+                if node["id"] != menu["root"]["id"] and node["id"] not in roots:
+                    counts["submenus"] += 1
+            else:
+                domain = node["entity_id"].split(".", 1)[0]
+                category = {"light": "lights", "switch": "switches", "input_boolean": "switches",
+                            "sensor": "sensors", "binary_sensor": "sensors"}.get(domain, "other_entities")
+                counts[category] += 1
+        return self.reply({"user_name": (user.name or "")[:255], **counts})
+
+
 class StatesView(CompanionView):
     url, name = BASE + "/states", DOMAIN + ":states"
 
@@ -435,6 +461,6 @@ class ReceiverUpdateView(CompanionView):
 
 
 def register_views(hass):
-    for view in (MenuView, StatesView, ActionsView, ConfigView, ConfigurationView, UsersView,
+    for view in (MenuView, InfoView, StatesView, ActionsView, ConfigView, ConfigurationView, UsersView,
                  PreviewView, CompatibilityView, UpdateAdminView, ReceiverUpdateView):
         hass.http.register_view(view(hass))

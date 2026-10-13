@@ -161,6 +161,17 @@ class ReceiverTests(unittest.TestCase):
         factory = patch.object(PLUGIN, "ReceiverUpdater", return_value=updater)
         factory.start()
         self.addCleanup(factory.stop)
+        self.position_path = Path(directory.name) / "position.json"
+        self.position = PLUGIN.MenuPosition(str(self.position_path))
+        position_factory = patch.object(PLUGIN, "MenuPosition", return_value=self.position)
+        position_factory.start()
+        self.addCleanup(position_factory.stop)
+        # Isolated tests must not inherit the target receiver's installed settings.
+        load_settings = PLUGIN.load_settings
+        settings = patch.object(PLUGIN, "load_settings", side_effect=lambda *args, **kwargs:
+                                load_settings(*args, **kwargs) if args or kwargs else dict(PLUGIN.DEFAULTS, language="de"))
+        settings.start()
+        self.addCleanup(settings.stop)
         session = types.SimpleNamespace(open=lambda *args, **kwargs: self.dialogs.append((args, kwargs)),
                                       openWithCallback=lambda *args, **kwargs: self.dialogs.append(args if not kwargs else (args, kwargs)))
         self.screen = PLUGIN.CompanionScreen(session)
@@ -185,6 +196,124 @@ class ReceiverTests(unittest.TestCase):
 
     def press(self, key):
         self.screen["actions"].actions[key]()
+
+    def reopen_menu(self, config=None, menu=None):
+        with patch.object(PLUGIN, "load_settings", return_value=config or self.screen.config):
+            screen = PLUGIN.CompanionScreen(self.screen.session)
+        self.addCleanup(screen.cleanup)
+        screen.loaded((menu or self.menu, self.states), screen.generation)
+        return screen
+
+    def test_menu_position_option_defaults_on_and_saves_without_changing_legacy_settings(self):
+        settings = sys.modules[PLUGIN.__package__ + ".settings"]
+        legacy = dict(self.screen.config)
+        legacy.pop("remember_menu_position")
+        path = self.position_path.with_name("settings.json")
+        path.write_text(json.dumps(legacy), encoding="utf-8")
+        before = path.read_bytes()
+        loaded = settings.load_settings(str(path))
+        self.assertTrue(loaded["remember_menu_position"])
+        self.assertEqual(path.read_bytes(), before)
+        setup = PLUGIN.CompanionSetup(self.screen.session, loaded)
+        self.assertIsInstance(setup.fields["remember_menu_position"], ConfigYesNo)
+        self.assertTrue(setup.fields["remember_menu_position"].value)
+        setup.fields["remember_menu_position"].value = False
+        setup.cancel()
+        self.assertEqual(path.read_bytes(), before)
+        with patch.dict(setup.save.__globals__, save_settings=lambda values: settings.save_settings(values, str(path))):
+            setup.save()
+        self.assertEqual(settings.load_settings(str(path)), dict(legacy, remember_menu_position=False))
+        for invalid in (None, 0, 1, "true", [], {}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                settings.validate_settings(dict(legacy, remember_menu_position=invalid))
+
+    def test_menu_position_survives_reopening_and_list_reordering_by_id(self):
+        self.press("ok")
+        self.press("down")
+        self.press("down")
+        self.press("ok")
+        expected = self.screen.nav.position()
+        self.screen.close()
+        saved = self.position_path.read_text()
+        self.assertNotIn(self.screen.config["token"], saved)
+        self.assertNotIn(self.screen.config["url"], saved)
+        reordered = json.loads(json.dumps(self.menu))
+        reordered["root"]["children"].reverse()
+        reopened = self.reopen_menu(menu=reordered)
+        self.assertEqual(reopened.nav.position(), expected)
+        self.assertEqual(reopened.nav.current["id"], "windows")
+        self.assertEqual(self.commands, [])
+
+    def test_menu_position_disabled_starts_at_root_and_keeps_saved_position(self):
+        self.press("ok")
+        self.press("down")
+        self.screen.close()
+        before = self.position_path.read_bytes()
+        disabled = dict(self.screen.config, remember_menu_position=False)
+        reopened = self.reopen_menu(config=disabled)
+        self.assertEqual(reopened.nav.stack, [("home", 0)])
+        reopened.move(1)
+        reopened.close()
+        self.assertEqual(self.position_path.read_bytes(), before)
+
+    def test_menu_position_does_not_cross_ha_origins_or_tokens(self):
+        self.press("ok")
+        self.screen.close()
+        for change in ({"url": "https://other.test"}, {"token": "different-token"}):
+            with self.subTest(change=change):
+                reopened = self.reopen_menu(config=dict(self.screen.config, **change))
+                self.assertEqual(reopened.nav.stack, [("home", 0)])
+
+    def test_menu_position_handles_removed_or_invalid_entries_and_storage_failures(self):
+        self.press("ok")
+        self.press("down")
+        self.press("down")
+        self.screen.close()
+        changed = json.loads(json.dumps(self.menu))
+        changed["root"]["children"][0]["children"].pop()
+        reopened = self.reopen_menu(menu=changed)
+        self.assertEqual(reopened.nav.current["id"], "living-room")
+        self.assertEqual(reopened.nav.selection["id"], "ceiling")
+        removed = json.loads(json.dumps(self.menu))
+        removed["root"]["children"].pop(0)
+        reopened = self.reopen_menu(menu=removed)
+        self.assertEqual(reopened.nav.stack, [("home", 0)])
+        moved = json.loads(json.dumps(self.menu))
+        child = moved["root"]["children"][0]["children"].pop()
+        moved["root"]["children"][1]["children"].append(child)
+        reopened = self.reopen_menu(menu=moved)
+        self.assertEqual(reopened.nav.current["id"], "living-room")
+        replaced_root = json.loads(json.dumps(self.menu))
+        replaced_root["root"]["id"] = "new_root"
+        reopened = self.reopen_menu(menu=replaced_root)
+        self.assertEqual(reopened.nav.stack, [("new_root", 0)])
+        valid = self.position_path.read_text()
+        invalid_documents = ["not json", "[]", "x" * 9000]
+        for path in ([], [["home"]], [[True, None]], [["home", "bad/id"]], [["home", None]] * 10):
+            data = json.loads(valid)
+            data["path"] = path
+            invalid_documents.append(json.dumps(data))
+        for data in invalid_documents:
+            with self.subTest(data=data[:40]):
+                self.position_path.write_text(data)
+                reopened = self.reopen_menu()
+                self.assertEqual(reopened.nav.stack, [("home", 0)])
+        with patch.object(self.position, "save", side_effect=OSError("readonly")):
+            reopened.close()
+        self.assertTrue(reopened.closed)
+
+    def test_menu_position_refresh_preserves_current_selection_and_update_guard_does_not_save(self):
+        self.press("ok")
+        self.screen.close()
+        reopened = self.reopen_menu()
+        reopened.move(1)
+        reopened.loaded((self.menu, self.states), reopened.generation)
+        self.assertEqual(reopened.nav.selection["id"], "temperature")
+        before = self.position_path.read_bytes()
+        reopened.update_installing = True
+        reopened.close()
+        self.assertFalse(reopened.closed)
+        self.assertEqual(self.position_path.read_bytes(), before)
 
     def test_matching_protocol_with_different_release_stays_connected(self):
         self.screen.client.peer_version = "9.0.0"
@@ -352,6 +481,114 @@ class ReceiverTests(unittest.TestCase):
                     self.assertEqual(self.screen.nav.stack[-1][1], expected)
                     self.assertEqual(self.screen["list"].index, expected)
                 self.assertEqual(self.commands, [])
+
+    def test_recall_only_goes_back_and_exit_or_red_close_from_a_submenu(self):
+        mappings = {key.attrib["id"]: key.attrib["mapto"] for key in
+                    ET.parse(BUNDLE / "keymap.xml").findall(".//key")}
+        self.press(mappings["KEY_BACK"])
+        self.assertEqual(len(self.screen.nav.stack), 1)
+        self.assertFalse(self.screen.closed)
+        self.press("ok")
+        self.press("down")
+        self.press("down")
+        self.press("ok")
+        self.assertEqual(len(self.screen.nav.stack), 3)
+        self.press(mappings["KEY_BACK"])
+        self.assertEqual(len(self.screen.nav.stack), 2)
+        self.assertEqual(self.screen.nav.selection["id"], "windows")
+        self.press(mappings["KEY_BACK"])
+        self.assertEqual(self.screen.nav.selection["id"], "living-room")
+        for key in ("KEY_EXIT", "KEY_RED"):
+            self.screen.closed = False
+            self.press("ok")
+            self.press(mappings[key])
+            self.assertTrue(self.screen.closed)
+            self.screen.nav.back()
+
+    def test_horizontal_keys_page_without_opening_or_toggling_and_ignore_channel_reversal(self):
+        mappings = {key.attrib["id"]: key.attrib for key in
+                    ET.parse(BUNDLE / "keymap.xml").findall(".//key")}
+        for key in ("KEY_LEFT", "KEY_RIGHT"):
+            self.assertEqual(mappings[key]["flags"], "mr")
+        for count in (0, 1, 3, 12):
+            for reverse in (False, True):
+                with self.subTest(entries=count, reverse=reverse):
+                    self.screen.config["reverse_channel_paging"] = reverse
+                    self.menu["root"]["children"] = [
+                        {"id": "item" + str(i), "type": "menu", "label": str(i), "children": []}
+                        for i in range(count)]
+                    self.screen.nav = PLUGIN.Navigator(self.menu)
+                    self.screen.render()
+                    self.screen.list_height = self.screen.row_height * 5
+                    for key, position in (("KEY_LEFT", 0), ("KEY_RIGHT", min(5, max(0, count-1))),
+                                          ("KEY_RIGHT", min(10, max(0, count-1))),
+                                          ("KEY_RIGHT", max(0, count-1)), ("KEY_LEFT", max(0, count-6))):
+                        self.press(mappings[key]["mapto"])
+                        self.assertEqual(self.screen.nav.stack, [("home", position)])
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.pending, [])
+
+    def test_info_uses_worker_and_preserves_navigation_and_refresh(self):
+        data = {"user_name": "Anna {user}\nReceiver", "menus": 2, "submenus": 3,
+                "lights": 4, "switches": 5, "sensors": 6, "other_entities": 7}
+        self.screen.client.get_info = lambda: data
+        self.screen.client.peer_version = "9.0.0"
+        self.press("ok")
+        stack = list(self.screen.nav.stack)
+        status = self.screen["status"].text
+        self.press("info")
+        self.press("info")
+        self.assertEqual(len(self.pending), 1)
+        self.assertEqual(self.dialogs, [])
+        self.pending.pop().fire()
+        text = self.dialogs[-1][0][1]
+        for expected in ("Version auf dem Receiver: " + PLUGIN.VERSION, "Version in Home Assistant: 9.0.0", "Anna {user} Receiver",
+                         "Menüs: 2", "Untermenüs: 3", "Entitäten: 22"):
+            self.assertIn(expected, text)
+        self.assertNotIn("Lichter:", text)
+        self.assertNotIn("Weitere Entitäten:", text)
+        self.assertEqual(self.screen.nav.stack, stack)
+        self.assertEqual(self.screen["status"].text, status)
+        self.assertTrue(self.screen.timer.running)
+        self.assertFalse(self.screen.busy)
+        self.assertEqual(self.commands, [])
+
+    def test_info_old_integration_offline_and_request_failure_keep_menu_usable(self):
+        self.screen.client.get_info = lambda: None
+        self.press("info")
+        self.pending.pop().fire()
+        self.assertIn("nicht abrufbar", self.dialogs[-1][0][1])
+        def fail():
+            raise PLUGIN.ClientError("connection_failed")
+        self.screen.client.get_info = fail
+        self.press("info")
+        self.pending.pop().fire()
+        self.assertIsNone(self.screen.info_pending)
+        self.assertTrue(self.screen.online)
+        self.screen.online = False
+        self.press("info")
+        self.assertEqual(self.pending, [])
+        self.assertIn(PLUGIN.VERSION, self.dialogs[-1][0][1])
+
+    def test_info_discards_results_after_close_or_identity_change_and_translates(self):
+        self.screen.client.get_info = lambda: None
+        self.press("info")
+        self.screen.generation += 1
+        self.pending.pop().fire()
+        self.assertEqual(self.dialogs, [])
+        self.press("info")
+        self.screen.close()
+        self.pending.pop().fire()
+        self.assertEqual(self.dialogs, [])
+        self.screen.appearance.language = "en"
+        self.screen.show_information({"user_name": "Anna", "menus": 1, "submenus": 2,
+                                     "lights": 3, "switches": 4, "sensors": 5, "other_entities": 6})
+        text = self.dialogs[-1][0][1]
+        self.assertIn("Logged-in user: Anna", text)
+        self.assertIn("Submenus: 2", text)
+        self.assertIn("Entities: 18", text)
+        self.assertIn("Version on the receiver: " + PLUGIN.VERSION, text)
+        self.assertIn("Version in Home Assistant:", text)
 
     def test_receiver_font_choices_use_registered_fonts_and_keep_saved_preferences(self):
         with patch.dict(PLUGIN.CompanionSetup.__init__.__globals__,
@@ -590,7 +827,7 @@ class ReceiverTests(unittest.TestCase):
 
     def test_right_never_switches_entity(self):
         self.press("open")
-        self.press("open")
+        self.press("pageDown")
         self.assertEqual(self.commands, [])
         self.assertEqual(self.pending, [])
 

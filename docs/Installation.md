@@ -306,6 +306,7 @@ bleiben erhalten; ältere Konfigurationsdateien ohne `language` verwenden weiter
 | Verbindungszeitlimit | Standard 5 Sekunden |
 | Im Hauptmenü anzeigen | Direkter Einstieg im Enigma2-Hauptmenü; Standard aus |
 | Ch+/− umkehren | Richtung des seitenweisen Blätterns tauschen; Standard aus |
+| Menüposition beim Beenden merken | Letzte Menübene und Auswahl beim nächsten Öffnen wiederherstellen; Standard ein |
 
 **Grün** speichert. **OK/Gelb** öffnet bei Textfeldern die Bildschirmtastatur
 und bei Schriftfeldern sowie dem Skin-Profil die Auswahlliste. **Links/Rechts** wechselt Auswahlwerte.
@@ -367,7 +368,8 @@ Das Plugin beim Bearbeiten schließen. Die Datei liegt unter
   "font_size": 0,
   "timeout": 5,
   "show_in_mainmenu": false,
-  "reverse_channel_paging": false
+  "reverse_channel_paging": false,
+  "remember_menu_position": true
 }
 ```
 
@@ -390,13 +392,14 @@ HTTP überträgt auch den Token unverschlüsselt.
 | Taste | Funktion |
 | --- | --- |
 | Auf / Ab | Vorherigen / nächsten Eintrag wählen |
-| Rechts | Ausgewähltes Untermenü öffnen |
-| Links / Exit | Übergeordnetes Menü; auf oberster Ebene Plugin schließen |
+| Links / Rechts | Eine Seite nach oben / unten blättern |
+| Recall | Eine Menübene zurück; auf oberster Ebene ohne Funktion |
 | OK / Grün | Untermenü öffnen oder Licht/Schalter umschalten |
 | Menü / Blau | Einstellungen öffnen |
 | Gelb | Menü und Zustände neu laden |
 | Kanal + / − | Eine Seite nach oben / unten; über **Ch+/− umkehren** umkehrbar |
-| Rot | Plugin sofort schließen |
+| Rot / Exit | Menü aus jeder Ebene komplett schließen |
+| Info | Version auf dem Receiver, Version in Home Assistant, angemeldeter Benutzer und Anzahl sichtbarer Menüs, Untermenüs und Entitäten |
 | Hilfe | Tastenübersicht mit der eingestellten Kanal-Tastenrichtung anzeigen |
 
 Ein-/Aus-Zustände erscheinen mit HA-Entitätssymbolen: Ein gelb, Aus grau.
@@ -413,10 +416,10 @@ automatisch wiederholt, auch wenn seine Antwort verloren ging.
 ## Funktionsprüfung
 
 1. In HA ein Untermenü „Test“ mit einer Lampe und einem Sensor speichern.
-2. Plugin öffnen: „Test“ mit Rechts öffnen, beide Zustände prüfen.
+2. Plugin öffnen: „Test“ mit OK öffnen, beide Zustände prüfen.
 3. Lampe mit OK umschalten und den erneut abgerufenen Zustand prüfen.
 4. Sensor mit OK wählen: Es darf kein Schaltbefehl ausgelöst werden.
-5. Mit Links zurück, mit Exit auf oberster Ebene schließen.
+5. Mit Recall zurück, mit Rot oder Exit aus jeder Ebene schließen.
 6. Im HA-Menüeditor einen Eintrag umbenennen, speichern und am Receiver Gelb drücken.
 7. Beide Sprachen im Editor und am Receiver einschließlich Hilfe und Fehlermeldungen
    prüfen. Eigene Namen müssen unverändert bleiben.

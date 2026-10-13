@@ -2,11 +2,12 @@
   <map context="EnigmaHACompanionActions">
     <key id="KEY_UP" mapto="up" flags="mr" />
     <key id="KEY_DOWN" mapto="down" flags="mr" />
-    <key id="KEY_LEFT" mapto="back" flags="m" />
-    <key id="KEY_RIGHT" mapto="open" flags="m" />
+    <key id="KEY_LEFT" mapto="pageUp" flags="mr" />
+    <key id="KEY_RIGHT" mapto="pageDown" flags="mr" />
+    <key id="KEY_BACK" mapto="back" flags="m" />
     <key id="KEY_OK" mapto="ok" flags="m" />
     <key id="KEY_MENU" mapto="settings" flags="m" />
-    <key id="KEY_EXIT" mapto="back" flags="m" />
+    <key id="KEY_EXIT" mapto="close" flags="m" />
     <key id="KEY_RED" mapto="close" flags="m" />
     <key id="KEY_GREEN" mapto="ok" flags="m" />
     <key id="KEY_YELLOW" mapto="refresh" flags="m" />
@@ -14,5 +15,6 @@
     <key id="KEY_CHANNELUP" mapto="channelPlus" flags="mr" />
     <key id="KEY_CHANNELDOWN" mapto="channelMinus" flags="mr" />
     <key id="KEY_HELP" mapto="help" flags="m" />
+    <key id="KEY_INFO" mapto="info" flags="m" />
   </map>
 </keymap>

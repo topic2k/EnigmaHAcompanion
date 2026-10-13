@@ -35,8 +35,33 @@ class Navigator:
             node_id, position = self.stack[-1]
             self.stack[-1] = (node_id, (position + delta) % len(children))
 
+    def position(self):
+        """Keep stable menu/entry IDs so reordered lists retain their selection."""
+        result = []
+        for menu_id, index in self.stack:
+            children = self.nodes[menu_id]["children"]
+            result.append([menu_id, children[index]["id"] if children else None])
+        return result
+
+    def restore_position(self, path):
+        if not path:
+            return
+        for depth, (menu_id, selected_id) in enumerate(path):
+            if self.current["id"] != menu_id:
+                break
+            children = self.current["children"]
+            index = next((i for i, child in enumerate(children) if child["id"] == selected_id), None)
+            if index is None:
+                break
+            self.stack[-1] = (menu_id, index)
+            child = children[index]
+            if (depth + 1 >= len(path) or child["type"] != "menu"
+                    or path[depth + 1][0] != child["id"]):
+                break
+            self.stack.append((child["id"], 0))
+
     def back(self):
-        """False at root tells the GUI to close the plugin."""
+        """Return whether a parent menu was entered; stay at the root otherwise."""
         if len(self.stack) == 1:
             return False
         self.stack.pop()

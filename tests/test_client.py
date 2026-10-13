@@ -49,6 +49,8 @@ class FakeHA(BaseHTTPRequestHandler):
             self.wfile.write(b"not json")
         elif self.path == API_PATH + "/menu":
             self.reply(200, self.server.menu)
+        elif self.path == API_PATH + "/info":
+            self.reply(404 if self.server.info is None else 200, self.server.info or {"error": "not_found"})
         elif self.path == API_PATH + "/states":
             self.reply(200, self.server.snapshot)
         elif self.path == API_PATH + "/receiver_update":
@@ -106,6 +108,8 @@ class ClientTests(unittest.TestCase):
         self.server.mode = "normal"
         self.server.peer_headers = {COMPONENT_HEADER: "homeassistant", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
         self.server.update_plan = None
+        self.server.info = {"user_name": "Receiver", "menus": 1, "submenus": 3,
+                            "lights": 1, "switches": 1, "sensors": 2, "other_entities": 0}
         self.server.request_headers = []
         self.server.requests = []
         self.server.plans = []
@@ -124,6 +128,28 @@ class ClientTests(unittest.TestCase):
         states = self.client.get_states(self.server.menu)
         self.assertEqual(states["light.wohnzimmer"]["state"], "on")
         self.assertEqual(self.server.plans[0]["data"], {"entity_id": "light.wohnzimmer"})
+
+    def test_info_validates_counts_and_supports_older_integrations(self):
+        self.assertEqual(self.client.get_info(), self.server.info)
+        valid = copy.deepcopy(self.server.info)
+        for field, value in (("user_name", 7), ("user_name", "a" * 256),
+                             ("menus", True), ("menus", -1), ("sensors", 501), ("lights", "1")):
+            self.server.info = dict(valid, **{field: value})
+            with self.subTest(field=field, value=value), self.assertRaises(ClientError) as error:
+                self.client.get_info()
+            self.assertEqual(error.exception.code, "invalid_response")
+        self.server.info = {"user_name": "Receiver"}
+        with self.assertRaises(ClientError):
+            self.client.get_info()
+        self.server.info = None
+        self.assertIsNone(self.client.get_info())
+        self.assertIsNotNone(self.client.get_menu())
+
+    def test_info_auth_failure_is_not_an_older_integration_fallback(self):
+        self.client._token = "invalid"
+        with self.assertRaises(ClientError) as error:
+            self.client.get_info()
+        self.assertEqual(error.exception.code, "unauthorized")
 
     def test_receiver_sends_identity_and_version(self):
         self.client.get_menu()

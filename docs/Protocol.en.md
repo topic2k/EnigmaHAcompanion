@@ -260,3 +260,15 @@ References: [HA REST API](https://developers.home-assistant.io/docs/api/rest/),
 [integration structure](https://developers.home-assistant.io/docs/creating_integration_file_structure/).
 The custom routes and menu format are project decisions, separate from HA's
 official API. The build includes the shared protocol in both packages.
+
+## Receiver information
+
+GET `/info` uses the same authentication and component/protocol checks as `/menu`.
+Its response contains `user_name` (the current HA user display name, at most 255
+characters) and integer counts `menus`, `submenus`, `lights`, `switches`, `sensors`,
+`other_entities`. Only entries visible to that user are counted, including repeated
+entity entries. `menus` counts shared configured root menus; a generated selection
+root is excluded. `switches` includes `switch` and `input_boolean`; `sensors`
+includes `sensor` and `binary_sensor`. Older integrations may return HTTP 404;
+the receiver then shows versions and an information-unavailable notice. The menu
+format, protocol version and stored configuration remain unchanged.

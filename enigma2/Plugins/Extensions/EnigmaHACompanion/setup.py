@@ -48,8 +48,9 @@ class CompanionSetup(Screen, ConfigListScreen):
             "timeout": ConfigInteger(default=values["timeout"], limits=(1, 30)),
             "show_in_mainmenu": ConfigYesNo(default=values["show_in_mainmenu"]),
             "reverse_channel_paging": ConfigYesNo(default=values["reverse_channel_paging"]),
+            "remember_menu_position": ConfigYesNo(default=values.get("remember_menu_position", True)),
         }
-        for key in ("show_in_mainmenu", "reverse_channel_paging"):
+        for key in ("show_in_mainmenu", "reverse_channel_paging", "remember_menu_position"):
             self.fields[key].descriptions = {False: self.t("Nein"), True: self.t("Ja")}
         labels = [("language", "Sprache (ab nächstem Öffnen)"),
                   ("url", "Home-Assistant-Adresse (mit http:// oder https://)"),
@@ -60,7 +61,8 @@ class CompanionSetup(Screen, ConfigListScreen):
                   ("font_size", "Schriftgröße"),
                   ("timeout", "Verbindungszeitlimit in Sekunden"),
                   ("show_in_mainmenu", "Im Hauptmenü anzeigen"),
-                  ("reverse_channel_paging", "Ch+/− umkehren (Nein: + aufwärts / − abwärts)")]
+                  ("reverse_channel_paging", "Ch+/− umkehren (Nein: + aufwärts / − abwärts)"),
+                  ("remember_menu_position", "Menüposition beim Beenden merken")]
         ConfigListScreen.__init__(self, [getConfigListEntry(self.t(label), self.fields[key]) for key, label in labels], session=session)
         self["hint"] = Label(self.t("Grün: Speichern   Rot/Exit: Abbrechen\nOK/Gelb: Auswahl/Text   Links/Rechts: Wert ändern"))
         self["setupActions"] = ActionMap(["SetupActions", "ColorActions"], {

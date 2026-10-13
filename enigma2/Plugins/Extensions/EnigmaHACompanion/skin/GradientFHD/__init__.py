@@ -68,20 +68,26 @@ class GradientProfile(SkinProfile):
         ]
         if not setup:
             rows[0].append(("key_blue", "Einstellungen", 20, "Blau"))
+            rows[1] = [("menu", "Einstellungen", 40, "Menü"),
+                       ("key_recall", "Zurück", 40, "Recall"),
+                       ("info", "Informationen", 40, "Info"),
+                       ("exit", "Schließen", 40, "Exit")]
         attrs = dict(label_attrs, font="%s;%s" % (appearance.font, appearance.px(18)))
         for row_index, row in enumerate(rows):
             column = appearance.list_width // len(row)
             y = appearance.height - appearance.footer + appearance.px(5 + 30 * row_index)
             for index, (asset, text, icon_width, fallback) in enumerate(row):
                 x = appearance.margin + index * column
-                path = "/usr/share/enigma2/GradientFHD/buttons/%s.png" % asset
+                path = (os.path.join(os.path.dirname(__file__), "buttons", "key_recall.png")
+                        if asset == "key_recall" else "/usr/share/enigma2/GradientFHD/buttons/%s.png" % asset)
                 width = appearance.px(icon_width)
                 if os.path.isfile(path):
-                    height = appearance.px(20 if asset.startswith("key_") and asset != "key_leftright" else 25)
+                    height = (max(1, round(width * 38 / 60)) if asset == "key_recall" else
+                              appearance.px(20 if asset.startswith("key_") and asset != "key_leftright" else 25))
                     element("ePixmap", x, y + (appearance.px(26) - height) // 2, width, height,
                             pixmap=path, alphatest="blend", scale="1")
                 else:
-                    width = appearance.px(44)
+                    width = appearance.px(max(44, len(appearance.t(fallback)) * 10))
                     element("eLabel", x, y, width, appearance.px(26), text=appearance.t(fallback), **attrs)
                 element("eLabel", x + width + appearance.px(5), y,
                         column - width - appearance.px(9), appearance.px(26), text=appearance.t(text), **attrs)

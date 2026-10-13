@@ -287,3 +287,16 @@ Bestandteil der offiziellen HA-API.
 
 Die [Installationsanleitung](Installation.md) beschreibt die Einrichtung beider
 Komponenten. Der Build bindet das gemeinsame Protokollmodul in beide Pakete ein.
+
+## Receiver-Informationen
+
+GET `/info` nutzt dieselbe Authentifizierung und Komponenten-/Protokollprüfung
+wie `/menu`. Die Antwort enthält `user_name` (Anzeigename des aktuellen
+HA-Benutzers, maximal 255 Zeichen) und ganzzahlige Zähler `menus`, `submenus`,
+`lights`, `switches`, `sensors`, `other_entities`. Gezählt werden ausschließlich
+für diesen Benutzer sichtbare Menüeinträge, auch mehrfach aufgeführte Entitäten.
+`menus` zählt freigegebene konfigurierte Hauptmenüs; eine erzeugte Auswahlwurzel
+zählt nicht mit. `switches` umfasst `switch` und `input_boolean`, `sensors` umfasst
+`sensor` und `binary_sensor`. Ältere Integrationen können HTTP 404 liefern; der
+Receiver zeigt dann Versionen und einen Hinweis auf nicht abrufbare Informationen.
+Menüformat, Protokollversion und gespeicherte Konfiguration bleiben unverändert.

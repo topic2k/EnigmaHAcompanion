@@ -104,6 +104,21 @@ class CompanionClient:
         except ProtocolError:
             raise ClientError("invalid_menu") from None
 
+    def get_info(self):
+        try:
+            result = self._request("GET", "/info")
+        except ClientError as error:
+            if error.code == "not_found":  # Older integrations have no info route.
+                return None
+            raise
+        counts = {"menus", "submenus", "lights", "switches", "sensors", "other_entities"}
+        if (set(result) != counts | {"user_name"}
+                or (result["user_name"] is not None and
+                    (not isinstance(result["user_name"], str) or len(result["user_name"]) > 255))
+                or any(type(result[key]) is not int or not 0 <= result[key] <= 500 for key in counts)):
+            raise ClientError("invalid_response")
+        return result
+
     def get_update(self):
         result = self._request("GET", "/receiver_update", allow_mismatch=True)
         if set(result) != {"job"}:

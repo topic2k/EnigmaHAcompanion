@@ -61,9 +61,11 @@ Leere Schriftfamilie und Größe `0` bleiben die gespeicherten Auto-Werte.
 Vorhandene lokale Einstellungen bleiben erhalten; HA-Schriftwerte werden vom
 aktualisierten Receiver ignoriert. Eine Neueinrichtung ist nicht nötig.
 
-Die Tastenleiste lädt die farbigen Pfeile und Symbole für OK, Menü und Exit aus
+Die Tastenleiste lädt die farbigen Pfeile und Symbole für Menü, Info und Exit aus
 `/usr/share/enigma2/GradientFHD/buttons/`, in den Einstellungen zusätzlich
-Links/Rechts. Fehlt eine Grafik, erscheint der Tastenname. Die Einstellungen
+Links/Rechts. Die Recall-Taste verwendet die mitgelieferte Grafik
+`skin/GradientFHD/buttons/key_recall.png` im Plugin-Verzeichnis. Fehlt eine Grafik,
+erscheint der Tastenname. Die Einstellungen
 positionieren die numerische Eingabehilfe oberhalb der Tastenleiste.
 
 ## Schnittstelle für Skin-Autoren
@@ -163,3 +165,25 @@ Gedrückt gehaltene Ch-Tasten lösen wiederholtes Blättern aus.
 **Im Hauptmenü anzeigen** ergänzt einen direkten Einstieg in das Enigma2-Hauptmenü.
 Die Option ist standardmäßig aus. Änderungen werden beim nächsten Öffnen des
 Hauptmenüs berücksichtigt.
+
+## Fernbedienung
+
+**Rot/Exit** beendet das Menü aus jeder Ebene. **Recall** geht eine Ebene zurück
+und bleibt auf oberster Ebene ohne Funktion. **Links/Rechts** blättert eine Seite
+aufwärts/abwärts, unabhängig von der Ch+/−-Einstellung. **OK/Grün** öffnet Untermenüs
+oder schaltet Einträge. **Info** zeigt die Version auf dem Receiver und in Home Assistant, den angemeldeten
+HA-Benutzer und die Anzahl seiner sichtbaren Menüs, Untermenüs und Entitätseinträge
+als Gesamtzahl unter **Entitäten**.
+Mehrfach aufgeführte Entitäten zählen je Menüeintrag. Die erzeugte Menüauswahl zählt
+nicht als eigenes Menü. Bei älteren HA-Integrationen oder fehlender Verbindung
+bleiben Benutzer und Zähler als nicht abrufbar gekennzeichnet. Keine Migration
+oder Neueinrichtung erforderlich.
+
+**Menü/Blau → Menüposition beim Beenden merken** ist standardmäßig eingeschaltet,
+auch bei bestehenden Installationen. Rot/Exit speichert Menübene und Auswahl für
+das nächste Öffnen, auch nach einem GUI-Neustart. Ausgeschaltet beginnt das Menü
+wieder auf oberster Ebene. Die Position liegt getrennt in
+`/etc/enigma2/enigmaha_companion_position.json` und ist an HA-Adresse und Token
+gebunden, ohne die Zugangsdaten dort abzulegen. Entfernte oder nicht mehr
+freigegebene Einträge werden nicht wiederhergestellt. Die bestehende
+Konfiguration wird beim Laden nicht verändert; eine Migration ist nicht nötig.

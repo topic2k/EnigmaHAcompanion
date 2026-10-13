@@ -50,8 +50,9 @@ An empty family and size `0` remain the stored auto values. Existing local
 preferences are retained; updated receivers ignore HA font settings.
 No reconfiguration is required.
 
-The footer loads color-key, OK, Menu and Exit images from
-`/usr/share/enigma2/GradientFHD/buttons/`, plus Left/Right in settings. Missing
+The footer loads color-key, Menu, Info and Exit images from
+`/usr/share/enigma2/GradientFHD/buttons/`, plus Left/Right in settings. Recall uses
+the bundled `skin/GradientFHD/buttons/key_recall.png` in the plugin directory. Missing
 images are replaced by translated key names. Settings place numeric input help
 above the footer.
 
@@ -142,3 +143,22 @@ entry, and held channel keys repeat.
 
 **Show in main menu** adds an Enigma2 main-menu entry. It is off by default.
 Changes apply the next time the main menu opens.
+
+## Remote control
+
+**Red/Exit** closes the entire menu from any level. **Recall** goes back one level
+and has no action at the root. **Left/Right** pages up/down independently of the
+Ch+/− setting. **OK/Green** opens submenus or toggles entries. **Info** shows the
+version on the receiver and in Home Assistant, logged-in HA user and counts of visible menus, submenus and
+entity entries as a total under **Entities**. Repeated entities count once per menu entry. The generated menu
+selection does not count as a configured menu. With older HA integrations or no
+connection, user and counts are marked as unavailable. No migration or
+reconfiguration is required.
+
+**Menu/Blue → Remember menu position on exit** is on by default, including existing
+installations. Red/Exit saves the menu level and selection for the next opening,
+including after a GUI restart. When disabled, the menu starts at the root.
+The position is stored separately in `/etc/enigma2/enigmaha_companion_position.json`,
+bound to the HA address and token without storing those credentials in that file.
+Removed or no longer shared entries are not restored. Loading existing settings
+does not modify them; no migration is required.

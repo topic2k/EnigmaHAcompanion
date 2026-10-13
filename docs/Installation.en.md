@@ -281,6 +281,7 @@ older configuration files without `language` keep German. Choose **English** und
 | Connection timeout | Default 5 seconds |
 | Show in main menu | Direct entry in the Enigma2 main menu; off by default |
 | Reverse Ch+/− | Reverse page navigation; off by default |
+| Remember menu position on exit | Restore the last menu level and selection on next opening; on by default |
 
 **Green** saves. **OK/Yellow** opens the keyboard for text fields and a choice
 list for language, fonts and skin profile. **Left/Right** changes values.
@@ -339,7 +340,8 @@ You can use an editor or SFTP for a long token. Close the plugin before editing
   "font_size": 0,
   "timeout": 5,
   "show_in_mainmenu": false,
-  "reverse_channel_paging": false
+  "reverse_channel_paging": false,
+  "remember_menu_position": true
 }
 ```
 
@@ -361,13 +363,14 @@ verification cannot be disabled. HTTP transmits the token without encryption.
 | Key | Action |
 | --- | --- |
 | Up / Down | Select previous / next entry |
-| Right | Open selected submenu |
-| Left / Exit | Go to parent menu; close the plugin at the root |
+| Left / Right | Page up / down through the list |
+| Recall | Go back one menu level; no action at the root |
 | OK / Green | Open submenu or toggle a light/switch |
 | Menu / Blue | Open settings |
 | Yellow | Reload menu and states |
 | Channel + / − | Page up / down; reversible through **Reverse Ch+/−** |
-| Red | Close immediately |
+| Red / Exit | Close the entire menu from any level |
+| Info | Version on the receiver, version in Home Assistant, logged-in user and counts of visible menus, submenus and entities |
 | Help | Show keys and the configured channel-key direction |
 
 On/off states use HA entity icons: yellow for on, grey for off. If an icon
@@ -381,10 +384,10 @@ repeated, even if their response was lost.
 ## Functional check
 
 1. In HA, save a “Test” submenu containing a light and sensor.
-2. Open the plugin, press Right to open “Test”, and check both states.
+2. Open the plugin, press OK to open “Test”, and check both states.
 3. Toggle the light with OK and check the refreshed state.
 4. Press OK on the sensor: it must not send a command.
-5. Press Left to return, then Exit at the root to close.
+5. Press Recall to return, and Red or Exit at any level to close.
 6. Rename an entry in HA, save it and press Yellow on the receiver.
 7. Check both languages in the editor and receiver, including help and error
    messages. Confirm your own names remain unchanged.
