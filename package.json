@@ -2,7 +2,7 @@
   "name": "enigmaha-companion-dev",
   "private": true,
   "license": "GPL-2.0-or-later",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "scripts": {
     "test": "node --test tests/test_panel.cjs"
   },
