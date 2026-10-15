@@ -7,6 +7,7 @@ import logging
 
 from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity, DataUpdateCoordinator, UpdateFailed,
 )
@@ -46,6 +47,13 @@ class CompanionUpdateEntity(CoordinatorEntity, UpdateEntity):
     _attr_name = "EnigmaHA Companion"
     _attr_title = "EnigmaHA Companion"
     _attr_unique_id = DOMAIN + "_integration_update"
+    # Keep the published entity identity; HA attaches its existing registry entry.
+    _attr_device_info = DeviceInfo(
+        identifiers={(DOMAIN, DOMAIN)},
+        name="EnigmaHA Companion",
+        entry_type=DeviceEntryType.SERVICE,
+        sw_version=VERSION,
+    )
     _attr_supported_features = UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS
 
     @property

@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import timedelta
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 import importlib.util
 from pathlib import Path
 import sys
@@ -45,6 +45,10 @@ class HomeAssistantError(Exception):
         super().__init__(str(self.translation_placeholders))
 
 
+class DeviceEntryType(StrEnum):
+    SERVICE = "service"
+
+
 package = types.ModuleType("eha_update_entity_test")
 package.__path__ = [str(BUNDLE)]
 spec = importlib.util.spec_from_file_location(package.__name__ + ".update", BUNDLE / "update.py")
@@ -55,6 +59,8 @@ with patch.dict(sys.modules, {
         UpdateEntity=type("UpdateEntity", (), {}),
         UpdateEntityFeature=IntFlag("UpdateEntityFeature", {"INSTALL": 1, "PROGRESS": 4})),
     "homeassistant.exceptions": types.SimpleNamespace(HomeAssistantError=HomeAssistantError),
+    "homeassistant.helpers.device_registry": types.SimpleNamespace(
+        DeviceInfo=dict, DeviceEntryType=DeviceEntryType),
     "homeassistant.helpers.update_coordinator": types.SimpleNamespace(
         DataUpdateCoordinator=Coordinator, CoordinatorEntity=Entity, UpdateFailed=type("UpdateFailed", (Exception,), {})),
 }):
@@ -122,8 +128,13 @@ class UpdateEntityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.entity._attr_supported_features,
                          UPDATE.UpdateEntityFeature.INSTALL | UPDATE.UpdateEntityFeature.PROGRESS)
         self.assertIsInstance(self.entity._attr_supported_features, IntFlag)
-        self.assertEqual(self.entity._attr_unique_id, UPDATE.DOMAIN + "_integration_update")
+        self.assertEqual(self.entity._attr_unique_id, "enigmaha_companion_integration_update")
         self.assertEqual(self.entity._attr_name, "EnigmaHA Companion")
+        self.assertEqual(self.entity._attr_device_info["identifiers"],
+                         {("enigmaha_companion", "enigmaha_companion")})
+        self.assertEqual(self.entity._attr_device_info["name"], "EnigmaHA Companion")
+        self.assertEqual(self.entity._attr_device_info["entry_type"], DeviceEntryType.SERVICE)
+        self.assertEqual(self.entity._attr_device_info["sw_version"], UPDATE.VERSION)
 
 
 import test_updates as updates

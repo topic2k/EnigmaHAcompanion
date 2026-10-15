@@ -104,8 +104,13 @@ for setup, preview and automatic conversion of existing menus. HA manages the co
 
 ## Update indicator in Home Assistant
 
-The integration provides the `update.enigmaha_companion` update entity. It shows
-the integration version actually running, the latest complete stable release and
+The integration provides the `update.enigmaha_companion` update entity.
+It belongs to the **EnigmaHA Companion** device representing the HA service.
+For existing installations, installing the new files and restarting HA automatically
+creates the device and assigns the existing entity to it. Its entity ID, including
+a custom one, is retained. No reconfiguration or manual migration is required.
+
+It shows the integration version actually running, the latest complete stable release and
 a link to its release information. It checks when the integration loads and every
 twelve hours afterwards. Use `homeassistant.update_entity` to request a manual
 check. The indicator needs GitHub internet access but does not require HACS.

@@ -112,6 +112,12 @@ nicht bei laufendem HA manuell bearbeitet werden.
 ## Update-Anzeige in Home Assistant
 
 Die Integration stellt die Update-Entität `update.enigmaha_companion` bereit.
+Sie ist dem Gerät **EnigmaHA Companion** zugeordnet, das den HA-Dienst darstellt.
+Bei bestehenden Installationen wird das Gerät nach Installation der neuen Dateien
+und einem HA-Neustart automatisch angelegt und die vorhandene Entität zugeordnet.
+Ihre Entitäts-ID, auch eine selbst vergebene, bleibt erhalten. Eine Neueinrichtung
+oder manuelle Migration ist nicht erforderlich.
+
 Sie zeigt die tatsächlich laufende Integrationsversion, den neuesten vollständigen
 stabilen Release und einen Link zu dessen Release-Informationen. Die Prüfung
 erfolgt beim Laden der Integration und anschließend alle zwölf Stunden. Über
