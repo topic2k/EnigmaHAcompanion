@@ -62,9 +62,12 @@ settings and tokens are retained; no reconfiguration is required.
 
 A protocol conflict also creates an issue under **Settings → System → Repairs**.
 The wizard shows the target release and affected receivers and uses the same
-HACS/IPK workflow after confirmation. Issues survive HA restarts and clear only
-after successful verification. Release differences alone never create a repair
-or require an update. Published versions through 1.0.2 still enforce matching
+IPK workflow after confirmation. Older receivers update to the running HA version;
+HA itself is neither updated nor restarted. Issues survive HA restarts and clear
+only after successful verification. Older receivers with compatible protocols
+get an optional **Receiver update available** repair. Choose **Fix** to open the
+update wizard; communication remains available. Compatible receivers running
+the same or a newer release do not get an update offer. Published versions through 1.0.2 still enforce matching
 releases themselves; update both components once to enable independent protocol checks.
 
 Open **Settings → Devices & services → EnigmaHA Companion → Configure** and
@@ -111,12 +114,25 @@ check. The indicator needs GitHub internet access but does not require HACS.
 If a check fails, the entity becomes unavailable while the local receiver menu
 remains usable. A later successful check restores the indicator.
 
-Installations still require confirmation in the EnigmaHA editor or repair wizard;
-the new entity does not offer installation. Until HA restarts, it continues to
-show the loaded version even if newer files are already installed. Existing
-configurations need no migration or setup changes. The entity is added
-automatically after updating and restarting HA. An existing HACS update entity
-remains separate.
+Use **Install** on this entity or `update.install` to update only Home Assistant.
+Receivers do not participate and do not need to be connected. Administrator
+privileges and an active HACS update entity are required. Automations can call
+the service in the system context.
+This entity does not support selecting a specific version or the backup option.
+
+HA updates to the offered release through HACS. Use the EnigmaHA editor to follow
+progress, retry steps and confirm the final HA restart. The entity indicates an
+ongoing update and keeps its target version fixed. If a newer release is published
+between displaying and installing the update, review and confirm the refreshed
+offer. Until HA restarts, it continues to show the loaded version even if newer
+files are already installed. Existing configurations and update jobs need no
+migration or setup changes. The existing HACS update entity remains separate.
+After restarting HA, older receivers are detected on their next request.
+Incompatible protocols create an error repair; compatible protocols create an
+optional update repair. HA persistent notifications do not provide arbitrary
+action buttons, so **Fix** in the repair opens the wizard. It offers the release
+running in HA without requiring HACS. Confirm IPK installation and the GUI
+restart on the receiver.
 
 ## Update directly from a version conflict
 

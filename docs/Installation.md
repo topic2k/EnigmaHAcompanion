@@ -65,9 +65,13 @@ Receiver-Einstellungen und Token bleiben erhalten; eine Neueinrichtung ist nicht
 
 Bei einem Protokollkonflikt erscheint zusätzlich eine Meldung unter
 **Einstellungen → System → Reparaturen**. Der dortige Assistent zeigt Zielrelease
-und betroffene Receiver und verwendet nach Bestätigung denselben HACS/IPK-Ablauf.
+und betroffene Receiver. Ältere Receiver werden nach Bestätigung auf die laufende
+HA-Version gebracht; HA wird dabei weder aktualisiert noch neu gestartet.
 Die Meldung bleibt über HA-Neustarts erhalten und verschwindet erst nach erfolgreicher
-Prüfung. Reine Release-Unterschiede erzeugen keine Reparatur und erfordern kein Update.
+Prüfung. Für ältere Receiver mit kompatiblem Protokoll erscheint ein freiwilliges
+**Receiver-Update verfügbar** unter Reparaturen. Über **Beheben** öffnest du den
+Update-Assistenten. Die Verbindung bleibt nutzbar. Gleich alte oder neuere
+kompatible Receiver erzeugen kein Updateangebot.
 Veröffentlichte Versionen bis 1.0.2 verlangen selbst noch gleiche Releases; beide
 Komponenten einmal aktualisieren, um die unabhängige Protokollprüfung zu verwenden.
 
@@ -119,12 +123,27 @@ Die Anzeige benötigt Internetzugang zu GitHub, aber kein HACS. Bei einem
 Prüffehler ist die Entität nicht verfügbar; das lokale Receiver-Menü bleibt nutzbar.
 Ein späterer erfolgreicher Abruf stellt die Anzeige wieder her.
 
-Installationen werden weiterhin im EnigmaHA-Editor oder Reparaturassistenten
-bestätigt. Die neue Entität bietet keine Installation an. Bis zum HA-Neustart
-zeigt sie weiterhin die geladene Version, auch wenn neuere Dateien bereits
-installiert sind. Bestehende Konfigurationen benötigen keine Migration oder
-Neueinrichtung; die Entität wird nach dem Aktualisieren und Neustarten von HA
-automatisch hinzugefügt. Eine vorhandene HACS-Update-Entität bleibt separat bestehen.
+Über **Installieren** an dieser Entität oder `update.install` lässt sich das
+HA-Update starten. Es aktualisiert ausschließlich Home Assistant; Receiver werden
+nicht aufgenommen und müssen dafür nicht verbunden sein. Benötigt werden
+Administratorrechte und eine aktive HACS-Update-Entität. Automationen
+können den Dienst im Systemkontext aufrufen. Eine eigene Versionsauswahl und
+die Backup-Option unterstützt diese Entität nicht.
+
+HA wird über HACS auf den angebotenen Release aktualisiert. Fortschritt,
+Wiederholung und den abschließenden HA-Neustart findest du im EnigmaHA-Editor.
+Die Entität zeigt den laufenden Updatevorgang an und hält dessen Zielversion fest.
+Wird zwischen Anzeige und Installation ein neuerer Release veröffentlicht,
+musst du das aktualisierte Angebot erneut bestätigen. Bis zum HA-Neustart zeigt
+sie weiterhin die geladene Version, auch wenn neuere Dateien bereits installiert
+sind. Bestehende Konfigurationen und Updateaufträge benötigen keine Migration
+oder Neueinrichtung. Die vorhandene HACS-Update-Entität bleibt separat bestehen.
+Nach dem HA-Neustart werden ältere Receiver beim nächsten Kontakt erkannt.
+Bei inkompatiblem Protokoll erscheint eine Fehler-Reparatur, bei kompatiblem
+Protokoll ein freiwilliger Reparaturhinweis. HA-Benachrichtigungen unterstützen
+keine frei belegbaren Aktionsbuttons; **Beheben** im Reparaturhinweis startet
+deshalb den Assistenten. Dieser bietet den Release der laufenden HA-Version an,
+ohne HACS zu benötigen. IPK-Installation und GUI-Neustart bestätigst du am Receiver.
 
 ## Update direkt bei einem Versionskonflikt
 

@@ -14,7 +14,7 @@ from homeassistant.helpers import entity_registry
 
 from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION, protocol_version, valid_receiver_id
 from .enigmaha_protocol.releases import (
-    REPOSITORY_URL, UpdateError, fetch_latest_release, validate_release, version_tuple,
+    REPOSITORY_URL, UpdateError, fetch_latest_release, fetch_release, validate_release, version_tuple,
 )
 
 
@@ -56,8 +56,14 @@ class UpdateManager:
         self.restart_task = None
         self.active = True
         self.on_change = None
+        self.listeners = set()
         if job is not None:
             validate_release(job["release"])
+
+    def add_listener(self, listener):
+        """Observe durable job changes alongside the existing repair callback."""
+        self.listeners.add(listener)
+        return lambda: self.listeners.discard(listener)
 
     async def save(self, job):
         # Do not advance the live state if persistence fails.
@@ -66,6 +72,8 @@ class UpdateManager:
         except (OSError, HomeAssistantError):
             raise UpdateError("update_storage_failed") from None
         self.job = job
+        for listener in tuple(self.listeners):
+            listener()
         if self.on_change is not None:
             await self.on_change()
 
@@ -91,11 +99,22 @@ class UpdateManager:
         release = await self.hass.async_add_executor_job(fetch_latest_release)
         if version_tuple(release["version"]) < version_tuple(VERSION):
             raise UpdateError("downgrade_blocked")
+        return await self._select_release(release)
+
+    async def check_receivers(self):
+        """Offer the running HA release without requiring or changing HACS."""
+        release = await self.hass.async_add_executor_job(fetch_release, VERSION)
+        if release["version"] != VERSION:
+            raise UpdateError("invalid_release")
+        return await self._select_release(release)
+
+    async def _select_release(self, release):
         async with self.lock:
             if not self.active:
                 raise UpdateError("update_unavailable")
             self.candidate = {"id": uuid4().hex, "release": release}
             self.checked_at = monotonic()
+            return copy.deepcopy(self.candidate)
 
     async def refresh(self):
         if not self.job or self.job["phase"] in {"failed", "completed"}:
@@ -144,7 +163,7 @@ class UpdateManager:
             receiver.pop("user_id", None)
         return result
 
-    async def start(self, candidate_id, receivers, user):
+    async def start(self, candidate_id, receivers, user, *, receiver_only=False):
         async with self.lock:
             if not self.active:
                 raise UpdateError("update_unavailable")
@@ -155,29 +174,43 @@ class UpdateManager:
             if (self.candidate is None or self.candidate["id"] != candidate_id
                     or monotonic() - self.checked_at > 600):
                 raise UpdateError("release_check_required")
-            entity = self.hacs_entity()
-            if entity.attributes.get("in_progress"):
+            entity = None if receiver_only else self.hacs_entity()
+            if entity is not None and entity.attributes.get("in_progress"):
                 raise UpdateError("update_in_progress")
             release = self.candidate["release"]
             target = release["version"]
-            if not receivers or any(not valid_receiver_id(receiver.get("id")) or receiver["status"] == "unidentified_peer"
+            if (receiver_only and not receivers) or any(not valid_receiver_id(receiver.get("id")) or receiver["status"] == "unidentified_peer"
                                     for receiver in receivers):
                 raise UpdateError("receiver_update_unavailable")
             if any(receiver.get("version") is None or version_tuple(receiver["version"]) > version_tuple(target)
                    for receiver in receivers):
                 raise UpdateError("downgrade_blocked")
-            if normalized_version(entity.attributes.get("installed_version")) not in (VERSION, target):
+            if receiver_only:
+                try:
+                    installed = await self.hass.async_add_executor_job(downloaded_version)
+                    installed_protocol = await self.hass.async_add_executor_job(downloaded_protocol_version)
+                except (OSError, ValueError):
+                    raise UpdateError("hacs_version_changed") from None
+                if target != VERSION or installed != VERSION or installed_protocol != PROTOCOL_VERSION:
+                    raise UpdateError("hacs_version_changed")
+                if not self.active:
+                    raise UpdateError("update_unavailable")
+            elif normalized_version(entity.attributes.get("installed_version")) not in (VERSION, target):
                 raise UpdateError("hacs_version_changed")
             if target == VERSION and all(receiver["version"] == target and receiver["status"] == "compatible" for receiver in receivers):
                 raise UpdateError("already_current")
             job = {"id": uuid4().hex, "candidate_id": candidate_id, "release": copy.deepcopy(release),
-                   "entity_id": entity.entity_id, "phase": "ha_installing", "error": None,
+                   "entity_id": entity.entity_id if entity else None,
+                   "phase": "receivers" if receiver_only else "ha_installing", "error": None,
                    "receivers": [{"id": receiver["id"], "user_id": receiver["user_id"],
                                   "address": receiver["address"], "version": receiver["version"],
                                   "status": "completed" if receiver["version"] == target and receiver["status"] == "compatible" else "pending",
                                   "attempt": 1, "error": None} for receiver in receivers]}
+            if receiver_only:
+                job["protocol_version"] = PROTOCOL_VERSION
             await self.save(job)
-            self.task = self.hass.async_create_task(self.install_ha(user.id if user is not None else None))
+            if not receiver_only:
+                self.task = self.hass.async_create_task(self.install_ha(user.id if user is not None else None))
 
     async def install_ha(self, user_id):
         try:
@@ -199,6 +232,7 @@ class UpdateManager:
                 job["protocol_version"] = await self.hass.async_add_executor_job(downloaded_protocol_version)
                 job["phase"], job["error"] = "receivers", None
                 await self.save(job)
+                await self.refresh()
         except (UpdateError, HomeAssistantError, OSError, ValueError) as error:
             async with self.lock:
                 job = copy.deepcopy(self.job)
@@ -260,6 +294,9 @@ class UpdateManager:
                 raise UpdateError("stale_update")
             job = copy.deepcopy(self.job)
             if job["phase"] == "failed":
+                if job["entity_id"] is None:
+                    # A receiver-only job must never turn into an HA install.
+                    raise UpdateError("hacs_version_changed")
                 job["phase"], job["error"] = "ha_installing", None
                 await self.save(job)
                 self.task = self.hass.async_create_task(self.install_ha(user.id if user is not None else None))
@@ -294,6 +331,7 @@ class UpdateManager:
 
     async def close(self):
         self.active = False
+        self.listeners.clear()
         if self.task is not None and not self.task.done():
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)

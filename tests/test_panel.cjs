@@ -230,6 +230,21 @@ test("coordinated update requires confirmation and pins the release and particip
   } finally { ui.dom.window.close(); }
 });
 
+test("HA-only restart explains the installed HA update without receiver steps", async () => {
+  const ui = await createPanel();
+  try {
+    const job = {id: "ha-only", release: {version: "2.0.0"}, phase: "ha_restart_required", receivers: []};
+    ui.panel.compatibility = {version: "1.0.0", receivers: [], updates: {hacs: {}, job}};
+    ui.panel.renderCompatibility();
+    assert.match(ui.notifications.at(-1).detail.message, /HA-Update installiert/);
+    ui.button("Home Assistant neu starten").click();
+    const dialog = ui.root.querySelector("dialog");
+    assert.match(dialog.textContent, /Release 2\.0\.0 ist installiert/);
+    assert.doesNotMatch(dialog.textContent, /Receiver/);
+    ui.button("Abbrechen").click();
+  } finally { ui.dom.window.close(); }
+});
+
 test("update offer disappears when HA and every receiver already run the candidate release", async () => {
   const ui = await createPanel();
   try {

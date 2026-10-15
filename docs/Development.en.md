@@ -202,6 +202,20 @@ and [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/pytho
 Existing Python package dependencies also cover hashing, UUID and subprocesses;
 `python3-netclient` pulls in `python3-crypt`.
 
+The integration's own update entity offers `INSTALL` and `PROGRESS`. Its install
+action checks administrator or system context, revalidates the displayed release
+and starts an `UpdateManager` job for HA only. HACS receives the caller's user
+context; the final HA restart remains a separate step. Receiver repairs offer
+older receivers the release running in HA, without calling HACS or restarting
+HA. IPK installation and GUI restart require local confirmation. Older compatible
+receivers get an optional repair; incompatible protocols remain error repairs.
+Changes to the stored job update the entity
+alongside the existing repair issues. Cancelling the service call does not cancel
+the installation managed by `UpdateManager`. Storage format and entity identity
+remain unchanged; no migration is required. Existing repair storage additionally
+accepts older compatible receivers. The optional `job_issue` field binds a job
+to its corresponding repair; an absent field retains the original protocol repair.
+
 The IPK's `postinst` recompiles the plugin's Python files with checked source
 hashes at all optimization levels. Reproducible tar timestamps alone cannot
 invalidate cached bytecode when a source change keeps the same file size:

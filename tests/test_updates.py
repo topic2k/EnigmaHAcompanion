@@ -294,7 +294,7 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
     async def test_cannot_start_without_hacs_receivers_or_with_a_downgrade(self):
         await self.manager.check()
         candidate = self.manager.candidate["id"]
-        for receivers in ([], [dict(self.receivers[0], id=None)], [dict(self.receivers[0], version="3.0.0")]):
+        for receivers in ([dict(self.receivers[0], id=None)], [dict(self.receivers[0], version="3.0.0")]):
             with self.assertRaises(UPDATES.UpdateError):
                 await self.manager.start(candidate, receivers, self.user)
         self.state.attributes["release_url"] = "https://github.com/other/repo/releases/v2.0.0"

@@ -48,6 +48,8 @@ const ENIGMAHA_EN = {
   "Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren.": "Open the receiver plugin to register all participating receivers. Update older plugins manually first.",
   "Release {version}: {phase}": "Release {version}: {phase}",
   "HA-Installation läuft …": "Installing HA …",
+  "HA-Update installiert. HA-Neustart erforderlich.": "HA update installed. HA restart required.",
+  "Release {version} ist installiert. Der HA-Neustart aktiviert diese Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden.": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. Reload this page afterwards.",
   "Am Receiver Installation und GUI-Neustart bestätigen.": "Confirm installation and GUI restart on the receiver.",
   "Receiver verwenden die Zielversion. HA-Neustart erforderlich.": "Receivers are running the target version. HA restart required.",
   "HA-Installation fehlgeschlagen oder unterbrochen.": "HA installation failed or was interrupted.",
@@ -798,7 +800,7 @@ class EnigmaHAPanel extends HTMLElement {
     if (job) {
       if (job.error === "ha_restart_failed") messages.set("restart:" + job.id, this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."));
       const phases = {ha_installing: "HA-Installation läuft …", receivers: "Am Receiver Installation und GUI-Neustart bestätigen.",
-        ha_restart_required: "Receiver verwenden die Zielversion. HA-Neustart erforderlich.",
+        ha_restart_required: job.receivers.length ? "Receiver verwenden die Zielversion. HA-Neustart erforderlich." : "HA-Update installiert. HA-Neustart erforderlich.",
         failed: "HA-Installation fehlgeschlagen oder unterbrochen."};
       if (job.phase !== "completed") messages.set("update:" + job.id, this.t("Release {version}: {phase}", {version: job.release.version, phase: this.t(phases[job.phase] || "Installation fehlgeschlagen")}));
       const statuses = {pending: "Wartet auf Bestätigung", installing: "Installation läuft", restart_required: "GUI-Neustart erforderlich",
@@ -839,7 +841,9 @@ class EnigmaHAPanel extends HTMLElement {
     const bodies = {
       start: "HA und {count} Receiver werden auf Release {version} gebracht. HACS installiert die HA-Integration. Die IPK-Installation und der GUI-Neustart werden am Receiver bestätigt. Anschließend bestätigst du hier den HA-Neustart.",
       retry: "Die Zielversion bleibt {version}. Fehlgeschlagene Schritte werden erneut angeboten und müssen bestätigt werden.",
-      restart: "Die Receiver verwenden Release {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden."
+      restart: target.receivers?.length
+        ? "Die Receiver verwenden Release {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden."
+        : "Release {version} ist installiert. Der HA-Neustart aktiviert diese Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden."
     };
     const labels = {start: "Update starten", retry: "Erneut anbieten", restart: "Neu starten"};
     const description = this.t(bodies[action], {version, count: receivers.length}) + (action === "start"

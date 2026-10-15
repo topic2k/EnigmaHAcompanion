@@ -31,7 +31,7 @@ class NativeFlow:
 
 
 ISSUES = types.SimpleNamespace(
-    IssueSeverity=types.SimpleNamespace(ERROR="error"),
+    IssueSeverity=types.SimpleNamespace(ERROR="error", WARNING="warning"),
     async_create_issue=lambda hass, domain, issue, **data: hass.issues.update({(domain, issue): data}),
     async_delete_issue=lambda hass, domain, issue: hass.issues.pop((domain, issue), None),
 )
@@ -63,10 +63,16 @@ class RepairTests(unittest.IsolatedAsyncioTestCase):
             self.hass, self.repair_store, self.runtime)
         self.manager.on_change = self.repairs.sync
         self.hass.data = {API.DOMAIN: {"runtime": self.runtime}}
-        self.peer = dict(self.receivers[0], protocol_version=2, status="protocol_mismatch")
+        # Keep coverage of the published recovery path for a receiver newer
+        # than HA. Old receivers get the separate, receiver-only path below.
+        self.peer = dict(self.receivers[0], version="1.9.0", protocol_version=2, status="protocol_mismatch")
         self.protocol_issue = (API.DOMAIN, ISSUES_MODULE.PROTOCOL_ISSUE)
         self.update_issue = (API.DOMAIN, ISSUES_MODULE.UPDATE_ISSUE)
+        self.receiver_issue = (API.DOMAIN, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE)
         self.flows = []
+        release_patch = patch.object(UPDATES, "fetch_release", return_value=updates.release(UPDATES.VERSION))
+        release_patch.start()
+        self.addCleanup(release_patch.stop)
 
     async def asyncTearDown(self):
         for flow in self.flows:
@@ -210,7 +216,112 @@ class RepairTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.calls), 1)
 
     async def test_factory_only_accepts_our_issue_ids(self):
-        for issue in (ISSUES_MODULE.PROTOCOL_ISSUE, ISSUES_MODULE.UPDATE_ISSUE):
+        for issue in (ISSUES_MODULE.PROTOCOL_ISSUE, ISSUES_MODULE.UPDATE_ISSUE, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE):
             self.assertIsInstance(await REPAIRS.async_create_fix_flow(self.hass, issue, None), REPAIRS.CompanionRepairFlow)
         with self.assertRaises(ValueError):
             await REPAIRS.async_create_fix_flow(self.hass, "other", None)
+
+    async def test_old_compatible_receiver_offers_optional_persistent_repair(self):
+        peer = dict(self.peer, version="1.0.0", protocol_version=1, status="version_mismatch")
+        await self.repairs.observe(peer)
+        issue = self.hass.issues[self.receiver_issue]
+        self.assertEqual(issue["severity"], "warning")
+        self.assertTrue(issue["is_fixable"])
+        self.assertTrue(issue["is_persistent"])
+        self.assertNotIn(self.protocol_issue, self.hass.issues)
+        self.assertEqual(self.calls, [])
+        restored = ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime,
+                                                   copy.deepcopy(self.repair_store.data))
+        await restored.sync()
+        self.assertEqual(restored.receivers[0]["status"], "version_mismatch")
+        await restored.observe(dict(peer, user_id="other-user", version=UPDATES.VERSION, status="compatible"))
+        self.assertIn(self.receiver_issue, self.hass.issues)
+        await restored.observe(dict(peer, version=UPDATES.VERSION, status="compatible"))
+        self.assertNotIn(self.receiver_issue, self.hass.issues)
+
+    async def test_receiver_request_creates_the_matching_issue_without_starting_install(self):
+        runtime = API.CompanionRuntime(self.hass, Store(), {})
+        runtime.repairs = self.repairs
+        for protocol, expected_status, issue in (("1", "version_mismatch", self.receiver_issue),
+                                                 ("2", "protocol_mismatch", self.protocol_issue)):
+            request = types.SimpleNamespace(remote="192.0.2.1", headers={
+                API.COMPONENT_HEADER: "receiver", API.VERSION_HEADER: "1.0.0",
+                API.PROTOCOL_HEADER: protocol, API.RECEIVER_HEADER: "a" * 32})
+            self.assertEqual(await runtime.check_receiver(request, types.SimpleNamespace(id="receiver-user")), expected_status)
+            self.assertIn(issue, self.hass.issues)
+            self.assertIsNone(self.manager.job)
+        self.assertNotIn(self.receiver_issue, self.hass.issues)
+        self.assertEqual(self.calls, [])
+
+    async def test_old_receivers_repair_only_receiver_without_hacs_or_ha_restart(self):
+        for status, protocol, issue_id in (("version_mismatch", 1, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE),
+                                          ("protocol_mismatch", 2, ISSUES_MODULE.PROTOCOL_ISSUE)):
+            with self.subTest(status=status):
+                peer = dict(self.peer, version="1.0.0", protocol_version=protocol, status=status)
+                await self.repairs.observe(peer)
+                self.hass.registry.async_get = lambda entity: None
+                flow = await REPAIRS.async_create_fix_flow(self.hass, issue_id, None)
+                flow.hass = self.hass
+                self.flows.append(flow)
+                form = await flow.async_step_init()
+                self.assertEqual(form["step_id"], "confirm_receivers")
+                self.assertEqual(form["description_placeholders"]["version"], UPDATES.VERSION)
+                self.assertIsNone(self.manager.job)
+                result = await flow.async_step_confirm_receivers({})
+                self.assertEqual(result["type"], "progress")
+                self.assertIsNone(self.manager.job["entity_id"])
+                self.assertEqual(self.manager.job["phase"], "receivers")
+                self.assertEqual(self.calls, [])
+                plan = await self.manager.receiver_plan(peer["id"], peer["user_id"], "1.0.0", protocol)
+                self.assertEqual(plan["job"]["release"]["version"], UPDATES.VERSION)
+                self.assertEqual(await self.manager.receiver_plan(peer["id"], "other", UPDATES.VERSION), {"job": None})
+                # Receiver confirmation is still required; only observing the
+                # running target release/protocol completes the installation.
+                await self.repairs.observe(dict(peer, version=UPDATES.VERSION, protocol_version=1, status="compatible"))
+                await self.manager.receiver_plan(peer["id"], peer["user_id"], UPDATES.VERSION, 1)
+                self.assertEqual(self.manager.job["phase"], "completed")
+                self.assertEqual(self.calls, [])
+                self.assertNotIn(self.protocol_issue, self.hass.issues)
+                self.assertNotIn(self.receiver_issue, self.hass.issues)
+                # Start the next independent case with the same stored format.
+                self.manager.job = None
+
+    async def test_receiver_repair_refuses_pending_ha_files_and_keeps_offer(self):
+        peer = dict(self.peer, version="1.0.0", protocol_version=1, status="version_mismatch")
+        await self.repairs.observe(peer)
+        flow = await REPAIRS.async_create_fix_flow(self.hass, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE, None)
+        flow.hass = self.hass
+        await flow.async_step_init()
+        self.disk_version = "9.0.0"
+        result = await flow.async_step_confirm_receivers({})
+        self.assertEqual(result["errors"]["base"], "hacs_version_changed")
+        self.assertIsNone(self.manager.job)
+        self.assertIn(self.receiver_issue, self.hass.issues)
+        self.assertEqual(self.calls, [])
+
+    async def test_missing_installed_files_yield_repair_error_without_installation(self):
+        peer = dict(self.peer, version="1.0.0", protocol_version=1, status="version_mismatch")
+        await self.repairs.observe(peer)
+        flow = await REPAIRS.async_create_fix_flow(self.hass, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE, None)
+        flow.hass = self.hass
+        await flow.async_step_init()
+        with patch.object(UPDATES, "downloaded_version", side_effect=OSError("missing manifest")):
+            result = await flow.async_step_confirm_receivers({})
+        self.assertEqual(result["errors"]["base"], "hacs_version_changed")
+        self.assertIsNone(self.manager.job)
+        self.assertEqual(self.calls, [])
+
+    async def test_existing_stored_protocol_record_needs_no_migration(self):
+        await self.repairs.observe(self.peer)
+        saved = copy.deepcopy(self.repair_store.data)
+        saved.pop("job_issue")
+        restored = ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime, saved)
+        self.assertEqual(restored.job_issue, ISSUES_MODULE.PROTOCOL_ISSUE)
+        self.assertEqual(restored.receivers, self.repairs.receivers)
+
+    async def test_protocol_reconciles_to_optional_offer_when_ha_becomes_compatible(self):
+        await self.repairs.observe(dict(self.peer, version="1.0.0"))
+        with patch.object(ISSUES_MODULE, "PROTOCOL_VERSION", 2):
+            await self.repairs.sync()
+        self.assertNotIn(self.protocol_issue, self.hass.issues)
+        self.assertIn(self.receiver_issue, self.hass.issues)

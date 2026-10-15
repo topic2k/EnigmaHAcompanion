@@ -219,7 +219,8 @@ von der Releaseversion und wird nur bei inkompatiblen Protokolländerungen erhö
 Beide Pakete erhalten dieselbe Protokollkennung. Gleiche Protokolle mit ungleichen
 Releases erzeugen nur einen Hinweis; die normale Kommunikation bleibt freigegeben.
 
-`repair_issues.py` verwaltet dauerhafte Protokollmeldungen und den Bezug zu einem
+`repair_issues.py` verwaltet dauerhafte Protokollmeldungen, freiwillige Updatehinweise
+für ältere kompatible Receiver und den Bezug zu einem
 bestätigten Updateauftrag. Der native HA-Assistent in `repairs.py` delegiert
 Installation, Wiederholung und Neustart an die bestehende Updatekoordination.
 Das Schließen des Dialogs beendet nur die Fortschrittsbeobachtung. Die native
@@ -234,6 +235,21 @@ und OpenATVs [`opkg`](https://github.com/openatv/enigma2/blob/master/lib/python/
 sowie [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/python/Screens/Standby.py).
 Die bestehenden Python-Paketabhängigkeiten decken auch Hashing, UUID und
 Prozessaufrufe ab; `python3-netclient` zieht `python3-crypt` nach.
+
+Die eigene Update-Entität bietet `INSTALL` und `PROGRESS` an. Ihre
+Installationsaktion prüft den Administrator- beziehungsweise Systemkontext,
+validiert den angezeigten Release erneut und startet über `UpdateManager`
+einen Auftrag ausschließlich für HA. Der HACS-Aufruf erhält den Benutzerkontext;
+der HA-Neustart bleibt ein getrennter Schritt. Receiver-Reparaturen bieten älteren
+Receivern den Release der laufenden HA-Version an, ohne HACS aufzurufen oder HA
+neu zu starten. IPK-Installation und GUI-Neustart erfordern lokale Bestätigungen.
+Änderungen am gespeicherten Auftrag aktualisieren die Entität ebenso
+wie die bisherigen Reparaturhinweise. Das Abbrechen des Dienstaufrufs beendet
+die vom Manager verwaltete Installation nicht. Speicherformat und Entitätskennung
+bleiben erhalten; eine Migration ist nicht erforderlich. Die vorhandenen
+Reparaturdaten akzeptieren zusätzlich kompatible ältere Receiver. Das optionale
+Feld `job_issue` ordnet einen laufenden Auftrag dem passenden Hinweis zu; ohne
+dieses Feld gilt weiterhin die bisherige Protokollreparatur.
 
 Das IPK kompiliert im `postinst` die Python-Dateien des Plugins mit geprüften
 Quellcode-Hashes für alle Optimierungsstufen neu. Die reproduzierbaren

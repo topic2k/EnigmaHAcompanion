@@ -8,8 +8,9 @@ import probatio
 from homeassistant.components.repairs import RepairsFlow
 
 from .const import DOMAIN
-from .enigmaha_protocol.releases import UpdateError
-from .repair_issues import PROTOCOL_ISSUE, UPDATE_ISSUE
+from .enigmaha_protocol.compatibility import VERSION
+from .enigmaha_protocol.releases import UpdateError, version_tuple
+from .repair_issues import PROTOCOL_ISSUE, UPDATE_ISSUE, RECEIVER_UPDATE_ISSUE
 
 
 class CompanionRepairFlow(RepairsFlow):
@@ -18,6 +19,12 @@ class CompanionRepairFlow(RepairsFlow):
         self.candidate = None
         self.poll_task = None
         self.job_id = None
+        self.issue_kind = PROTOCOL_ISSUE
+        self.receiver_only = False
+        self.peers = []
+
+    def pending_receivers(self, runtime):
+        return runtime.repairs.receivers_for_issue(self.issue_kind)
 
     def runtime(self):
         runtime = self.hass.data.get(DOMAIN, {}).get("runtime")
@@ -40,13 +47,19 @@ class CompanionRepairFlow(RepairsFlow):
         if job and job["phase"] != "completed":
             self.job_id = job["id"]
             return await self.async_step_resume()
-        if not runtime.repairs.receivers:
+        self.peers = copy.deepcopy(self.pending_receivers(runtime))
+        if not self.peers:
             return self.async_create_entry(title="", data={})
         try:
-            await runtime.updates.check()
+            self.receiver_only = all(version_tuple(r["version"]) <= version_tuple(VERSION) for r in self.peers)
+            if self.receiver_only:
+                self.candidate = await runtime.updates.check_receivers()
+            else:
+                # Preserve recovery for a receiver whose incompatible release
+                # is newer than HA; never downgrade it to HA's older release.
+                self.candidate = await runtime.updates.check()
         except UpdateError as error:
             return self.form("check", error=error.code)
-        self.candidate = copy.deepcopy(runtime.updates.candidate)
         return await self.async_step_confirm()
 
     async def async_step_check(self, user_input=None):
@@ -58,7 +71,9 @@ class CompanionRepairFlow(RepairsFlow):
             return self.async_abort(reason="integration_unavailable")
         if self.candidate is None:
             return await self.async_step_init()
-        peers = copy.deepcopy(runtime.repairs.receivers)
+        pending = {(r["id"], r["user_id"]): r for r in self.pending_receivers(runtime)}
+        peers = [copy.deepcopy(pending[(r["id"], r["user_id"])]) for r in self.peers
+                 if (r["id"], r["user_id"]) in pending]
         if not peers:
             return self.async_create_entry(title="", data={})
         error = None
@@ -67,16 +82,21 @@ class CompanionRepairFlow(RepairsFlow):
                 # HA's native repairs endpoints require an administrator. They do
                 # not pass a user_id to flows; use the system service context,
                 # never guess an owner or accept an actor from submitted data.
-                await runtime.updates.start(self.candidate["id"], peers, None)
+                await runtime.updates.start(self.candidate["id"], peers, None, receiver_only=self.receiver_only)
                 self.job_id = runtime.updates.job["id"]
-                await runtime.repairs.bind_job(self.job_id)
+                issue = RECEIVER_UPDATE_ISSUE if self.issue_kind == RECEIVER_UPDATE_ISSUE else PROTOCOL_ISSUE
+                await runtime.repairs.bind_job(self.job_id, issue)
                 return await self.async_step_resume()
             except UpdateError as caught:
                 if caught.code == "release_check_required":
                     self.candidate = None
                     return await self.async_step_init()
                 error = caught.code
-        return self.form("confirm", {"release": self.candidate["release"], "receivers": peers}, error)
+        return self.form("confirm_receivers" if self.receiver_only else "confirm",
+                         {"release": self.candidate["release"], "receivers": peers}, error)
+
+    async def async_step_confirm_receivers(self, user_input=None):
+        return await self.async_step_confirm(user_input)
 
     async def async_step_resume(self, user_input=None):
         runtime = self.runtime()
@@ -90,7 +110,7 @@ class CompanionRepairFlow(RepairsFlow):
             return self.async_abort(reason="stale_update")
         self.job_id = job["id"]
         if job["phase"] == "completed":
-            if runtime.repairs.receivers:
+            if self.pending_receivers(runtime):
                 return await self.async_step_init()
             return self.async_create_entry(title="", data={})
         if any(r["error"] == "install_uncertain" for r in job["receivers"]):
@@ -158,6 +178,8 @@ class CompanionRepairFlow(RepairsFlow):
 
 
 async def async_create_fix_flow(hass, issue_id, data):
-    if issue_id not in {PROTOCOL_ISSUE, UPDATE_ISSUE}:
+    if issue_id not in {PROTOCOL_ISSUE, UPDATE_ISSUE, RECEIVER_UPDATE_ISSUE}:
         raise ValueError("unknown EnigmaHA repair issue")
-    return CompanionRepairFlow()
+    flow = CompanionRepairFlow()
+    flow.issue_kind = issue_id
+    return flow

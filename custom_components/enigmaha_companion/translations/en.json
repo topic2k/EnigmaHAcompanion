@@ -1,5 +1,10 @@
 {
   "title": "EnigmaHA Companion",
+  "exceptions": {
+    "update_install_failed": {
+      "message": "The HA update could not be started or completed ({error}). Open EnigmaHA Companion to check prerequisites and progress."
+    }
+  },
   "config": {
     "step": {
       "user": {
@@ -57,11 +62,15 @@
           },
           "restart": {
             "title": "Restart Home Assistant now?",
-            "description": "Receivers {receivers} run target version {version}. Restarting HA activates the same version and temporarily interrupts Home Assistant. The issue remains until the running target version is confirmed."
+            "description": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. The repair remains until the running target version is confirmed."
           },
           "manual": {
             "title": "Check receiver package state",
             "description": "Release {version} for {receivers}: Installation status is uncertain. Installation will not be retried automatically. Check the opkg package state and local update journal on the receiver. After resolving the state and restarting the GUI if required, check progress again."
+          },
+          "confirm_receivers": {
+            "title": "Update receivers?",
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
           }
         },
         "progress": {
@@ -81,7 +90,8 @@
           "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
           "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
-          "release_check_required": "Release check expired. Reopen the repair."
+          "release_check_required": "Release check expired. Reopen the repair.",
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
         },
         "abort": {
           "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
@@ -109,11 +119,15 @@
           },
           "restart": {
             "title": "Restart Home Assistant now?",
-            "description": "Receivers {receivers} run target version {version}. Restarting HA activates the same version and temporarily interrupts Home Assistant. The issue remains until the running target version is confirmed."
+            "description": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. The repair remains until the running target version is confirmed."
           },
           "manual": {
             "title": "Check receiver package state",
             "description": "Release {version} for {receivers}: Installation status is uncertain. Installation will not be retried automatically. Check the opkg package state and local update journal on the receiver. After resolving the state and restarting the GUI if required, check progress again."
+          },
+          "confirm_receivers": {
+            "title": "Update receivers?",
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
           }
         },
         "progress": {
@@ -133,7 +147,65 @@
           "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
           "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
-          "release_check_required": "Release check expired. Reopen the repair."
+          "release_check_required": "Release check expired. Reopen the repair.",
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
+        },
+        "abort": {
+          "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
+          "stale_update": "This update job is no longer current. Reopen the repair.",
+          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair."
+        }
+      }
+    },
+    "receiver_update_available": {
+      "title": "Receiver update available",
+      "description": "Home Assistant runs release {version}. These receivers run an older release: {receivers}. Their protocols are compatible and communication remains available. Updating is optional. Choose Fix to review and confirm the receiver update.",
+      "fix_flow": {
+        "step": {
+          "check": {
+            "title": "Check update prerequisites",
+            "description": "The release check could not finish. Review the message and try again."
+          },
+          "confirm": {
+            "title": "Confirm coordinated update",
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Confirm the IPK installation and GUI restart on the receiver. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+          },
+          "retry": {
+            "title": "Offer update again?",
+            "description": "Release {version} for {receivers}: A step failed or was declined. Confirmation offers the same update job again. Successful installations are not repeated. Review the update message in the EnigmaHA editor before retrying a failure."
+          },
+          "restart": {
+            "title": "Restart Home Assistant now?",
+            "description": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. The repair remains until the running target version is confirmed."
+          },
+          "manual": {
+            "title": "Check receiver package state",
+            "description": "Release {version} for {receivers}: Installation status is uncertain. Installation will not be retried automatically. Check the opkg package state and local update journal on the receiver. After resolving the state and restarting the GUI if required, check progress again."
+          },
+          "confirm_receivers": {
+            "title": "Update receivers?",
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
+          }
+        },
+        "progress": {
+          "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
+          "receivers": "Release {version}: Confirm installation and GUI restart on receivers {receivers}. Progress is checked automatically."
+        },
+        "error": {
+          "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
+          "download_failed": "Could not download release. Check the internet connection and try again.",
+          "invalid_release": "The release does not contain valid, complete update packages.",
+          "downgrade_blocked": "A participating system is newer than the offered release. No downgrade was performed.",
+          "update_unavailable": "Update coordination is unavailable. Reload the integration.",
+          "receiver_update_unavailable": "Receiver cannot be identified. Open the plugin and try again.",
+          "update_in_progress": "An update is already running. Close this dialog and reopen the ongoing repair.",
+          "hacs_version_changed": "The HACS installation changed meanwhile. Check the update state in the editor.",
+          "already_current": "Both sides are already current. Check the state again.",
+          "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
+          "stale_update": "This update job is no longer current. Reopen the repair.",
+          "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
+          "release_check_required": "Release check expired. Reopen the repair.",
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
         },
         "abort": {
           "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
