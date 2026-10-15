@@ -103,6 +103,29 @@ class Pending:
         return self.success(result)
 
 
+class PluginDescriptor:
+    WHERE_PLUGINMENU, WHERE_EXTENSIONSMENU, WHERE_MENU, WHERE_SESSIONSTART = 1, 2, 3, 4
+    WHERE_BUTTONSETUP = 25
+
+    def __init__(self, **kwargs):
+        self.name, self.weight, self.path = "Plugin", 0, None
+        self.function = kwargs.get("fnc")
+        self.__dict__.update(kwargs)
+
+    def updateIcon(self, path):
+        self.path = path
+
+    # Match OpenATV's sorting contract, including its reflected comparison.
+    def __lt__(self, other):
+        return self.weight < other.weight or (self.weight == other.weight and self.name < other.name)
+
+    def __gt__(self, other):
+        return other < self
+
+    def __eq__(self, other):
+        return self.function == other.function
+
+
 def load_receiver():
     package = types.ModuleType("eha_receiver_test")
     package.__path__ = [str(BUNDLE)]
@@ -126,10 +149,7 @@ def load_receiver():
     config.ConfigYesNo = ConfigYesNo
     config.ConfigSelection = ConfigSelection
     config.getConfigListEntry = lambda *args: args
-    fake["Plugins.Plugin"].PluginDescriptor = type("PluginDescriptor", (), {
-        "WHERE_PLUGINMENU": 1, "WHERE_EXTENSIONSMENU": 2, "WHERE_MENU": 3, "WHERE_SESSIONSTART": 4,
-        "WHERE_BUTTONSETUP": 25,
-        "__init__": lambda self, **kwargs: self.__dict__.update(kwargs)})
+    fake["Plugins.Plugin"].PluginDescriptor = PluginDescriptor
     fake["Screens.Screen"].Screen = Screen
     fake["Screens.MessageBox"].MessageBox = type("MessageBox", (), {"TYPE_ERROR": 0, "TYPE_INFO": 1, "TYPE_YESNO": 2})
     fake["Screens.VirtualKeyBoard"].VirtualKeyBoard = object
@@ -1138,6 +1158,20 @@ class ReceiverTests(unittest.TestCase):
         for error in (ValueError("invalid config"), OSError("unreadable config")):
             with patch.object(PLUGIN, "load_settings", side_effect=error):
                 self.assertEqual(callback("mainmenu"), [])
+
+    def test_direct_settings_hotkey_opens_saved_configuration_with_separate_path(self):
+        with patch.object(PLUGIN, "_KEYMAP_LOADED", True):
+            descriptors = PLUGIN.Plugins()
+        settings, = [item for item in descriptors if item.where == PLUGIN.PluginDescriptor.WHERE_BUTTONSETUP]
+        self.assertEqual(settings.name, "EnigmaHA Companion (Einstellungen)")
+        settings.updateIcon("/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion")
+        self.assertTrue(settings.path.replace("\\", "/").endswith("/EnigmaHACompanion/settings"))
+        with patch.object(PLUGIN, "load_settings", return_value=self.screen.config):
+            settings.fnc(self.screen.session)
+        self.assertEqual(self.dialogs[-1][0], (PLUGIN.CompanionSetup, self.screen.config))
+        with patch.object(PLUGIN, "load_settings", side_effect=ValueError("invalid config")):
+            settings.fnc(self.screen.session)
+        self.assertEqual(self.dialogs[-1][0], (PLUGIN.CompanionSetup, PLUGIN.DEFAULTS))
 
     def test_mainmenu_option_save_and_cancel(self):
         settings = __import__("eha_receiver_test.settings", fromlist=["save_settings"])

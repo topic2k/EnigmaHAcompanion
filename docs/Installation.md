@@ -458,9 +458,18 @@ automatisch wiederholt, auch wenn seine Antwort verloren ging.
 Unter **Einstellungen → Bedienung → Hotkeys → Plugins** werden automatisch alle
 schaltbaren Einträge aus den für den angemeldeten HA-Benutzer freigegebenen Menüs
 angeboten, zum Beispiel **EnigmaHA: Zuhause > Wohnzimmer > Stehlampe – Umschalten**.
-Der vollständige Menüpfad zeigt die Herkunft des Eintrags. Eine Entität in mehreren
-Menüs wird für jeden Menüeintrag angeboten. Sensoren und Einträge ohne
+Der Menüpfad zeigt die Herkunft des Eintrags. Zu lange Zeilen werden passend zur
+Listenbreite links mit **…** gekürzt, damit Entitätsname und Schaltbefehl am Ende
+sichtbar bleiben. Die native Hotkey-Liste unterstützt für diese Einträge keine
+zuschaltbare Laufschrift. Eine Entität in mehreren Menüs wird für jeden
+Menüeintrag angeboten. Sensoren und Einträge ohne
 Steuerungsberechtigung erscheinen nicht.
+
+**EnigmaHA Companion (Menü)** öffnet das Companion-Menü;
+**EnigmaHA Companion (Einstellungen)** öffnet direkt dessen Einstellungen.
+Beide Funktionen können ebenfalls einer Taste zugeordnet werden. Vorhandene
+Belegungen zum Öffnen des Menüs bleiben erhalten; eine neue Zuordnung oder
+Migration ist nicht erforderlich.
 
 Die gewünschte Taste und anschließend den Eintrag auswählen und speichern.
 Das funktioniert mit den von OpenATV angebotenen Tasten, einschließlich F1–F4

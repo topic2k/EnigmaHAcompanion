@@ -421,9 +421,17 @@ repeated, even if their response was lost.
 
 Under **Settings → Usage → Hotkeys → Plugins**, all switchable entries from the
 menus shared with the logged-in HA user are offered automatically, for example
-**EnigmaHA: Home > Living room > Floor lamp – Toggle**. The full menu path shows
-where each entry comes from. An entity in multiple menus is offered once per
-menu entry. Sensors and entries without control permission are excluded.
+**EnigmaHA: Home > Living room > Floor lamp – Toggle**. The menu path shows where
+each entry comes from. Labels that exceed the list width are shortened on the
+left with **…**, keeping the entity name and command at the end visible. The
+native hotkey list has no switchable scrolling text for these entries. An entity
+in multiple menus is offered once per menu entry. Sensors and entries without
+control permission are excluded.
+
+**EnigmaHA Companion (Menu)** opens the Companion menu;
+**EnigmaHA Companion (Settings)** opens its settings directly. Both functions
+can also be assigned to keys. Existing menu-opening bindings are preserved;
+no reassignment or migration is required.
 
 Select a key, select the entry and save. This works with the keys offered by
 OpenATV, including F1–F4 and, where supported, short and long presses. While

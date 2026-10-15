@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import tempfile
+from types import MethodType
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
@@ -14,10 +15,27 @@ from .companion.i18n import translate
 from .companion.updater import load_receiver_id
 from .enigmaha_protocol.menu import index_nodes, validate_menu
 from .settings import load_settings
+from .hotkey_display import HOTKEY_ROOT, fit_lists
 
 
 def connection(config):
     return config["url"].rstrip("/"), config["token"]
+
+
+def settings_descriptor(**kwargs):
+    # Keep the exact native type. Its reflected comparison (__gt__) recurses
+    # when bisect compares a base descriptor with a derived descriptor.
+    descriptor = PluginDescriptor(**kwargs)
+    native_update_icon = descriptor.updateIcon
+
+    def update_icon(path):
+        native_update_icon(path)
+        # A separate native namespace keeps the existing menu action at /1.
+        # Adding Settings to the parent path would reorder saved ordinals.
+        descriptor.path = os.path.join(path, "settings")
+
+    descriptor.updateIcon = update_icon
+    return descriptor
 
 
 class HotkeyCache:
@@ -97,9 +115,28 @@ class Hotkeys:
     def install_setup_hook(self):
         native = self.button_setup
         original = self.original_init = native.ButtonSetup.__init__
+        self.original_select_init = native.ButtonSetupSelect.__init__
+        self.original_functions = native.getButtonSetupFunctions
+
+        def functions():
+            try:
+                language = load_settings()["language"]
+            except (ValueError, OSError):
+                language = "auto"
+            labels = {
+                HOTKEY_ROOT + "/1": translate("EnigmaHA Companion (Menü)", language),
+                HOTKEY_ROOT + "/settings/1": translate("EnigmaHA Companion (Einstellungen)", language),
+            }
+            return [(labels.get(function[1], function[0]),) + tuple(function[1:])
+                    for function in self.original_functions()]
+
+        def select_initialize(screen, *args, **kwargs):
+            self.original_select_init(screen, *args, **kwargs)
+            screen.onLayoutFinish.append(MethodType(fit_lists, screen))
 
         def initialize(screen, *args, **kwargs):
             original(screen, *args, **kwargs)
+            screen.onLayoutFinish.append(MethodType(fit_lists, screen))
             active = [True]
             screen.onClose.append(lambda: active.__setitem__(0, False))
 
@@ -118,7 +155,11 @@ class Hotkeys:
             screen.onFirstExecBegin.append(lambda: self.refresh(updated))
 
         self.setup_init = initialize
+        self.select_init = select_initialize
+        self.setup_functions = functions
         native.ButtonSetup.__init__ = initialize
+        native.ButtonSetupSelect.__init__ = select_initialize
+        native.getButtonSetupFunctions = functions
 
     def clear(self):
         registered = self.registry.getPlugins(PluginDescriptor.WHERE_BUTTONSETUP)
@@ -131,6 +172,10 @@ class Hotkeys:
         self.closed = True
         if self.button_setup is not None and self.button_setup.ButtonSetup.__init__ is self.setup_init:
             self.button_setup.ButtonSetup.__init__ = self.original_init
+        if self.button_setup is not None and self.button_setup.ButtonSetupSelect.__init__ is self.select_init:
+            self.button_setup.ButtonSetupSelect.__init__ = self.original_select_init
+        if self.button_setup is not None and self.button_setup.getButtonSetupFunctions is self.setup_functions:
+            self.button_setup.getButtonSetupFunctions = self.original_functions
         self.waiters.clear()
         self.clear()
 

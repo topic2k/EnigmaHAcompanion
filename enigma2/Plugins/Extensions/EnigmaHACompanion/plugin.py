@@ -24,7 +24,7 @@ from .appearance import Appearance
 from .settings import DEFAULTS, load_settings
 from .setup import CompanionSetup
 from .state_icons import StateIcons
-from .hotkeys import Hotkeys
+from .hotkeys import Hotkeys, settings_descriptor
 
 _KEYMAP_LOADED = False
 HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
@@ -522,6 +522,14 @@ def main(session, **kwargs):
     session.open(CompanionScreen)
 
 
+def setup_main(session, **kwargs):
+    try:
+        values = load_settings()
+    except (ValueError, OSError):
+        values = dict(DEFAULTS)
+    session.open(CompanionSetup, values)
+
+
 _UPDATE_REPORT_TIMER = None
 _HOTKEYS = None
 
@@ -594,4 +602,6 @@ def Plugins(**kwargs):
                              where=[PluginDescriptor.WHERE_PLUGINMENU, PluginDescriptor.WHERE_EXTENSIONSMENU], fnc=main),
             PluginDescriptor(name="EnigmaHA Companion", description=t("Home Assistant auf deinem Receiver"),
                              where=PluginDescriptor.WHERE_MENU, fnc=menu),
-            PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=session_start)]
+            PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=session_start),
+            settings_descriptor(name=t("EnigmaHA Companion (Einstellungen)"),
+                description=t("Einstellungen"), where=PluginDescriptor.WHERE_BUTTONSETUP, fnc=setup_main)]

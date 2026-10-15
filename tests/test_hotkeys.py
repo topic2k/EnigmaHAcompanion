@@ -1,6 +1,7 @@
 """Native OpenATV binding stability and authenticated background switching."""
 
 import copy
+from bisect import insort
 import json
 from pathlib import Path
 import sys
@@ -22,7 +23,7 @@ class Registry:
         return self.items
 
     def addPlugin(self, descriptor):
-        self.items.append(descriptor)
+        insort(self.items, descriptor)
 
     def removePlugin(self, descriptor):
         self.items.remove(descriptor)
@@ -239,18 +240,26 @@ class HotkeyTests(unittest.TestCase):
         class Setup:
             def __init__(self, session, args=None):
                 self.session = session
-                self.onClose, self.onFirstExecBegin = [], []
+                self.onClose, self.onFirstExecBegin, self.onLayoutFinish = [], [], []
                 self.ButtonSetupFunctions = list(button_functions(registry))
                 self.getFunctions = Mock()
 
+            def close(self):
+                pass
+
         class Select(dict):
             def __init__(self):
+                self.onLayoutFinish = []
                 self["list"] = types.SimpleNamespace(setList=Mock())
                 self.getFunctionList = Mock(return_value=["fresh choices"])
                 self.selected = ["unsaved selection"]
 
+            def close(self):
+                pass
+
         return types.SimpleNamespace(ButtonSetup=Setup, ButtonSetupSelect=Select,
-                                     getButtonSetupFunctions=lambda: list(button_functions(registry)))
+            getButtonSetupFunctions=lambda: [(item.name, key, "Plugins")
+                                             for key, item in button_functions(registry).items()])
 
     def test_opening_setup_fetches_once_and_refreshes_an_already_open_chooser(self):
         native = self.native_setup()
@@ -321,3 +330,61 @@ class HotkeyTests(unittest.TestCase):
         second.assert_called_once_with()
         self.assertEqual(self.client.get_menu.call_count, 1)
         self.assertFalse(self.manager.waiters)
+
+    def test_menu_and_settings_names_keep_native_identifiers_and_restore_hooks(self):
+        native = self.native_setup()
+        original_functions = native.getButtonSetupFunctions = lambda: [
+            ("EnigmaHA Companion", "Plugins/Extensions/EnigmaHACompanion/1", "Plugins"),
+            ("Settings", "Plugins/Extensions/EnigmaHACompanion/settings/1", "Plugins"),
+            ("Another plugin", "Plugins/Extensions/Other/1", "Plugins")]
+        original_select = native.ButtonSetupSelect.__init__
+        manager = HOTKEYS.Hotkeys(self.session, self.registry, native, self.cache)
+        self.addCleanup(manager.stop)
+        for language, menu, settings in (("de", "Menü", "Einstellungen"), ("en", "Menu", "Settings")):
+            self.config["language"] = language
+            functions = native.getButtonSetupFunctions()
+            self.assertEqual(functions[0], ("EnigmaHA Companion (" + menu + ")",
+                                           "Plugins/Extensions/EnigmaHACompanion/1", "Plugins"))
+            self.assertEqual(functions[1], ("EnigmaHA Companion (" + settings + ")",
+                                           "Plugins/Extensions/EnigmaHACompanion/settings/1", "Plugins"))
+            self.assertEqual(functions[2], original_functions()[2])
+        manager.stop()
+        self.assertIs(native.getButtonSetupFunctions, original_functions)
+        self.assertIs(native.ButtonSetupSelect.__init__, original_select)
+
+    def test_cached_hotkeys_start_alongside_settings_in_openatv_sorted_registry(self):
+        self.refresh()
+        saved_bindings = set(button_functions(self.registry))
+        self.manager.stop()
+        with patch.object(PLUGIN, "_KEYMAP_LOADED", True):
+            descriptors = PLUGIN.Plugins()
+        for descriptor in (descriptors[0], descriptors[-1]):
+            self.assertIs(type(descriptor), PLUGIN.PluginDescriptor)
+            descriptor.updateIcon("/usr/lib/enigma2/python/Plugins/Extensions/EnigmaHACompanion")
+            self.registry.addPlugin(descriptor)
+        native = self.native_setup()
+        manager = HOTKEYS.Hotkeys(self.session, self.registry, native, self.cache)
+        self.addCleanup(manager.stop)
+        functions = native.getButtonSetupFunctions()
+        actual = {identifier: name for name, identifier, category in functions}
+        self.assertTrue(saved_bindings.issubset(actual))
+        self.assertEqual(actual["Plugins/Extensions/EnigmaHACompanion/1"], "EnigmaHA Companion (Menü)")
+        self.assertEqual(actual["Plugins/Extensions/EnigmaHACompanion/settings/1"],
+                         "EnigmaHA Companion (Einstellungen)")
+        self.assertFalse(self.pending)
+
+    def test_layout_callbacks_follow_openatv_bound_method_dispatch_for_both_screens(self):
+        native = self.native_setup()
+        with patch.object(HOTKEYS, "fit_lists") as fit:
+            manager = HOTKEYS.Hotkeys(self.session, self.registry, native, self.cache)
+            self.addCleanup(manager.stop)
+            screens = [native.ButtonSetup(self.session), native.ButtonSetupSelect()]
+            for screen in screens:
+                for callback in screen.onLayoutFinish:
+                    # OpenATV Screen.createGUIScreen executes non-method values
+                    # with exec(), including lambdas and functools.partial.
+                    if isinstance(callback, type(screen.close)):
+                        callback()
+                    else:
+                        exec(callback, {}, {})
+            self.assertEqual([call.args for call in fit.call_args_list], [(screens[0],), (screens[1],)])

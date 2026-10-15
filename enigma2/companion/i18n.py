@@ -3,6 +3,8 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
+    "EnigmaHA Companion (Menü)": "EnigmaHA Companion (Menu)",
+    "EnigmaHA Companion (Einstellungen)": "EnigmaHA Companion (Settings)",
     "EnigmaHA: {path} – Umschalten": "EnigmaHA: {path} – Toggle",
     "Hotkey-Liste konnte nicht gespeichert werden. Dateirechte und freien Speicher prüfen.": "Could not save the hotkey list. Check file permissions and free space.",
     "Hotkey-Eintrag nicht mehr freigegeben oder geändert. Hotkeys neu zuordnen.": "Hotkey entry is no longer shared or has changed. Assign hotkeys again.",
