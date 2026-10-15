@@ -3,6 +3,13 @@
 LANGUAGE_CHOICES = [("de", "Deutsch"), ("en", "English"), ("auto", "Automatisch")]
 
 ENGLISH = {
+    "EnigmaHA: {path} – Umschalten": "EnigmaHA: {path} – Toggle",
+    "Hotkey-Liste konnte nicht gespeichert werden. Dateirechte und freien Speicher prüfen.": "Could not save the hotkey list. Check file permissions and free space.",
+    "Hotkey-Eintrag nicht mehr freigegeben oder geändert. Hotkeys neu zuordnen.": "Hotkey entry is no longer shared or has changed. Assign hotkeys again.",
+    "Hotkey konnte nicht geschaltet werden. Zustand und Verbindung in EnigmaHA Companion prüfen.": "Could not toggle the hotkey entry. Check its state and connection in EnigmaHA Companion.",
+    "Token ungültig oder abgelaufen. Menü: Einstellungen": "Token invalid or expired. Menu: Settings",
+    "Keine Berechtigung für diesen Eintrag.": "No permission for this entry.",
+    "Home Assistant nicht erreichbar. Adresse/Netzwerk prüfen.": "Home Assistant unreachable. Check its address and network.",
     "Menüposition beim Beenden merken": "Remember menu position on exit",
     "Ungültige Menüpositions-Einstellung": "Invalid menu position setting",
     "Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\nOK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\nGelb: Aktualisieren\n{channel_help}\nRot/Exit: Menü komplett schließen\nInfo: Programminformationen\nSensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.": "Up/Down: Select entry\nLeft/Right: Page up/down\nRecall: Go back one level; no action at the root menu\nOK/Green: Open submenu or toggle light/switch\nMenu/Blue: Settings\nYellow: Refresh\n{channel_help}\nRed/Exit: Close the entire menu\nInfo: Program information\nSensors are read-only. The menu structure is configured in Home Assistant.",

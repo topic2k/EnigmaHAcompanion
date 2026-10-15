@@ -447,6 +447,40 @@ Bei einem Verbindungsfehler bleibt die letzte Anzeige als **OFFLINE** sichtbar.
 Schalten ist bis zum erfolgreichen Abruf gesperrt. Ein Schaltbefehl wird niemals
 automatisch wiederholt, auch wenn seine Antwort verloren ging.
 
+<a id="openatv-hotkeys"></a>
+
+## Schalten über OpenATV-Hotkeys
+
+Unter **Einstellungen → Bedienung → Hotkeys → Plugins** werden automatisch alle
+schaltbaren Einträge aus den für den angemeldeten HA-Benutzer freigegebenen Menüs
+angeboten, zum Beispiel **EnigmaHA: Zuhause > Wohnzimmer > Stehlampe – Umschalten**.
+Der vollständige Menüpfad zeigt die Herkunft des Eintrags. Eine Entität in mehreren
+Menüs wird für jeden Menüeintrag angeboten. Sensoren und Einträge ohne
+Steuerungsberechtigung erscheinen nicht.
+
+Die gewünschte Taste und anschließend den Eintrag auswählen und speichern.
+Das funktioniert mit den von OpenATV angebotenen Tasten, einschließlich F1–F4
+und, soweit unterstützt, kurzem und langem Tastendruck. Beim Fernsehen schaltet
+die Taste direkt, ohne das Companion-Menü zu öffnen. In anderen Bildschirmen
+gelten deren eigene Tastenbelegungen.
+
+Die Liste wird beim Öffnen der Hotkey-Einstellungen einmal von Home Assistant
+geladen. Es gibt keine regelmäßige Hintergrundabfrage. Nach Menüänderungen die
+Hotkey-Einstellungen erneut öffnen. Die zuletzt geladene Liste wird lokal unter
+`/etc/enigma2/enigmaha_companion_hotkeys.json` gespeichert, damit bestehende
+Tastenbelegungen nach einem GUI-Neustart sofort verfügbar sind. Die Datei ist an
+HA-Adresse und Token gebunden, enthält aber keine Zugangsdaten. Nach einem
+Tokenwechsel die Hotkey-Einstellungen einmal öffnen. Vor jedem Schaltbefehl
+werden der aktuelle Menüeintrag und die HA-Berechtigungen geprüft. Bei
+Verbindungsproblemen erscheint eine Fehlermeldung; Schaltbefehle werden nicht
+automatisch wiederholt.
+
+Umbenennen, Verschieben und Umsortieren eines vorhandenen Eintrags erhalten seine
+Tastenbelegung. Entfernte, nicht mehr freigegebene oder auf eine andere Entität
+geänderte Einträge schalten nicht mehr. Für ersetzte Einträge oder eine geänderte
+HA-Adresse die Taste erneut zuordnen. Bestehende Einstellungen und
+OpenATV-Tastenbelegungen bleiben erhalten; eine Migration ist nicht erforderlich.
+
 <a id="funktionspruefung"></a>
 
 ## Funktionsprüfung

@@ -128,6 +128,7 @@ def load_receiver():
     config.getConfigListEntry = lambda *args: args
     fake["Plugins.Plugin"].PluginDescriptor = type("PluginDescriptor", (), {
         "WHERE_PLUGINMENU": 1, "WHERE_EXTENSIONSMENU": 2, "WHERE_MENU": 3, "WHERE_SESSIONSTART": 4,
+        "WHERE_BUTTONSETUP": 25,
         "__init__": lambda self, **kwargs: self.__dict__.update(kwargs)})
     fake["Screens.Screen"].Screen = Screen
     fake["Screens.MessageBox"].MessageBox = type("MessageBox", (), {"TYPE_ERROR": 0, "TYPE_INFO": 1, "TYPE_YESNO": 2})
@@ -144,6 +145,9 @@ def load_receiver():
     module = importlib.util.module_from_spec(spec)
     with patch.dict(sys.modules, fake):
         spec.loader.exec_module(module)
+        bundled = {name: value for name, value in sys.modules.items()
+                   if name.startswith(package.__name__ + ".")}
+    sys.modules.update(bundled)
     return module
 
 

@@ -162,3 +162,9 @@ The position is stored separately in `/etc/enigma2/enigmaha_companion_position.j
 bound to the HA address and token without storing those credentials in that file.
 Removed or no longer shared entries are not restored. Loading existing settings
 does not modify them; no migration is required.
+
+## Switching with OpenATV hotkeys
+
+Switchable menu entries can be toggled directly with remote keys assigned
+through OpenATV hotkeys. See the
+[documentation](../docs/Installation.en.md#openatv-hotkeys) for setup instructions.

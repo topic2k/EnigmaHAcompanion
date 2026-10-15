@@ -411,6 +411,35 @@ On connection failure, the last display remains visible with **OFFLINE**.
 Toggling is blocked until a successful refresh. Commands are never automatically
 repeated, even if their response was lost.
 
+<a id="openatv-hotkeys"></a>
+
+## Switching with OpenATV hotkeys
+
+Under **Settings → Usage → Hotkeys → Plugins**, all switchable entries from the
+menus shared with the logged-in HA user are offered automatically, for example
+**EnigmaHA: Home > Living room > Floor lamp – Toggle**. The full menu path shows
+where each entry comes from. An entity in multiple menus is offered once per
+menu entry. Sensors and entries without control permission are excluded.
+
+Select a key, select the entry and save. This works with the keys offered by
+OpenATV, including F1–F4 and, where supported, short and long presses. While
+watching TV, the key toggles the entity directly without opening Companion.
+Other screens use their own key bindings.
+
+The list loads from Home Assistant once when opening Hotkey Settings. There is
+no periodic background polling. Reopen Hotkey Settings after menu changes.
+The most recently loaded list is stored locally in
+`/etc/enigma2/enigmaha_companion_hotkeys.json` so existing bindings are available
+immediately after a GUI restart. The file is bound to the HA address and token
+without containing either credential. Open Hotkey Settings once after changing
+the token. Each command checks the current menu entry and HA permissions.
+Connection problems show an error; toggle commands are never retried automatically.
+
+Renaming, moving and reordering an existing entry preserves its binding. Removed,
+unshared or retargeted entries no longer switch. Assign the key again after
+replacing an entry or changing the HA address. Existing settings and OpenATV
+key bindings are retained; no migration is required.
+
 ## Functional check
 
 1. In HA, save a “Test” submenu containing a light and sensor.

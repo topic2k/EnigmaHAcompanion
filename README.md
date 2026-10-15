@@ -18,6 +18,9 @@ Menü navigieren, Sensorwerte ablesen und Lampen, Schalter sowie
 `input_boolean` ein- und ausschalten. Ein zusätzlicher Server oder MQTT-Broker
 ist nicht nötig.
 
+Über [OpenATV-Hotkeys](docs/Installation.md#openatv-hotkeys) lassen sich
+schaltbare Menüeinträge direkt auf frei gewählte Fernbedienungstasten legen.
+
 Gemeinsame und persönliche Menüs können nebeneinander verwendet werden.
 Ganze Menüs, Untermenüs und einzelne Einträge lassen sich für HA-Benutzer
 freigeben; der Token am Receiver bestimmt die Ansicht.
@@ -133,6 +136,9 @@ connecting Home Assistant to Enigma2 receivers running OpenATV.
 Build your menu in Home Assistant: select entities, organize submenus and choose
 display names. On the receiver, browse the menu, read sensors and toggle lights,
 switches and `input_boolean` helpers. No additional server or MQTT broker is required.
+
+Use [OpenATV hotkeys](docs/Installation.en.md#openatv-hotkeys) to assign
+switchable menu entries directly to remote keys of your choice.
 
 Shared and personal menus can coexist. Share complete menus, submenus and
 individual entries with selected HA users; the receiver token determines its

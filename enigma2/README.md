@@ -187,3 +187,9 @@ wieder auf oberster Ebene. Die Position liegt getrennt in
 gebunden, ohne die Zugangsdaten dort abzulegen. Entfernte oder nicht mehr
 freigegebene Einträge werden nicht wiederhergestellt. Die bestehende
 Konfiguration wird beim Laden nicht verändert; eine Migration ist nicht nötig.
+
+## Schalten über OpenATV-Hotkeys
+
+Schaltbare Menüeinträge lassen sich über OpenATV-Hotkeys direkt mit frei
+gewählten Fernbedienungstasten umschalten. Die Einrichtung beschreibt die
+[Dokumentation](../docs/Installation.md#openatv-hotkeys).
