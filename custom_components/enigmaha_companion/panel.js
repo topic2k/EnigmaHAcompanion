@@ -26,72 +26,15 @@ const ENIGMAHA_EN = {
   "Vorschau öffnen": "Open preview",
   "Vorschau": "Preview",
   "Schließen": "Close",
-  "Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.": "Could not load the preview. Check the user and menu structure.",
   "Für diesen Benutzer ist kein Menü freigegeben.": "No menu is shared with this user.",
   "Gemeinsame Schrift für alle Menüs; der Titel gehört zum ausgewählten Menü.": "Shared font for all menus; the title belongs to the selected menu.",
   "Keine Menüs vorhanden. Lege ein Menü an.": "No menus available. Create a menu.",
   "Menüs werden in dieser Reihenfolge auf dem Receiver angeboten.": "Menus appear in this order on the receiver.",
   "Freigaben gelten für den HA-Benutzer des Receiver-Tokens.": "Access rules apply to the HA user of the receiver token.",
-  "HA-Integration {version}, Protokoll {protocol}. Gleiche Protokolle erlauben unterschiedliche Releases.": "HA integration {version}, protocol {protocol}. Matching protocols allow different releases.",
-  "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben.": "Receiver {address}: Release {version} differs from HA {ha}. Protocol {protocol_version} matches; connection allowed.",
-  "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen.": "Receiver {address}: Protocol {protocol_version} does not match HA {protocol}. Connection blocked; open Repairs in HA.",
-  "Änderungen in Release {version}": "Changes in release {version}",
-  "Reparaturen öffnen": "Open Repairs",
   "Abbrechen": "Cancel",
-  "Beteiligte Receiver: {addresses}": "Participating receivers: {addresses}",
-  "Auf Updates prüfen": "Check for updates",
-  "Beide auf {version} aktualisieren": "Update both to {version}",
-  "Gemeinsames Update starten?": "Start coordinated update?",
-  "HA und {count} Receiver werden auf Release {version} gebracht. HACS installiert die HA-Integration. Die IPK-Installation und der GUI-Neustart werden am Receiver bestätigt. Anschließend bestätigst du hier den HA-Neustart.": "HA and {count} receivers will use release {version}. HACS installs the HA integration. Confirm the IPK installation and GUI restart on each receiver. Then confirm the HA restart here.",
-  "Update starten": "Start update",
-  "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.": "HACS update unavailable. Install EnigmaHA through HACS first and enable its update entity.",
-  "Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren.": "Open the receiver plugin to register all participating receivers. Update older plugins manually first.",
-  "Release {version}: {phase}": "Release {version}: {phase}",
-  "HA-Installation läuft …": "Installing HA …",
-  "HA-Update installiert. HA-Neustart erforderlich.": "HA update installed. HA restart required.",
-  "Release {version} ist installiert. Der HA-Neustart aktiviert diese Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden.": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. Reload this page afterwards.",
-  "EnigmaHA Companion auf dem Receiver öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen.": "Open EnigmaHA Companion on the receiver and keep it open. Confirm installation there, then confirm the GUI restart.",
-  "Receiver verwenden die Zielversion. HA-Neustart erforderlich.": "Receivers are running the target version. HA restart required.",
-  "HA-Installation fehlgeschlagen oder unterbrochen.": "HA installation failed or was interrupted.",
-  "Wartet auf Bestätigung": "Waiting for confirmation",
-  "Installation läuft": "Installing",
-  "GUI-Neustart erforderlich": "GUI restart required",
-  "Abgelehnt": "Declined",
-  "Installation fehlgeschlagen": "Installation failed",
-  "Installation unklar. Paketstatus am Receiver manuell prüfen.": "Installation outcome uncertain. Check the package status on the receiver manually.",
-  "Receiver {address}: {status}": "Receiver {address}: {status}",
-  "Fehlgeschlagene Schritte erneut anbieten": "Offer failed steps again",
-  "Update erneut anbieten?": "Offer update again?",
-  "Die Zielversion bleibt {version}. Fehlgeschlagene Schritte werden erneut angeboten und müssen bestätigt werden.": "The target version remains {version}. Failed steps will be offered again and require confirmation.",
-  "Erneut anbieten": "Offer again",
-  "Home Assistant neu starten": "Restart Home Assistant",
-  "HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen.": "HA restart failed. Check the HA log and confirm restarting again.",
-  "Home Assistant jetzt neu starten?": "Restart Home Assistant now?",
-  "Die Receiver verwenden Release {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden.": "Receivers are running release {version}. Restarting HA activates the same version and temporarily interrupts Home Assistant. Reload this page afterwards.",
-  "Neu starten": "Restart",
-  "Ungespeicherte Änderungen vor dem Neustart speichern.": "Save unsaved changes before restarting.",
-  "HA-Neustart angefordert. Nach dem Neustart diese Seite neu laden.": "HA restart requested. Reload this page after the restart.",
-  "Update konnte nicht ausgeführt werden. Erneut prüfen; der bisherige Fortschritt bleibt erhalten.": "Could not perform the update. Check again; existing progress is preserved.",
-  "Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.": "Release unavailable or incomplete. Check the GitHub connection and release packages.",
-  "Die Versionsauswahl ist abgelaufen. Erneut auf Updates prüfen.": "The version selection has expired. Check for updates again.",
-  "Ein Downgrade wird nicht automatisch ausgeführt.": "Downgrades are not performed automatically.",
-  "Die HACS-Version wurde außerhalb dieses Ablaufs geändert. Installation prüfen.": "The HACS version was changed outside this update. Check the installation.",
-  "Beide Seiten sind bereits aktuell.": "Both sides are already up to date.",
-  "Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen.": "Version check unavailable. Reload the HA page and check the installation.",
-  "HA-Integration {version}. Receiver müssen denselben Release verwenden.": "HA integration {version}. Receivers must use the same release.",
-  "Noch keine Receiver-Anfrage in den letzten 5 Minuten. Die Prüfung erfolgt beim Verbinden.": "No receiver request in the last 5 minutes. Versions are checked when connecting.",
-  "Receiver {address}: Version {version} passt.": "Receiver {address}: version {version} matches.",
-  "Receiver {address}: Version {version} passt nicht zu HA {ha}. Beide auf denselben Release aktualisieren; Verbindung gesperrt.": "Receiver {address}: version {version} does not match HA {ha}. Update both to the same release; connection blocked.",
-  "Receiver {address}: EnigmaHA-Kennung oder Version fehlt/ist ungültig. Receiver-Plugin prüfen und aktualisieren; Verbindung gesperrt.": "Receiver {address}: EnigmaHA identity or version is missing/invalid. Check and update the receiver plugin; connection blocked.",
-  "Ungespeicherte Änderungen": "Unsaved changes",
   "Ungespeicherte Änderungen verwerfen?": "Discard unsaved changes?",
   "Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren.": "Reloading will discard your unsaved changes.",
   "Verwerfen und neu laden": "Discard and reload",
-  "Menü wird geladen …": "Loading menu …",
-  "Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.": "Could not load the editor. Reload the HA page and check that you are signed in as an administrator.",
-  "Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.": "Saved. The receiver menu will update on its next refresh.",
-  "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen.": "The menu has changed since it was loaded. Reload it and apply your changes again.",
-  "Speichern fehlgeschlagen. Namen und Menüstruktur prüfen; Änderungen bleiben hier erhalten.": "Could not save. Check names and menu structure; your changes are kept here.",
   "Auswahl filtern ({count} aktiv)": "Filter selection ({count} active)",
   "Auswahl filtern": "Filter selection",
   "Licht": "Light",
@@ -156,7 +99,6 @@ class EnigmaHAPanel extends HTMLElement {
     this.view = "menus";
     this.dirty = false;
     this.loading = false;
-    this.statusMessages = new Map();
     this.entityFilters = {domain: "", area: "", device_class: ""};
     this.filterTranslations = new Map();
     this.selectedEntity = undefined;
@@ -176,21 +118,6 @@ class EnigmaHAPanel extends HTMLElement {
   t(source, values = {}) {
     const text = this.language === "en" ? ENIGMAHA_EN[source] ?? source : source;
     return text.replace(/\{(\w+)\}/g, (match, key) => String(values[key] ?? match));
-  }
-
-  notify(source, values = {}) {
-    if (!this.isConnected) return;
-    this.dispatchEvent(new CustomEvent("hass-notification", {bubbles: true, composed: true,
-      detail: {message: this.t(source, values)}}));
-  }
-
-  notifyStatus(messages) {
-    if (!this.isConnected) return;
-    // Polling and editor redraws must not repeatedly open the same snackbar.
-    const changed = [...messages].filter(([key, message]) => this.statusMessages.get(key) !== message)
-      .map(([, message]) => message);
-    this.statusMessages = messages;
-    if (changed.length) this.notify([...new Set(changed)].join("\n"));
   }
 
   setLanguage(language) {
@@ -216,7 +143,7 @@ class EnigmaHAPanel extends HTMLElement {
   set hass(value) {
     this._hass = value;
     if (this.languagePreference === "auto") this.setLanguage("auto");
-    if (this.isConnected && !this.compatibilityStarted) this.loadCompatibility();
+    if (this.isConnected && !this.editorPreferencesStarted) this.loadEditorPreferences();
     if (!this.model && !this.loading) this.load();
     const menuButton = this.shadowRoot.querySelector("ha-menu-button");
     if (menuButton) menuButton.hass = value;
@@ -229,8 +156,8 @@ class EnigmaHAPanel extends HTMLElement {
 
   connectedCallback() {
     window.addEventListener("languagechange", this.handleLanguageChange);
-    this.compatibilityTimer = window.setInterval(() => this.loadCompatibility(), 30000);
-    this.loadCompatibility();
+    this.editorPreferencesTimer = window.setInterval(() => this.loadEditorPreferences(), 30000);
+    this.loadEditorPreferences();
     // HA may assign hass before attaching a custom panel. An otherwise idle
     // installation may not send another state update to trigger the first load.
     if (this._hass && !this.model && !this.loading) this.load();
@@ -522,7 +449,7 @@ class EnigmaHAPanel extends HTMLElement {
       else { const list = this.el("ul", null); list.append(branch(menu.root)); content.append(list); }
       await this.confirmAction(this.t("Vorschau"), "", this.t("Schließen"), content);
     } catch (_) {
-      this.notify("Vorschau konnte nicht geladen werden. Benutzer und Menüstruktur prüfen.");
+      // Keep the draft available when the preview request fails.
     } finally { this.previewBusy = false; if (this.isConnected) this.render(); }
   }
 
@@ -579,8 +506,8 @@ class EnigmaHAPanel extends HTMLElement {
 
   disconnectedCallback() {
     window.removeEventListener("languagechange", this.handleLanguageChange);
-    window.clearInterval(this.compatibilityTimer);
-    this.compatibilityStarted = false;
+    window.clearInterval(this.editorPreferencesTimer);
+    this.editorPreferencesStarted = false;
     this.confirmation?.cancel();
     this.stopDragScroll?.();
   }
@@ -633,11 +560,9 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   markDirty() {
-    if (!this.dirty) this.notify("Ungespeicherte Änderungen");
     this.dirty = true;
     const save = this.shadowRoot.querySelector('[data-action="save"]');
     if (save) save.disabled = this.loading;
-    this.renderCompatibility();
   }
 
   async revealEntry(id) {
@@ -725,7 +650,6 @@ class EnigmaHAPanel extends HTMLElement {
       this.t("Beim erneuten Laden gehen deine ungespeicherten Änderungen verloren."), this.t("Verwerfen und neu laden"))) return;
     if (!this.isConnected) return;
     this.loading = true;
-    this.notify("Menü wird geladen …");
     this.render();
     try {
       const [configuration, users] = await Promise.all([
@@ -737,143 +661,24 @@ class EnigmaHAPanel extends HTMLElement {
       this.useConfiguration(configuration, this.model?.root?.id);
       this.dirty = false;
     } catch (_) {
-      this.notify("Editor konnte nicht geladen werden. HA-Seite neu laden und Administrator-Anmeldung prüfen.");
+      // A failed load must release the controls so it can be retried.
     } finally { this.loading = false; this.render(); }
   }
 
-  async loadCompatibility() {
-    if (!this.isConnected || !this._hass || this.compatibilityLoading) return;
-    this.compatibilityLoading = true;
-    this.compatibilityStarted = true;
+  async loadEditorPreferences() {
+    if (!this.isConnected || !this._hass || this.editorPreferencesLoading) return;
+    this.editorPreferencesLoading = true;
+    this.editorPreferencesStarted = true;
     try {
+      // Retain the existing API for live language preferences only.
       const status = await this._hass.callApi("GET", "enigmaha_companion/v1/compatibility");
       if (!this.isConnected) return;
       if (typeof status.version !== "string" || !Array.isArray(status.receivers)) throw new Error("invalid status");
-      this.compatibility = status;
-      this.compatibilityError = false;
       this.setLanguage(status.editor_language);
     } catch (_) {
-      this.compatibilityError = true;
+      // Keep the current language when preferences cannot be loaded.
     } finally {
-      this.compatibilityLoading = false;
-      if (this.isConnected) this.renderCompatibility();
-    }
-  }
-
-  renderCompatibility() {
-    const box = this.shadowRoot.querySelector(".compatibility");
-    if (!box) return;
-    box.replaceChildren();
-    const messages = new Map();
-    if (this.compatibilityError) messages.set("compatibility", this.t("Versionsprüfung nicht erreichbar. HA-Seite neu laden und Installation prüfen."));
-    if (!this.compatibility) { this.notifyStatus(messages); return; }
-    const {version, protocol_version: protocol, receivers} = this.compatibility;
-    for (const receiver of receivers) {
-      const message = receiver.status === "compatible"
-        ? "Receiver {address}: Version {version} passt."
-        : receiver.status === "version_mismatch"
-          ? "Receiver {address}: Release {version} unterscheidet sich von HA {ha}. Protokoll {protocol_version} passt; Verbindung freigegeben."
-          : receiver.status === "protocol_mismatch"
-            ? "Receiver {address}: Protokoll {protocol_version} passt nicht zu HA {protocol}. Verbindung gesperrt; Reparatur in HA öffnen."
-          : "Receiver {address}: EnigmaHA-Kennung oder Version fehlt/ist ungültig. Receiver-Plugin prüfen und aktualisieren; Verbindung gesperrt.";
-      messages.set("receiver:" + (receiver.id || receiver.address),
-        this.t(message, {...receiver, ha: version, protocol: protocol ?? "?", protocol_version: receiver.protocol_version ?? "?"}));
-      if (receiver.status === "version_mismatch") {
-        for (const release of [...new Set([version, receiver.version])]) {
-          if (/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(release)) {
-            box.append(this.el("a", this.t("Änderungen in Release {version}", {version: release}), {
-              href: "https://github.com/topic2k/EnigmaHAcompanion/releases/tag/v" + release,
-              target: "_blank", rel: "noopener noreferrer", class: "release-link"}));
-          }
-        }
-      }
-      if (receiver.status === "protocol_mismatch") box.append(this.el("a", this.t("Reparaturen öffnen"), {href: "/config/repairs"}));
-    }
-    this.renderUpdates(box, messages);
-    this.notifyStatus(messages);
-  }
-
-  renderUpdates(box, messages) {
-    const updates = this.compatibility.updates;
-    if (!updates) return;
-    const {job, candidate} = updates;
-    if (job && job.phase !== "cancelled") {
-      if (job.error === "ha_restart_failed") messages.set("restart:" + job.id, this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."));
-      const phases = {ha_installing: "HA-Installation läuft …", receivers: "EnigmaHA Companion auf dem Receiver öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen.",
-        ha_restart_required: job.receivers.length ? "Receiver verwenden die Zielversion. HA-Neustart erforderlich." : "HA-Update installiert. HA-Neustart erforderlich.",
-        failed: "HA-Installation fehlgeschlagen oder unterbrochen."};
-      if (job.phase !== "completed") messages.set("update:" + job.id, this.t("Release {version}: {phase}", {version: job.release.version, phase: this.t(phases[job.phase] || "Installation fehlgeschlagen")}));
-      const statuses = {pending: "Wartet auf Bestätigung", installing: "Installation läuft", restart_required: "GUI-Neustart erforderlich",
-        declined: "Abgelehnt", failed: "Installation fehlgeschlagen"};
-      for (const receiver of job.receivers) {
-        if (receiver.status === "completed" && !receiver.error) continue;
-        messages.set("update:" + job.id + ":receiver:" + (receiver.id || receiver.address), this.t("Receiver {address}: {status}", {
-          address: receiver.address, status: this.t(receiver.error === "install_uncertain"
-            ? "Installation unklar. Paketstatus am Receiver manuell prüfen." : statuses[receiver.status] || "Installation fehlgeschlagen")}));
-      }
-      if (updates.hacs && (job.phase === "failed" || job.receivers.some(receiver => ["failed", "declined"].includes(receiver.status) && receiver.error !== "install_uncertain"))) {
-        box.append(this.button(this.t("Fehlgeschlagene Schritte erneut anbieten"), () => this.confirmUpdate("retry", job), this.updateBusy));
-      }
-      if (job.phase === "ha_restart_required") {
-        if (this.dirty) messages.set("unsaved_restart:" + job.id, this.t("Ungespeicherte Änderungen vor dem Neustart speichern."));
-        box.append(this.button(this.t("Home Assistant neu starten"), () => this.confirmUpdate("restart", job), this.updateBusy || this.dirty, "accent"));
-      }
-    }
-    if (updates.hacs && (!job || ["completed", "failed", "cancelled"].includes(job.phase))) {
-      box.append(this.button(this.t("Auf Updates prüfen"), () => this.updateAction({action: "check"}), this.updateBusy));
-      const current = candidate && this.compatibility.version === candidate.release.version
-        && this.compatibility.receivers.length > 0
-        && this.compatibility.receivers.every(receiver => receiver.version === candidate.release.version && receiver.status === "compatible");
-      if (candidate && !current) {
-        const ready = this.compatibility.receivers.length > 0 && this.compatibility.receivers.every(receiver => receiver.id);
-        if (!ready) messages.set("receiver_update_unavailable", this.t("Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren."));
-        box.append(this.button(this.t("Beide auf {version} aktualisieren", {version: candidate.release.version}),
-          () => this.confirmUpdate("start", candidate), this.updateBusy || !ready, "accent"));
-      }
-    }
-  }
-
-  async confirmUpdate(action, target) {
-    if (this.updateBusy || this.confirmation || (action === "restart" && this.dirty)) return;
-    const version = target.release.version;
-    const receivers = this.compatibility.receivers.map(receiver => ({id: receiver.id, address: receiver.address}));
-    const titles = {start: "Gemeinsames Update starten?", retry: "Update erneut anbieten?", restart: "Home Assistant jetzt neu starten?"};
-    const bodies = {
-      start: "HA und {count} Receiver werden auf Release {version} gebracht. HACS installiert die HA-Integration. Die IPK-Installation und der GUI-Neustart werden am Receiver bestätigt. Anschließend bestätigst du hier den HA-Neustart.",
-      retry: "Die Zielversion bleibt {version}. Fehlgeschlagene Schritte werden erneut angeboten und müssen bestätigt werden.",
-      restart: target.receivers?.length
-        ? "Die Receiver verwenden Release {version}. Der HA-Neustart aktiviert dieselbe Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden."
-        : "Release {version} ist installiert. Der HA-Neustart aktiviert diese Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden."
-    };
-    const labels = {start: "Update starten", retry: "Erneut anbieten", restart: "Neu starten"};
-    const description = this.t(bodies[action], {version, count: receivers.length}) + (action === "start"
-      ? "\n" + this.t("Beteiligte Receiver: {addresses}", {addresses: receivers.map(receiver => receiver.address).join(", ")}) : "");
-    if (!await this.confirmAction(this.t(titles[action]), description, this.t(labels[action]))) return;
-    if (!this.isConnected || (action === "restart" && this.dirty)) return;
-    await this.updateAction({action, [action === "start" ? "candidate_id" : "job_id"]: target.id,
-      ...(action === "start" ? {receiver_ids: receivers.map(receiver => receiver.id)} : {})});
-  }
-
-  async updateAction(body) {
-    if (this.updateBusy) return;
-    this.updateBusy = true;
-    this.renderCompatibility();
-    try {
-      this.compatibility.updates = await this._hass.callApi("POST", "enigmaha_companion/v1/updates", body);
-      if (body.action === "restart") this.notify("HA-Neustart angefordert. Nach dem Neustart diese Seite neu laden.");
-    } catch (error) {
-      const messages = {hacs_unavailable: "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.",
-        receiver_update_unavailable: "Receiver-Plugin öffnen, damit alle beteiligten Receiver erkannt werden. Ältere Plugins zuerst manuell aktualisieren.",
-        release_check_required: "Die Versionsauswahl ist abgelaufen. Erneut auf Updates prüfen.",
-        downgrade_blocked: "Ein Downgrade wird nicht automatisch ausgeführt.",
-        hacs_version_changed: "Die HACS-Version wurde außerhalb dieses Ablaufs geändert. Installation prüfen.",
-        invalid_release: "Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
-        release_check_failed: "Release nicht verfügbar oder unvollständig. GitHub-Verbindung und Release-Pakete prüfen.",
-        already_current: "Beide Seiten sind bereits aktuell."};
-      this.notify(messages[error?.body?.error] || "Update konnte nicht ausgeführt werden. Erneut prüfen; der bisherige Fortschritt bleibt erhalten.");
-    } finally {
-      this.updateBusy = false;
-      if (this.isConnected) this.renderCompatibility();
+      this.editorPreferencesLoading = false;
     }
   }
 
@@ -891,11 +696,8 @@ class EnigmaHAPanel extends HTMLElement {
         this.path.push(child);
       }
       this.dirty = false;
-      this.notify("Gespeichert. Das Receiver-Menü wird beim nächsten Laden aktualisiert.");
-    } catch (error) {
-      this.notify(Number(error.status_code || error.status) === 409
-        ? "Das Menü wurde inzwischen geändert. Neu laden und Änderungen erneut vornehmen."
-        : "Speichern fehlgeschlagen. Namen und Menüstruktur prüfen; Änderungen bleiben hier erhalten.");
+    } catch (_) {
+      // Preserve unsaved changes, including after a revision conflict.
     } finally { this.loading = false; this.render(); }
   }
 
@@ -1119,8 +921,6 @@ class EnigmaHAPanel extends HTMLElement {
       .intro{display:flex;align-items:start;justify-content:space-between;gap:16px;margin-bottom:20px}
       .intro h2{font-size:24px;font-weight:400;margin:0 0 4px}.intro p{margin:0;color:var(--secondary-text-color)}
       .intro{flex-shrink:0}
-      .compatibility{flex-shrink:0;max-height:25vh;overflow-y:auto;color:var(--secondary-text-color);overflow-wrap:anywhere;margin-bottom:16px}
-      .compatibility a{color:var(--primary-color);display:inline-block;margin:0 12px 8px 0}
       .editor-layout{display:grid;flex:1;min-height:0;grid-template-rows:minmax(0,1fr);grid-template-columns:minmax(0,1.65fr) minmax(320px,1fr);gap:24px}
       .column{display:grid;grid-auto-rows:max-content;align-content:start;gap:24px;min-width:0;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-gutter:stable}ha-card{min-width:0;overflow:hidden}
       .confirmation-dialog{width:calc(100% - 32px);max-width:450px;max-height:calc(100dvh - 32px);margin:auto;padding:24px;border:0;border-radius:var(--ha-dialog-border-radius,28px);background:var(--ha-dialog-surface-background,var(--card-background-color));color:var(--primary-text-color);font:inherit;box-shadow:var(--dialog-box-shadow,0 8px 32px #0005)}
@@ -1174,8 +974,7 @@ class EnigmaHAPanel extends HTMLElement {
     title.append(this.el("h2", this.t("Receiver-Menü")),
       this.el("p", this.t("Gestalte das Menü für deine Enigma2-Receiver.")));
     intro.append(title);
-    main.append(intro, this.el("div", null, {class: "compatibility"}));
-    this.renderCompatibility();
+    main.append(intro);
     if (!this.model) return;
 
     const layout = this.el("div", null, {class: "editor-layout"});

@@ -39,9 +39,9 @@ lassen sich für HA-Benutzer freigeben.
    Benutzer wählen und **Vorschau öffnen**.
    Die Vorschau berücksichtigt den aktuellen, auch ungespeicherten Entwurf sowie
    die HA-Entitätsrechte dieses Benutzers. Anschließend **Speichern** wählen.
-   Eine HA-Einblendung bestätigt das Speichern. Versionsinfo, fehlende
-   Receiver-Verbindung und nicht verfügbare HACS-Updates werden ausschließlich
-   als DEBUG-Ausgaben protokolliert.
+     Nach erfolgreichem Speichern ist **Speichern** wieder deaktiviert. Schlägt
+   das Speichern fehl, bleibt der Entwurf erhalten und kann erneut gespeichert
+   werden.
 
 Fehlende oder inaktive Benutzer bleiben intern über ihre ID in bestehenden Freigaben
 erhalten und werden ohne Anzeige der ID entsprechend gekennzeichnet. Die Zuordnung kann manuell

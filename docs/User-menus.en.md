@@ -37,8 +37,8 @@ individual entries can be shared with selected HA users.
    Open preview**. The preview uses the current draft,
    including unsaved changes, and that user's HA entity permissions. Choose
    **Save** to apply the changes.
-   A native HA toast confirms saving. Version information, a missing receiver
-   connection and unavailable HACS updates are logged only at DEBUG level.
+   After saving successfully, **Save** is disabled again. If saving fails,
+   the draft remains available for another attempt.
 
 Missing or inactive users remain in existing rules by their internal ID and are
 labelled accordingly without showing the ID. Remove those assignments manually if desired; their absence never

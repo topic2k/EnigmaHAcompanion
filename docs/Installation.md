@@ -52,13 +52,10 @@ Das separate ZIP `enigmaha_companion.zip` ist für HACS bestimmt.
 ## 2. Menü zusammenstellen
 
 Bei jeder Receiver-Anfrage prüfen beide Seiten EnigmaHA-Kennung, Release und
-Protokollversion. Bei gleichem Protokoll funktionieren unterschiedliche Releases;
-der HA-Editor zeigt dazu einen Hinweis und Links zu den Release-Informationen.
+Protokollversion. Bei gleichem Protokoll funktionieren unterschiedliche Releases.
 Unterschiedliche oder unbekannte Protokolle sowie fehlende/ungültige Kennungen
-sperren Abrufe und Schaltbefehle. Der Receiver zeigt einen entsprechenden Hinweis;
-der HA-Editor zeigt die Anfragen der letzten fünf Minuten und aktualisiert die
-Anzeige alle 30 Sekunden. Ohne Receiver-Anfrage ist noch keine Prüfung möglich.
-
+sperren Abrufe und Schaltbefehle. Der Receiver zeigt einen entsprechenden Hinweis.
+Ohne Receiver-Anfrage ist noch keine Prüfung möglich.
 Das [gemeinsame Update](#gemeinsames-update-über-hacs-und-ipk) bringt HA und die
 beteiligten Receiver nach Bestätigung auf denselben Release. Menü,
 Receiver-Einstellungen und Token bleiben erhalten; eine Neueinrichtung ist nicht nötig.
@@ -130,8 +127,9 @@ Administratorrechte und eine aktive HACS-Update-Entität. Automationen
 können den Dienst im Systemkontext aufrufen. Eine eigene Versionsauswahl und
 die Backup-Option unterstützt diese Entität nicht.
 
-HA wird über HACS auf den angebotenen Release aktualisiert. Fortschritt,
-Wiederholung und den abschließenden HA-Neustart findest du im EnigmaHA-Editor.
+HA wird über HACS auf den angebotenen Release aktualisiert. Fehlgeschlagene
+Schritte und den abschließenden HA-Neustart findest du unter
+**Einstellungen → System → Reparaturen**.
 Die Entität zeigt den laufenden Updatevorgang an und hält dessen Zielversion fest.
 Wird zwischen Anzeige und Installation ein neuerer Release veröffentlicht,
 musst du das aktualisierte Angebot erneut bestätigen. Bis zum HA-Neustart zeigt
@@ -189,28 +187,28 @@ Internetzugang zu GitHub auf HA und den Receivern sowie Root-Rechte für `opkg`
 auf OpenATV. Der Receiver benötigt weiterhin nur seinen normalen HA-Benutzertoken.
 Die HTTPS-Zertifikatsprüfung bleibt aktiv. Zusätzliche SSH-Zugangsdaten sind nicht nötig.
 
-1. Das Plugin auf allen beteiligten Receivern öffnen und bis zur
-   Installationsbestätigung geöffnet lassen. Im HA-Editor erscheinen
-   die Receiver-Anfragen der letzten fünf Minuten. Offline-Receiver werden nicht
-   automatisch gesucht oder in ein Update aufgenommen.
-2. Im HA-Editor **Auf Updates prüfen** wählen. Angeboten wird der neueste
-   veröffentlichte stabile Release mit HACS-ZIP, IPK und `SHA256SUMS.txt`.
-3. **Beide auf … aktualisieren** wählen und Zielversion sowie Receiverliste
-   bestätigen. Die Auswahl gilt zehn Minuten. HACS installiert genau diese
-   Version; Zielversion und beteiligte Receiver bleiben für diesen Vorgang fest.
-4. Auf jedem Receiver die IPK-Installation bestätigen. Das Plugin lädt das
-   passende Paket, prüft Größe, SHA-256-Prüfsumme, Paketname und Version und
+1. Über die HA-Update-Entität **EnigmaHA Companion** das HA-Update installieren.
+   Angeboten wird der neueste vollständige stabile Release. Die Installation
+   erfolgt über HACS; Receiver werden dabei noch nicht aktualisiert.
+2. Den HA-Neustart unter **Einstellungen → System → Reparaturen** bestätigen.
+   Anschließend die HA-Seite neu laden.
+3. Das Plugin auf den Receivern öffnen und geöffnet lassen. Ältere Receiver
+   erzeugen beim Kontakt mit HA einen Reparaturhinweis. Dort **Beheben** wählen
+   und das Update auf den Release der laufenden HA-Version bestätigen.
+   Offline-Receiver werden nicht automatisch gesucht oder aufgenommen.
+4. Auf jedem beteiligten Receiver die IPK-Installation bestätigen. Das Plugin lädt
+   das passende Paket, prüft Größe, SHA-256-Prüfsumme, Paketname und Version und
    installiert es über `opkg`. Bis dahin wird nichts auf dem Receiver installiert.
 5. Den anschließend angebotenen **GUI-Neustart** am Receiver bestätigen.
    Die native OpenATV-Neustartprüfung berücksichtigt laufende Aufnahmen.
    Nach dem Neustart meldet das Plugin seine tatsächlich geladene Version an HA.
-6. Sobald alle beteiligten Receiver die Zielversion melden, im HA-Editor
-   **Home Assistant neu starten** bestätigen. Ungespeicherte Menüänderungen
-   vorher speichern. Danach die HA-Seite neu laden. Erst wenn auch HA mit
-   der Zielversion läuft, erscheint der Vorgang als abgeschlossen.
+6. Sobald alle beteiligten Receiver die Zielversion melden, wird die Reparatur
+   abgeschlossen. Bereits vor dieser Änderung gestartete gemeinsame Updates
+   lassen sich im Reparatur-Assistenten fortsetzen; einen dort erforderlichen
+   HA-Neustart separat bestätigen. Eine Migration ist nicht erforderlich.
 
-Ein abgelehntes Receiver-Update kann im HA-Editor erneut angeboten werden und
-erfordert erneut die lokale Bestätigung. Bei ungleichen Protokollen bleiben
+Ein abgelehntes Receiver-Update kann im Reparatur-Assistenten erneut angeboten
+werden und erfordert erneut die lokale Bestätigung. Bei ungleichen Protokollen bleiben
 Menüabruf und Schaltbefehle gesperrt; der Updatekanal funktioniert weiterhin.
 HA speichert den Fortschritt unter `.storage/enigmaha_companion.update`, der
 Receiver seine Kennung und sein Installationsjournal unter

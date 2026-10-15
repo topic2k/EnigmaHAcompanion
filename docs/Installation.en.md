@@ -49,12 +49,10 @@ The separate `enigmaha_companion.zip` is intended for HACS.
 ## 2. Build the menu
 
 Both sides check the EnigmaHA identity, release and protocol version on every
-receiver request. Different releases work when their protocols match; the HA
-editor displays an informational notice and release-note links. Different or
+receiver request. Different releases work when their protocols match. Different or
 unknown protocols and missing/invalid identities block requests and actions.
-The receiver displays an explanation; the HA
-editor shows requests from the last five minutes and refreshes this status every
-30 seconds. A receiver must connect before it can be checked.
+The receiver displays an explanation. A receiver must connect before it can be
+checked.
 
 The [coordinated update](#coordinated-update-through-hacs-and-ipk) brings HA and
 participating receivers to the same release after confirmation. Menus, receiver
@@ -120,8 +118,8 @@ privileges and an active HACS update entity are required. Automations can call
 the service in the system context.
 This entity does not support selecting a specific version or the backup option.
 
-HA updates to the offered release through HACS. Use the EnigmaHA editor to follow
-progress, retry steps and confirm the final HA restart. The entity indicates an
+HA updates to the offered release through HACS. Use **Settings → System → Repairs**
+to retry failed steps and confirm the final HA restart. The entity indicates an
 ongoing update and keeps its target version fixed. If a newer release is published
 between displaying and installing the update, review and confirm the refreshed
 offer. Until HA restarts, it continues to show the loaded version even if newer
@@ -174,26 +172,27 @@ access from HA and each receiver, and root permissions for OpenATV's `opkg`.
 The receiver still uses its regular HA user token. HTTPS certificate verification
 remains enabled; no SSH credentials are required.
 
-1. Open the plugin on all participating receivers and keep it open until
-   confirming installation. The HA editor lists receiver
-   requests from the last five minutes. Offline receivers are not discovered or
+1. Install the HA update through the **EnigmaHA Companion** HA update entity.
+   It offers the latest complete stable release and installs through HACS.
+   Receivers are updated separately afterwards.
+2. Confirm the HA restart under **Settings → System → Repairs**, then reload
+   the HA page.
+3. Open the plugin on the receivers and keep it open. Older receivers create
+   a repair notice when contacting HA. Choose **Fix** there and confirm updating
+   to the release running in HA. Offline receivers are not discovered or
    included automatically.
-2. Choose **Check for updates** in the HA editor. It offers the latest published
-   stable release containing the HACS ZIP, IPK and `SHA256SUMS.txt`.
-3. Choose **Update both to …** and confirm the target version and receiver list.
-   The selection expires after ten minutes. HACS installs that exact version;
-   the release and participating receivers stay fixed for this transaction.
-4. Confirm IPK installation on each receiver. The plugin downloads the matching
-   package, checks size, SHA-256, package name and version, then installs through
+4. Confirm IPK installation on each participating receiver. The plugin downloads
+   the matching package, checks size, SHA-256, package name and version, then installs through
    `opkg`. Nothing is installed on the receiver before this confirmation.
 5. Confirm the offered **GUI restart** on each receiver. OpenATV's native restart
    check considers active recordings. After restarting, the plugin reports its
    actual loaded version to HA.
-6. Once every participating receiver reports the target, confirm **Restart Home
-   Assistant** in the HA editor. Save unsaved menu changes first, then reload the
-   HA page after restarting. Completion requires HA itself to run the target too.
+6. The repair completes once every participating receiver reports the target.
+   Coordinated updates started before this change can still be resumed in the
+   repair wizard; confirm any required HA restart there separately. No migration
+   is required.
 
-A declined receiver update can be offered again in the HA editor and requires
+A declined receiver update can be offered again in the repair wizard and requires
 another local confirmation. Different protocols continue to block menu requests
 and actions; the update channel remains available. HA stores progress in
 `.storage/enigmaha_companion.update`. Receiver identity and installation journal
