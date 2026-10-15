@@ -22,6 +22,8 @@ class CompanionRepairFlow(RepairsFlow):
         self.issue_kind = PROTOCOL_ISSUE
         self.receiver_only = False
         self.peers = []
+        self.offer_version = VERSION
+        self.following_update = False
 
     def pending_receivers(self, runtime):
         return runtime.repairs.receivers_for_issue(self.issue_kind)
@@ -44,12 +46,22 @@ class CompanionRepairFlow(RepairsFlow):
             job = (await runtime.updates.snapshot())["job"]
         except UpdateError as error:
             return self.form("check", error=error.code)
-        if job and job["phase"] != "completed":
+        if job and job["phase"] not in {"completed", "cancelled"}:
             self.job_id = job["id"]
+            self.peers = copy.deepcopy(self.pending_receivers(runtime))
+            # A previous persistence failure may already have saved the ignore
+            # decision while its unclaimed job still needs cancellation.
+            keys = {(r["id"], r["user_id"]) for r in runtime.updates.job["receivers"]}
+            self.peers.extend(copy.deepcopy(r) for r in runtime.repairs.receivers
+                              if (r["id"], r["user_id"]) in keys and r not in self.peers)
             return await self.async_step_resume()
+        self.job_id = None
         self.peers = copy.deepcopy(self.pending_receivers(runtime))
         if not self.peers:
             return self.async_create_entry(title="", data={})
+        if self.issue_kind == RECEIVER_UPDATE_ISSUE:
+            self.receiver_only = True
+            return await self.async_step_confirm_receivers()
         try:
             self.receiver_only = all(version_tuple(r["version"]) <= version_tuple(VERSION) for r in self.peers)
             if self.receiver_only:
@@ -96,7 +108,59 @@ class CompanionRepairFlow(RepairsFlow):
                          {"release": self.candidate["release"], "receivers": peers}, error)
 
     async def async_step_confirm_receivers(self, user_input=None):
+        if self.issue_kind == RECEIVER_UPDATE_ISSUE and user_input is None:
+            return self.async_show_menu(step_id="confirm_receivers", menu_options=["install_receivers", "ignore"],
+                description_placeholders={"version": self.offer_version,
+                    "receivers": ", ".join(r["address"] for r in self.peers) or "—"})
+        if self.issue_kind == RECEIVER_UPDATE_ISSUE:
+            return await self.async_step_install_receivers()
         return await self.async_step_confirm(user_input)
+
+    async def async_step_install_receivers(self, user_input=None):
+        runtime = self.runtime()
+        if runtime is None:
+            return self.async_abort(reason="integration_unavailable")
+        if self.issue_kind != RECEIVER_UPDATE_ISSUE:
+            return self.async_abort(reason="stale_update")
+        if self.job_id is not None:
+            return await self.async_step_resume()
+        if self.candidate is None:
+            try:
+                self.candidate = await runtime.updates.check_receivers()
+            except UpdateError as error:
+                return self.form("check", error=error.code)
+        self.following_update = True
+        return await self.async_step_confirm({})
+
+    async def async_step_ignore(self, user_input=None):
+        runtime = self.runtime()
+        if runtime is None:
+            return self.async_abort(reason="integration_unavailable")
+        if self.issue_kind != RECEIVER_UPDATE_ISSUE:
+            return self.async_abort(reason="ignore_unavailable")
+        try:
+            await runtime.repairs.ignore(self.peers, self.offer_version, self.job_id)
+        except UpdateError as error:
+            return self.form("ignore", {"release": {"version": self.offer_version}, "receivers": self.peers}, error.code)
+        if self.pending_receivers(runtime):
+            self.candidate = None
+            return await self.async_step_init()
+        return self.async_create_entry(title="", data={})
+
+    async def async_step_continue_update(self, user_input=None):
+        runtime = self.runtime()
+        if runtime is None:
+            return self.async_abort(reason="integration_unavailable")
+        self.following_update = True
+        job = runtime.updates.public_job()
+        if not job or job["id"] != self.job_id:
+            return self.async_abort(reason="stale_update")
+        if job["phase"] == "failed" or any(r["status"] in {"failed", "declined"} for r in job["receivers"]):
+            return await self.async_step_retry({})
+        return await self.async_step_resume()
+
+    async def async_step_optional_update(self, user_input=None):
+        return await self.async_step_resume()
 
     async def async_step_resume(self, user_input=None):
         runtime = self.runtime()
@@ -109,10 +173,16 @@ class CompanionRepairFlow(RepairsFlow):
         if not job or (self.job_id and job["id"] != self.job_id):
             return self.async_abort(reason="stale_update")
         self.job_id = job["id"]
-        if job["phase"] == "completed":
+        if job["phase"] in {"completed", "cancelled"}:
             if self.pending_receivers(runtime):
                 return await self.async_step_init()
             return self.async_create_entry(title="", data={})
+        if (self.issue_kind == RECEIVER_UPDATE_ISSUE
+                and runtime.repairs.can_ignore(self.peers, self.offer_version, self.job_id)
+                and (not self.following_update or any(r["status"] in {"failed", "declined"} for r in job["receivers"]))):
+            return self.async_show_menu(step_id="optional_update", menu_options=["continue_update", "ignore"],
+                description_placeholders={"version": self.offer_version,
+                    "receivers": ", ".join(r["address"] for r in self.peers) or "—"})
         if any(r["error"] == "install_uncertain" for r in job["receivers"]):
             return self.form("manual", job)
         if job["phase"] == "ha_restart_required":

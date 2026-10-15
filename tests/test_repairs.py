@@ -14,6 +14,9 @@ API, UPDATES, Store = updates.API, updates.UPDATES, updates.Store
 
 
 class NativeFlow:
+    def async_show_menu(self, **kwargs):
+        return {"type": "menu", **kwargs}
+
     def async_show_form(self, **kwargs):
         return {"type": "form", **kwargs}
 
@@ -325,3 +328,171 @@ class RepairTests(unittest.IsolatedAsyncioTestCase):
             await self.repairs.sync()
         self.assertNotIn(self.protocol_issue, self.hass.issues)
         self.assertIn(self.receiver_issue, self.hass.issues)
+
+    async def optional_flow(self):
+        peer = dict(self.peer, version="1.0.0", protocol_version=1, status="version_mismatch")
+        await self.repairs.observe(peer)
+        flow = await REPAIRS.async_create_fix_flow(self.hass, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE, None)
+        flow.hass = self.hass
+        self.flows.append(flow)
+        return peer, flow
+
+    async def test_ignore_needs_no_release_download_and_survives_restart_and_reconnect(self):
+        peer, flow = await self.optional_flow()
+        with patch.object(UPDATES, "fetch_release", side_effect=AssertionError("No download when ignoring")):
+            menu = await flow.async_step_init()
+            self.assertEqual(menu["type"], "menu")
+            self.assertEqual(menu["menu_options"], ["install_receivers", "ignore"])
+            self.assertEqual((await flow.async_step_ignore())["type"], "create_entry")
+        self.assertNotIn(self.receiver_issue, self.hass.issues)
+        self.assertIsNone(self.manager.job)
+        self.assertEqual(self.calls, [])
+        restored = ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime,
+                                                   copy.deepcopy(self.repair_store.data))
+        await restored.sync()
+        await restored.observe(peer)
+        self.assertNotIn(self.receiver_issue, self.hass.issues)
+        self.assertEqual(restored.receivers, [peer])
+
+    async def test_ignore_is_scoped_to_target_receiver_version_identity_and_user(self):
+        peer, flow = await self.optional_flow()
+        await flow.async_step_init()
+        await flow.async_step_ignore()
+        for change in ({"version": "0.9.0"}, {"id": "f" * 32}, {"user_id": "other-user"}):
+            with self.subTest(change=change):
+                restored = ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime,
+                                                           copy.deepcopy(self.repair_store.data))
+                await restored.observe(dict(peer, **change))
+                self.assertIn(self.receiver_issue, self.hass.issues)
+        future = list(UPDATES.version_tuple(UPDATES.VERSION))
+        future[2] += 1
+        with patch.object(ISSUES_MODULE, "VERSION", ".".join(map(str, future))):
+            await self.repairs.sync()
+            self.assertIn(self.receiver_issue, self.hass.issues)
+        with patch.object(ISSUES_MODULE, "PROTOCOL_VERSION", 2):
+            await self.repairs.sync()
+            self.assertIn(self.protocol_issue, self.hass.issues)
+
+    async def test_ignore_pending_or_declined_job_withdraws_it_without_claiming_installation(self):
+        for status in ("pending", "declined", "failed"):
+            with self.subTest(status=status):
+                peer, flow = await self.optional_flow()
+                await flow.async_step_init()
+                await flow.async_step_install_receivers()
+                job_id = self.manager.job["id"]
+                if status != "pending":
+                    await self.manager.report(peer["id"], peer["user_id"],
+                        {"job_id": job_id, "attempt": 1, "status": status, "error": None})
+                reopened = await REPAIRS.async_create_fix_flow(self.hass, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE, None)
+                reopened.hass = self.hass
+                self.flows.append(reopened)
+                menu = await reopened.async_step_init()
+                self.assertEqual(menu["step_id"], "optional_update")
+                self.assertIn("ignore", menu["menu_options"])
+                self.assertEqual((await reopened.async_step_ignore())["type"], "create_entry")
+                self.assertEqual(self.manager.job["phase"], "cancelled")
+                self.assertEqual(self.manager.job["receivers"][0]["status"], status)
+                self.assertEqual(await self.manager.receiver_plan(peer["id"], peer["user_id"], peer["version"], 1), {"job": None})
+                with self.assertRaises(UPDATES.UpdateError):
+                    await self.manager.retry(job_id, None)
+                with self.assertRaises(UPDATES.UpdateError):
+                    await self.manager.report(peer["id"], peer["user_id"],
+                        {"job_id": job_id, "attempt": 1, "status": "installing", "error": None})
+                self.assertEqual(self.hass.issues, {})
+                self.assertEqual(self.calls, [])
+                restored = UPDATES.UpdateManager(self.hass, self.store, copy.deepcopy(self.store.data))
+                self.assertEqual(await restored.receiver_plan(peer["id"], peer["user_id"], peer["version"], 1), {"job": None})
+                await self.manager.check()
+                await self.manager.start(self.manager.candidate["id"], [], None)
+                await self.manager.task
+                self.assertEqual(self.manager.job["phase"], "ha_restart_required")
+                # Reset the independent scenario, retaining no ignored markers.
+                self.manager.job = None
+                self.repairs.ignored = []
+                self.disk_version = UPDATES.VERSION
+                self.state.attributes["installed_version"] = "v" + UPDATES.VERSION
+                self.calls.clear()
+
+    async def test_ignore_multiple_receivers_does_not_hide_new_arrivals_or_ha_work(self):
+        peer, flow = await self.optional_flow()
+        second = dict(peer, id="e" * 32, address="192.0.2.2")
+        await self.repairs.observe(second)
+        await flow.async_step_init()
+        await flow.async_step_install_receivers()
+        await self.repairs.observe(dict(peer, id="f" * 32, address="192.0.2.3"))
+        result = await flow.async_step_ignore()
+        self.assertEqual(self.manager.job["phase"], "cancelled")
+        self.assertEqual(result["type"], "menu")
+        self.assertEqual(result["description_placeholders"]["receivers"], "192.0.2.3")
+        self.assertIn(self.receiver_issue, self.hass.issues)
+        self.assertEqual(len(self.repairs.ignored), 2)
+        await self.manager.check()
+        await self.manager.start(self.manager.candidate["id"], [], self.user)
+        result = await flow.async_step_ignore()
+        self.assertEqual(result["errors"]["base"], "ignore_unavailable")
+        await self.manager.task
+
+    async def test_ignore_never_hides_changed_protocol_or_cancels_claimed_installation(self):
+        peer, flow = await self.optional_flow()
+        await flow.async_step_init()
+        await flow.async_step_install_receivers()
+        job_id = self.manager.job["id"]
+        for status, error in (("installing", None), ("restart_required", None), ("failed", "install_uncertain")):
+            with self.subTest(status=status):
+                job = copy.deepcopy(self.manager.job)
+                job["receivers"][0].update(status=status, error=error)
+                await self.manager.save(job)
+                result = await flow.async_step_ignore()
+                self.assertEqual(result["errors"]["base"], "ignore_unavailable")
+                self.assertEqual(self.manager.job["id"], job_id)
+                self.assertEqual(self.manager.job["phase"], "receivers")
+                self.assertEqual(self.repairs.ignored, [])
+                self.assertIn(self.receiver_issue, self.hass.issues)
+        job["receivers"][0].update(status="pending", error=None)
+        await self.manager.save(job)
+        await self.repairs.observe(dict(peer, protocol_version=2, status="protocol_mismatch"))
+        result = await flow.async_step_ignore()
+        self.assertEqual(result["errors"]["base"], "ignore_unavailable")
+        self.assertIn(self.protocol_issue, self.hass.issues)
+        self.assertEqual(self.repairs.ignored, [])
+        critical = self.flow()
+        self.assertEqual((await critical.async_step_ignore())["type"], "abort")
+
+    async def test_ignore_storage_failures_leave_issue_retryable_without_installing(self):
+        peer, flow = await self.optional_flow()
+        await flow.async_step_init()
+        await flow.async_step_install_receivers()
+        self.repair_store.fail = True
+        result = await flow.async_step_ignore()
+        self.assertEqual(result["errors"]["base"], "update_storage_failed")
+        self.assertEqual(self.manager.job["phase"], "receivers")
+        self.assertEqual(self.repairs.ignored, [])
+        self.repair_store.fail = False
+        self.store.fail = True
+        result = await flow.async_step_ignore()
+        self.assertEqual(result["errors"]["base"], "update_storage_failed")
+        self.assertEqual(self.manager.job["phase"], "receivers")
+        self.assertIn(self.receiver_issue, self.hass.issues)
+        self.store.fail = False
+        # Resume after both stores and the integration have been reloaded.
+        self.runtime.repairs = self.repairs = ISSUES_MODULE.RepairCoordinator(
+            self.hass, self.repair_store, self.runtime, copy.deepcopy(self.repair_store.data))
+        self.manager.on_change = self.repairs.sync
+        reopened = await REPAIRS.async_create_fix_flow(self.hass, ISSUES_MODULE.RECEIVER_UPDATE_ISSUE, None)
+        reopened.hass = self.hass
+        self.flows.append(reopened)
+        self.assertEqual((await reopened.async_step_init())["step_id"], "optional_update")
+        self.assertEqual((await reopened.async_step_ignore())["type"], "create_entry")
+        self.assertEqual(self.manager.job["phase"], "cancelled")
+        self.assertEqual(self.hass.issues, {})
+
+    async def test_ignored_records_default_for_published_storage_and_reject_corruption(self):
+        peer, flow = await self.optional_flow()
+        saved = copy.deepcopy(self.repair_store.data)
+        saved.pop("ignored_receiver_updates")
+        restored = ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime, saved)
+        self.assertEqual(restored.ignored, [])
+        for bad in (None, {}, [dict(peer, target_version="bad")]):
+            with self.subTest(value=bad), self.assertRaises(ValueError):
+                ISSUES_MODULE.RepairCoordinator(self.hass, self.repair_store, self.runtime,
+                    dict(saved, ignored_receiver_updates=bad))

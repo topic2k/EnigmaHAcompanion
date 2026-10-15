@@ -143,7 +143,20 @@ Bei inkompatiblem Protokoll erscheint eine Fehler-Reparatur, bei kompatiblem
 Protokoll ein freiwilliger Reparaturhinweis. HA-Benachrichtigungen unterstützen
 keine frei belegbaren Aktionsbuttons; **Beheben** im Reparaturhinweis startet
 deshalb den Assistenten. Dieser bietet den Release der laufenden HA-Version an,
-ohne HACS zu benötigen. IPK-Installation und GUI-Neustart bestätigst du am Receiver.
+ohne HACS zu benötigen. Öffne EnigmaHA Companion auf jedem beteiligten Receiver
+und lasse es geöffnet. Nur bei geöffnetem Plugin wird der Updateauftrag
+abgerufen; beim Fernsehen erscheint keine Installationsfrage. Bestätige im Plugin
+die IPK-Installation und anschließend den GUI-Neustart.
+
+Bei kompatiblem Protokoll bietet der Reparaturdialog außerdem **Für Version …
+ignorieren** an. Damit schließt du die Reparatur ohne Receiver-Update ab. Die
+Entscheidung bleibt nach einem HA-Neustart erhalten und gilt nur für die
+angebotene HA-Version und die angezeigten Receiver-Versionen. Bei einem neuen
+Versionsangebot erscheint der Hinweis erneut; inkompatible Protokolle bleiben
+reparaturpflichtig. Ein bereits angebotener, noch nicht installierter Auftrag
+wird beim Ignorieren beendet. Laufende oder unklare Installationen und ausstehende
+GUI-Neustarts müssen zuerst geklärt bzw. abgeschlossen werden. Bestehende
+Konfigurationen benötigen keine Migration oder Neueinrichtung.
 
 ## Update direkt bei einem Versionskonflikt
 
@@ -157,7 +170,10 @@ vollständig verfügbar, erfolgt keine Installation. Downgrades bleiben gesperrt
 Ein bereits in HA angebotenes Update wird über den vorhandenen gemeinsamen
 Ablauf fortgesetzt. Ohne solchen Auftrag wird nur der Receiver aktualisiert;
 dafür sind GitHub-Zugang und Root-Rechte auf OpenATV erforderlich. Ein ausstehender
-GUI-Neustart wird auch nach erneutem Öffnen des Plugins angeboten.
+GUI-Neustart wird auch nach erneutem Öffnen des Plugins angeboten, wenn HA nicht
+erreichbar ist. Das gilt auch für über HA gestartete Updates. Der Receiver prüft
+dabei den lokalen Paketstatus und installiert das Paket nicht erneut. Sobald HA
+wieder erreichbar ist, wird die tatsächlich laufende Version abgeglichen.
 Bestehende Konfigurationen und Updatejournale bleiben nutzbar; eine Migration
 oder Neueinrichtung ist nicht erforderlich.
 
@@ -173,7 +189,8 @@ Internetzugang zu GitHub auf HA und den Receivern sowie Root-Rechte für `opkg`
 auf OpenATV. Der Receiver benötigt weiterhin nur seinen normalen HA-Benutzertoken.
 Die HTTPS-Zertifikatsprüfung bleibt aktiv. Zusätzliche SSH-Zugangsdaten sind nicht nötig.
 
-1. Das Plugin auf allen beteiligten Receivern öffnen. Im HA-Editor erscheinen
+1. Das Plugin auf allen beteiligten Receivern öffnen und bis zur
+   Installationsbestätigung geöffnet lassen. Im HA-Editor erscheinen
    die Receiver-Anfragen der letzten fünf Minuten. Offline-Receiver werden nicht
    automatisch gesucht oder in ein Update aufgenommen.
 2. Im HA-Editor **Auf Updates prüfen** wählen. Angeboten wird der neueste

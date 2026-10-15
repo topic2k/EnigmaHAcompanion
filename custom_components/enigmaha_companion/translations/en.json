@@ -54,7 +54,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Confirm the IPK installation and GUI restart on the receiver. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -70,12 +70,12 @@
           },
           "confirm_receivers": {
             "title": "Update receivers?",
-            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart."
           }
         },
         "progress": {
           "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
-          "receivers": "Release {version}: Confirm installation and GUI restart on receivers {receivers}. Progress is checked automatically."
+          "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
           "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
@@ -91,12 +91,14 @@
           "stale_update": "This update job is no longer current. Reopen the repair.",
           "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
           "release_check_required": "Release check expired. Reopen the repair.",
-          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         },
         "abort": {
           "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
-          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair."
+          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         }
       }
     },
@@ -111,7 +113,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Confirm the IPK installation and GUI restart on the receiver. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -127,12 +129,12 @@
           },
           "confirm_receivers": {
             "title": "Update receivers?",
-            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart."
           }
         },
         "progress": {
           "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
-          "receivers": "Release {version}: Confirm installation and GUI restart on receivers {receivers}. Progress is checked automatically."
+          "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
           "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
@@ -148,12 +150,14 @@
           "stale_update": "This update job is no longer current. Reopen the repair.",
           "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
           "release_check_required": "Release check expired. Reopen the repair.",
-          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         },
         "abort": {
           "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
-          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair."
+          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         }
       }
     },
@@ -168,7 +172,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Confirm the IPK installation and GUI restart on the receiver. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -184,12 +188,28 @@
           },
           "confirm_receivers": {
             "title": "Update receivers?",
-            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Confirm IPK installation and the GUI restart on each participating receiver."
+            "description": "Receivers {receivers} will update to the running HA version {version}. Home Assistant is not updated or restarted. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Since the protocols are compatible, you can also ignore this update. The decision applies only to the offered HA version and the receiver versions shown.",
+            "menu_options": {
+              "install_receivers": "Update receivers",
+              "ignore": "Ignore for version {version}"
+            }
+          },
+          "optional_update": {
+            "title": "Optional receiver update",
+            "description": "The update to {version} for {receivers} has not been installed yet. The protocols are compatible. Continue the job or ignore this version offer. Ignoring ends the pending job and leaves the receivers unchanged.",
+            "menu_options": {
+              "continue_update": "Continue update",
+              "ignore": "Ignore for version {version}"
+            }
+          },
+          "ignore": {
+            "title": "Ignore version offer",
+            "description": "The offer for version {version} on {receivers} could not be ignored. Review the message and try again. Ignoring is unavailable during installation, while a GUI restart is pending or when protocols are incompatible."
           }
         },
         "progress": {
           "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
-          "receivers": "Release {version}: Confirm installation and GUI restart on receivers {receivers}. Progress is checked automatically."
+          "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
           "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
@@ -205,12 +225,14 @@
           "stale_update": "This update job is no longer current. Reopen the repair.",
           "restart_not_ready": "Restart is not ready. Complete the receiver installation and GUI restart first.",
           "release_check_required": "Release check expired. Reopen the repair.",
-          "release_check_failed": "Could not check the release. Check the GitHub connection and try again."
+          "release_check_failed": "Could not check the release. Check the GitHub connection and try again.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         },
         "abort": {
           "integration_unavailable": "The integration is not loaded. Load it and reopen the repair.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
-          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair."
+          "restart_requested": "HA restart requested. Completion is checked after restart. If the issue remains, reopen the repair.",
+          "ignore_unavailable": "This version offer can no longer be ignored. Reopen the repair and check the current update and protocol status."
         }
       }
     }

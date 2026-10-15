@@ -50,7 +50,7 @@ const ENIGMAHA_EN = {
   "HA-Installation läuft …": "Installing HA …",
   "HA-Update installiert. HA-Neustart erforderlich.": "HA update installed. HA restart required.",
   "Release {version} ist installiert. Der HA-Neustart aktiviert diese Version und unterbricht Home Assistant vorübergehend. Danach diese Seite neu laden.": "Release {version} is installed. Restarting HA activates this version and temporarily interrupts Home Assistant. Reload this page afterwards.",
-  "Am Receiver Installation und GUI-Neustart bestätigen.": "Confirm installation and GUI restart on the receiver.",
+  "EnigmaHA Companion auf dem Receiver öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen.": "Open EnigmaHA Companion on the receiver and keep it open. Confirm installation there, then confirm the GUI restart.",
   "Receiver verwenden die Zielversion. HA-Neustart erforderlich.": "Receivers are running the target version. HA restart required.",
   "HA-Installation fehlgeschlagen oder unterbrochen.": "HA installation failed or was interrupted.",
   "Wartet auf Bestätigung": "Waiting for confirmation",
@@ -797,9 +797,9 @@ class EnigmaHAPanel extends HTMLElement {
     const updates = this.compatibility.updates;
     if (!updates) return;
     const {job, candidate} = updates;
-    if (job) {
+    if (job && job.phase !== "cancelled") {
       if (job.error === "ha_restart_failed") messages.set("restart:" + job.id, this.t("HA-Neustart fehlgeschlagen. HA-Protokoll prüfen und Neustart erneut bestätigen."));
-      const phases = {ha_installing: "HA-Installation läuft …", receivers: "Am Receiver Installation und GUI-Neustart bestätigen.",
+      const phases = {ha_installing: "HA-Installation läuft …", receivers: "EnigmaHA Companion auf dem Receiver öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen.",
         ha_restart_required: job.receivers.length ? "Receiver verwenden die Zielversion. HA-Neustart erforderlich." : "HA-Update installiert. HA-Neustart erforderlich.",
         failed: "HA-Installation fehlgeschlagen oder unterbrochen."};
       if (job.phase !== "completed") messages.set("update:" + job.id, this.t("Release {version}: {phase}", {version: job.release.version, phase: this.t(phases[job.phase] || "Installation fehlgeschlagen")}));
@@ -819,7 +819,7 @@ class EnigmaHAPanel extends HTMLElement {
         box.append(this.button(this.t("Home Assistant neu starten"), () => this.confirmUpdate("restart", job), this.updateBusy || this.dirty, "accent"));
       }
     }
-    if (updates.hacs && (!job || ["completed", "failed"].includes(job.phase))) {
+    if (updates.hacs && (!job || ["completed", "failed", "cancelled"].includes(job.phase))) {
       box.append(this.button(this.t("Auf Updates prüfen"), () => this.updateAction({action: "check"}), this.updateBusy));
       const current = candidate && this.compatibility.version === candidate.release.version
         && this.compatibility.receivers.length > 0

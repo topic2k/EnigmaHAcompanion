@@ -54,7 +54,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. IPK-Installation und GUI-Neustart müssen am Receiver bestätigt werden. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -70,12 +70,12 @@
           },
           "confirm_receivers": {
             "title": "Receiver aktualisieren?",
-            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. IPK-Installation und GUI-Neustart bestätigst du auf jedem beteiligten Receiver."
+            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart."
           }
         },
         "progress": {
           "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
-          "receivers": "Release {version}: Installation und GUI-Neustart auf den Receivern {receivers} bestätigen. Der Fortschritt wird automatisch geprüft."
+          "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
           "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
@@ -91,12 +91,14 @@
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
           "restart_not_ready": "Der Neustart ist noch nicht bereit. Receiver-Installation und GUI-Neustart zuerst abschließen.",
           "release_check_required": "Releaseprüfung abgelaufen. Reparatur erneut öffnen.",
-          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut."
+          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         },
         "abort": {
           "integration_unavailable": "Integration ist nicht geladen. Integration laden und Reparatur erneut öffnen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
-          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen."
+          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         }
       }
     },
@@ -111,7 +113,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. IPK-Installation und GUI-Neustart müssen am Receiver bestätigt werden. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -127,12 +129,12 @@
           },
           "confirm_receivers": {
             "title": "Receiver aktualisieren?",
-            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. IPK-Installation und GUI-Neustart bestätigst du auf jedem beteiligten Receiver."
+            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart."
           }
         },
         "progress": {
           "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
-          "receivers": "Release {version}: Installation und GUI-Neustart auf den Receivern {receivers} bestätigen. Der Fortschritt wird automatisch geprüft."
+          "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
           "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
@@ -148,12 +150,14 @@
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
           "restart_not_ready": "Der Neustart ist noch nicht bereit. Receiver-Installation und GUI-Neustart zuerst abschließen.",
           "release_check_required": "Releaseprüfung abgelaufen. Reparatur erneut öffnen.",
-          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut."
+          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         },
         "abort": {
           "integration_unavailable": "Integration ist nicht geladen. Integration laden und Reparatur erneut öffnen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
-          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen."
+          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         }
       }
     },
@@ -168,7 +172,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. IPK-Installation und GUI-Neustart müssen am Receiver bestätigt werden. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -184,12 +188,28 @@
           },
           "confirm_receivers": {
             "title": "Receiver aktualisieren?",
-            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. IPK-Installation und GUI-Neustart bestätigst du auf jedem beteiligten Receiver."
+            "description": "Die Receiver {receivers} werden auf die laufende HA-Version {version} gebracht. Home Assistant wird dabei nicht aktualisiert oder neu gestartet. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Da die Protokolle kompatibel sind, kannst du dieses Update auch ignorieren. Die Entscheidung gilt nur für die angebotene HA-Version und die angezeigten Receiver-Versionen.",
+            "menu_options": {
+              "install_receivers": "Receiver aktualisieren",
+              "ignore": "Für Version {version} ignorieren"
+            }
+          },
+          "optional_update": {
+            "title": "Optionales Receiver-Update",
+            "description": "Das Update auf {version} für {receivers} wurde noch nicht installiert. Die Protokolle sind kompatibel. Du kannst den Auftrag fortsetzen oder für dieses Versionsangebot ignorieren. Beim Ignorieren wird der ausstehende Auftrag beendet; die Receiver bleiben unverändert.",
+            "menu_options": {
+              "continue_update": "Update fortsetzen",
+              "ignore": "Für Version {version} ignorieren"
+            }
+          },
+          "ignore": {
+            "title": "Versionsangebot ignorieren",
+            "description": "Das Angebot auf Version {version} für {receivers} konnte nicht ignoriert werden. Prüfe den Hinweis und versuche es erneut. Bei laufender Installation, ausstehendem GUI-Neustart oder inkompatiblem Protokoll ist Ignorieren nicht möglich."
           }
         },
         "progress": {
           "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
-          "receivers": "Release {version}: Installation und GUI-Neustart auf den Receivern {receivers} bestätigen. Der Fortschritt wird automatisch geprüft."
+          "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
           "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
@@ -205,12 +225,14 @@
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
           "restart_not_ready": "Der Neustart ist noch nicht bereit. Receiver-Installation und GUI-Neustart zuerst abschließen.",
           "release_check_required": "Releaseprüfung abgelaufen. Reparatur erneut öffnen.",
-          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut."
+          "release_check_failed": "Release konnte nicht geprüft werden. Prüfe die GitHub-Verbindung und versuche es erneut.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         },
         "abort": {
           "integration_unavailable": "Integration ist nicht geladen. Integration laden und Reparatur erneut öffnen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
-          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen."
+          "restart_requested": "HA-Neustart angefordert. Nach dem Neustart wird der Abschluss geprüft. Falls der Hinweis bestehen bleibt, Reparatur erneut öffnen.",
+          "ignore_unavailable": "Dieses Versionsangebot kann nicht mehr ignoriert werden. Reparatur erneut öffnen und den aktuellen Update- und Protokollstatus prüfen."
         }
       }
     }

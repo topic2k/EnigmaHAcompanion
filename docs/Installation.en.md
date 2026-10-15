@@ -131,8 +131,18 @@ After restarting HA, older receivers are detected on their next request.
 Incompatible protocols create an error repair; compatible protocols create an
 optional update repair. HA persistent notifications do not provide arbitrary
 action buttons, so **Fix** in the repair opens the wizard. It offers the release
-running in HA without requiring HACS. Confirm IPK installation and the GUI
-restart on the receiver.
+running in HA without requiring HACS. Open EnigmaHA Companion on each
+participating receiver and keep it open. Update jobs are retrieved only while
+the plugin is open; no installation prompt appears while watching TV. Confirm
+IPK installation in the plugin, then confirm the GUI restart.
+
+For compatible protocols, the repair dialog also offers **Ignore for version …**.
+This completes the repair without updating the receiver. The decision survives
+HA restarts and applies only to the offered HA version and the receiver versions
+shown. A new version offer creates another notice; incompatible protocols still
+require repair. Ignoring ends an existing job whose installation has not started.
+Running or uncertain installations and pending GUI restarts must be resolved or
+completed first. Existing configurations need no migration or setup changes.
 
 ## Update directly from a version conflict
 
@@ -146,7 +156,10 @@ installed. Downgrades remain blocked.
 An update already offered by HA continues through the existing coordinated
 workflow. Without such a job, only the receiver is updated; GitHub access and
 root permissions on OpenATV are required. A pending GUI restart is offered
-again when reopening the plugin. Existing settings and update journals remain
+again when reopening the plugin, even when HA is unavailable. This also applies
+to updates started through HA. The receiver checks its local package state and
+does not install the package again. Once HA is reachable, the version actually
+running is reconciled. Existing settings and update journals remain
 usable; no migration or setup changes are required.
 
 ## Coordinated update through HACS and IPK
@@ -161,7 +174,8 @@ access from HA and each receiver, and root permissions for OpenATV's `opkg`.
 The receiver still uses its regular HA user token. HTTPS certificate verification
 remains enabled; no SSH credentials are required.
 
-1. Open the plugin on all participating receivers. The HA editor lists receiver
+1. Open the plugin on all participating receivers and keep it open until
+   confirming installation. The HA editor lists receiver
    requests from the last five minutes. Offline receivers are not discovered or
    included automatically.
 2. Choose **Check for updates** in the HA editor. It offers the latest published

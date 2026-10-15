@@ -117,7 +117,7 @@ class UpdateManager:
             return copy.deepcopy(self.candidate)
 
     async def refresh(self):
-        if not self.job or self.job["phase"] in {"failed", "completed"}:
+        if not self.job or self.job["phase"] in {"failed", "completed", "cancelled"}:
             return
         job = copy.deepcopy(self.job)
         target = job["release"]["version"]
@@ -167,7 +167,7 @@ class UpdateManager:
         async with self.lock:
             if not self.active:
                 raise UpdateError("update_unavailable")
-            if self.job and self.job["phase"] not in {"completed", "failed"}:
+            if self.job and self.job["phase"] not in {"completed", "failed", "cancelled"}:
                 if self.job["candidate_id"] == candidate_id:
                     return  # Lost HTTP reply: return the existing job, do not repeat HACS.
                 raise UpdateError("update_in_progress")
@@ -249,7 +249,7 @@ class UpdateManager:
         async with self.lock:
             await self.refresh()
             receiver = self.participant(receiver_id, user_id)
-            if receiver is None or self.job["phase"] in {"ha_installing", "failed"}:
+            if receiver is None or self.job["phase"] in {"ha_installing", "failed", "cancelled"}:
                 return {"job": None}
             if (version == self.job["release"]["version"] and protocol == self.job.get("protocol_version", PROTOCOL_VERSION)
                     and receiver["status"] != "completed"):
@@ -290,7 +290,7 @@ class UpdateManager:
 
     async def retry(self, job_id, user):
         async with self.lock:
-            if not self.job or self.job["id"] != job_id:
+            if not self.job or self.job["id"] != job_id or self.job["phase"] == "cancelled":
                 raise UpdateError("stale_update")
             job = copy.deepcopy(self.job)
             if job["phase"] == "failed":
@@ -304,6 +304,31 @@ class UpdateManager:
             for receiver in job["receivers"]:
                 if receiver["status"] in {"declined", "failed"} and receiver["error"] != "install_uncertain":
                     receiver.update(status="pending", attempt=receiver["attempt"] + 1, error=None)
+            await self.save(job)
+
+    def can_cancel_receiver_update(self, job_id, version, receivers):
+        """Only withdraw unclaimed receiver-only work for this exact offer."""
+        if not self.active:
+            return False
+        job = self.job
+        if not job or job["phase"] in {"completed", "cancelled"}:
+            return job_id is None or bool(job and job["id"] == job_id)
+        keys = {(r["id"], r["user_id"]) for r in receivers}
+        return bool(job["id"] == job_id and job["entity_id"] is None
+            and job["phase"] in {"receivers", "failed"} and job["release"]["version"] == version
+            and job.get("protocol_version") == PROTOCOL_VERSION
+            and all(r["status"] in {"pending", "declined", "failed", "completed"}
+                    and r["error"] != "install_uncertain"
+                    and (r["status"] == "completed" or (r["id"], r["user_id"]) in keys)
+                    for r in job["receivers"]))
+
+    async def cancel_receiver_update(self, job_id, version, receivers):
+        """Caller holds lock while persisting the matching repair decision."""
+        if not self.can_cancel_receiver_update(job_id, version, receivers):
+            raise UpdateError("ignore_unavailable")
+        if self.job and self.job["phase"] not in {"completed", "cancelled"}:
+            job = copy.deepcopy(self.job)
+            job["phase"], job["error"] = "cancelled", None
             await self.save(job)
 
     async def restart(self, job_id, user):

@@ -110,7 +110,7 @@ class CompanionUpdateEntity(CoordinatorEntity, UpdateEntity):
     @property
     def latest_version(self):
         job = self.update_job
-        if job and job["phase"] not in {"completed", "failed"}:
+        if job and job["phase"] not in {"completed", "failed", "cancelled"}:
             return job["release"]["version"]
         if self.coordinator.data is None:
             return None

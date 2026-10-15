@@ -354,7 +354,7 @@ test("update success stays DEBUG-only while progress uses snackbars and actions 
       Object.assign(job.receivers[1], {status, error});
       ui.panel.renderCompatibility();
       const text = ui.notifications.at(-1).detail.message;
-      if (status === "pending") assert.ok(text.includes("Release 2.0.0: Am Receiver Installation und GUI-Neustart bestätigen."));
+      if (status === "pending") assert.ok(text.includes("Release 2.0.0: EnigmaHA Companion auf dem Receiver öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen."));
       assert.ok(text.includes("Receiver 192.0.2.2: " + message));
       assert.ok(!text.includes("192.0.2.1"));
       const count = ui.notifications.length;
@@ -369,6 +369,21 @@ test("update success stays DEBUG-only while progress uses snackbars and actions 
     assert.ok(ui.button("Home Assistant neu starten"));
     assert.match(ui.notifications.at(-1).detail.message, /HA-Neustart erforderlich/);
     assert.doesNotMatch(ui.notifications.at(-1).detail.message, /192\.0\.2\.1/);
+  } finally { ui.dom.window.close(); }
+});
+
+test("ignored receiver job does not offer retry or restart and permits later updates", async () => {
+  const ui = await createPanel();
+  try {
+    const count = ui.notifications.length;
+    ui.panel.compatibility.updates = {hacs: {}, candidate: null, job: {
+      id: "ignored", release: {version: "1.0.0"}, phase: "cancelled", receivers: [
+        {address: "192.0.2.2", status: "failed"}, {address: "192.0.2.3", status: "declined"}]}};
+    ui.panel.renderCompatibility();
+    assert.ok(ui.button("Auf Updates prüfen"));
+    assert.equal(!!ui.button("Fehlgeschlagene Schritte erneut anbieten"), false);
+    assert.equal(!!ui.button("Home Assistant neu starten"), false);
+    assert.equal(ui.notifications.length, count);
   } finally { ui.dom.window.close(); }
 });
 

@@ -1023,11 +1023,22 @@ class ReceiverTests(unittest.TestCase):
         self.assertFalse(self.screen.busy)
 
     def test_local_restart_is_offered_even_when_ha_is_offline(self):
-        job = dict(self.update_plan(), local=True, status="restart_required")
-        with patch.object(PLUGIN, "ReceiverUpdater", return_value=types.SimpleNamespace(local_restart=lambda: job)):
-            self.screen.client.get_update = Mock(side_effect=PLUGIN.ClientError("connection_failed"))
-            self.assertEqual(self.screen.snapshot(self.screen.client), {"update": job})
-        self.screen.client.get_update.assert_not_called()
+        for local in (True, False):
+            with self.subTest(local=local):
+                job = dict(self.update_plan(), status="restart_required")
+                if local:
+                    job["local"] = True
+                with patch.object(PLUGIN, "ReceiverUpdater", return_value=types.SimpleNamespace(local_restart=lambda: job)):
+                    self.screen.client.get_update = Mock(side_effect=PLUGIN.ClientError("connection_failed"))
+                    self.assertEqual(self.screen.snapshot(self.screen.client), {"update": job})
+                self.screen.client.get_update.assert_not_called()
+                self.screen.update_notice = None
+                self.screen.update_loaded(job)
+                args, kwargs = self.dialogs[-1]
+                self.assertIn("GUI jetzt neu starten", args[2])
+                self.assertFalse(kwargs["default"])
+                args[0](False)
+                self.assertFalse(self.screen.busy)
 
     def test_receiver_declining_update_cannot_download_or_install(self):
         job = self.update_plan()

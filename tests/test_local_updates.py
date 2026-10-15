@@ -87,10 +87,48 @@ class LocalUpdateTests(unittest.TestCase):
         for status in ("confirmed", "installing", "uncertain", "restart_required"):
             self.updater.save(job, status)
             before = Path(self.updater.path).read_bytes()
-            self.assertIsNone(self.updater.local_restart())
+            with patch.object(self.updater, "installed", return_value=False):
+                if status == "confirmed":
+                    self.assertIsNone(self.updater.local_restart())
+                else:
+                    with self.assertRaises(releases.UpdateError) as caught:
+                        self.updater.local_restart()
+                    self.assertEqual(caught.exception.code, "install_uncertain")
             with self.assertRaises(releases.UpdateError):
                 self.updater.local_update("9.0.0")
             self.assertEqual(Path(self.updater.path).read_bytes(), before)
+
+    def test_coordinated_restart_recovers_verified_install_without_ha_or_reinstall(self):
+        job = dict(self.prepare(), local=False)
+        for status in ("installing", "uncertain", "restart_required"):
+            with self.subTest(status=status):
+                self.updater.save(job, status)
+                before = Path(self.updater.path).read_bytes()
+                with patch.object(self.updater, "installed", return_value=True) as installed, \
+                     patch.object(updater, "fetch_release") as fetch, \
+                     patch.object(updater.subprocess, "run") as run:
+                    restart = self.updater.local_restart()
+                    installed.assert_called_once_with("9.0.0")
+                    fetch.assert_not_called()
+                    run.assert_not_called()
+                self.assertEqual(restart, {"id": job["id"], "attempt": job["attempt"],
+                    "release": {"version": "9.0.0"}, "status": "restart_required"})
+                self.assertEqual(Path(self.updater.path).read_bytes(), before)
+                with patch.object(updater, "VERSION", "9.0.0"):
+                    self.assertIsNone(self.updater.local_restart())
+                self.assertEqual(self.updater.journal()["status"], "completed")
+                self.assertNotIn("local", self.updater.journal())
+
+    def test_unclaimed_failed_and_completed_coordinated_jobs_do_not_offer_offline_restart(self):
+        job = dict(self.prepare(), local=False)
+        for status in ("confirmed", "failed", "completed"):
+            with self.subTest(status=status):
+                self.updater.save(job, status)
+                before = Path(self.updater.path).read_bytes()
+                with patch.object(self.updater, "installed") as installed:
+                    self.assertIsNone(self.updater.local_restart())
+                    installed.assert_not_called()
+                self.assertEqual(Path(self.updater.path).read_bytes(), before)
 
     def test_nonlocal_job_cannot_bypass_ha_reporting(self):
         job = dict(self.prepare(), local=False)

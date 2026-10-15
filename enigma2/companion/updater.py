@@ -94,15 +94,20 @@ class ReceiverUpdater:
                 "release": fetch_release(version), "status": "pending", "local": True}
 
     def local_restart(self):
-        """Recover local installs before contacting HA; never replay opkg."""
+        """Recover installed updates before contacting HA; never replay opkg."""
         journal = self.journal()
-        if not journal or journal.get("local") is not True:
+        if not journal:
+            return None
+        recovering = journal["status"] in {"installing", "uncertain", "restart_required"}
+        if journal.get("local") is not True and not recovering:
             return None
         job = {"id": journal["id"], "attempt": journal["attempt"],
-               "release": {"version": journal["version"]}, "status": "restart_required", "local": True}
+               "release": {"version": journal["version"]}, "status": "restart_required"}
+        if journal.get("local") is True:
+            job["local"] = True
         if journal["version"] == VERSION:
             self.acknowledge_running(job)
-        elif journal["status"] in {"installing", "uncertain", "restart_required"}:
+        elif recovering:
             if not self.installed(journal["version"]):
                 raise UpdateError("install_uncertain")
             return job
