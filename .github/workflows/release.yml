@@ -3,18 +3,10 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: Automatische Versionserhöhung (wenn Version leer)
-        type: choice
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
       version:
-        description: 'Optionale Version MAJOR.MINOR.PATCH (überschreibt die Auswahl)'
+        description: 'Bereits in main gemergte Version MAJOR.MINOR.PATCH'
         type: string
-        required: false
+        required: true
       prerelease:
         description: Als Vorabversion veröffentlichen (HACS-Beta)
         type: boolean
@@ -52,9 +44,8 @@ jobs:
       - name: Select and synchronize release version
         id: version
         env:
-          BUMP: ${{ inputs.bump }}
           EXPLICIT_VERSION: ${{ inputs.version }}
-        run: python tools/release_version.py --bump "$BUMP" --version "$EXPLICIT_VERSION"
+        run: python tools/release_version.py --version "$EXPLICIT_VERSION"
       - name: Build HA and receiver packages
         run: python tools/build.py
       - name: Record tested source tree
@@ -139,12 +130,13 @@ jobs:
             echo "::error::Release source differs from tested source."
             exit 1
           fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit --allow-empty -m "Release ${VERSION}"
+          if [[ "$(git rev-parse 'HEAD^{tree}')" != "$TESTED_TREE" ]]; then
+            echo "::error::Commit the release version to the selected branch through a pull request before publishing."
+            exit 1
+          fi
           git tag "$tag"
-          # Update both refs together, without force or overwriting a concurrent push.
-          git push --atomic origin "HEAD:refs/heads/${RELEASE_BRANCH}" "refs/tags/${tag}"
+          # The release version is already on the protected branch; publish only its tag.
+          git push origin "refs/tags/${tag}"
           options=()
           latest=true
           if [[ "$PRERELEASE" == "true" ]]; then
