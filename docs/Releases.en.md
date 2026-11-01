@@ -11,8 +11,9 @@ Commit the project, including `.github/workflows/release.yml`, `hacs.json`,
 `package-lock.json` and `custom_components/`, to the default branch of the public
 `topic2k/EnigmaHAcompanion` repository. Enable GitHub Actions. The release job uses
 the workflow's `contents: write` permission; no extra token or secret is needed.
-Organization, branch and tag rules must permit the version commit and release
-tag. The workflow stops when blocked and does not bypass these rules.
+Organization policies must permit this permission. Version changes go through the
+normal pull request process for protected branches; the release job needs permission
+to write the release tag. It does not bypass branch or tag rules.
 
 HACS detects `custom_components/enigmaha_companion/`. `hacs.json` selects
 `zip_release: true` with the fixed asset name `enigmaha_companion.zip`. Its files
@@ -39,17 +40,21 @@ alongside the packages.
 
 ## Start a release
 
-1. Commit and push the changes. You do not need to increase the version manually.
-2. Open **GitHub → Actions → Release → Run workflow**.
-3. Select the branch and automatic version increment: `patch` (default), `minor`
-   or `major`. Optionally enter an explicit version such as `1.0.3` or `1.1.0`;
-   this overrides the increment. Optionally enable prerelease publishing.
+1. Create a working branch and run `python tools/release_version.py --bump patch`
+   (or `minor`/`major`). For an explicit version, use
+   `python tools/release_version.py --version 1.3.0` instead.
+2. Commit the five changed version files, open a PR to `main`, and merge it after
+   the required checks pass.
+3. Open **GitHub → Actions → Release → Run workflow**, select `main`, and enter the
+   same merged version in **Version**. Optionally enable prerelease
+   publishing.
 4. Choose **Run workflow**.
 
-Automatic versioning uses the highest version from `package.json` and existing
-`vMAJOR.MINOR.PATCH` release tags. Starting at `1.0.2`, patch gives `1.0.3`, minor
-`1.1.0` and major `2.0.0`. Minor resets patch; major resets minor and patch.
-The maintainer selects the increment; the workflow does not classify changes.
+The preparation script's automatic versioning uses the highest version from
+`package.json` and existing `vMAJOR.MINOR.PATCH` release tags. Starting at `1.0.2`,
+patch gives `1.0.3`, minor `1.1.0` and major `2.0.0`. Minor resets patch; major
+resets minor and patch. The maintainer selects the increment; changes are not
+classified automatically.
 
 An explicit version must be at least the project version and higher than every
 existing release tag.
@@ -60,10 +65,11 @@ The workflow synchronizes `package.json`, both `package-lock.json` version field
 the HA manifest, `const.py` and the shared component version in
 `protocol/enigmaha_protocol/compatibility.py`, then builds packages and runs Python/frontend
 tests. Only then does the separate release job receive write permissions. It
-checks SHA256 sums and the tested source tree, creates `Release <Version>`, and
-updates the chosen branch and `v<Version>` tag together. If the branch changed
-during the build, it stops; rerun against the updated branch. Afterwards, update
-the local branch with `git pull --ff-only`.
+checks SHA256 sums and the tested source tree. The version change must already be
+committed to the selected branch; otherwise, the workflow stops. The release job
+publishes only the `v<Version>` tag for that tested commit and uploads the tested
+packages. If the branch changed during the build, it stops; rerun against the
+updated branch. Afterwards, update the local branch with `git pull --ff-only`.
 
 Assets are first uploaded to a draft. The release is published only after all
 uploads succeed. Existing tags/releases are not overwritten. Prereleases are
@@ -86,14 +92,18 @@ prereleases. Inclusion in HACS's default catalog is a separate process.
 
 - **Run workflow missing:** The workflow file must be on the default branch;
   starting a run requires repository write access.
-- **Invalid or low version:** Use `MAJOR.MINOR.PATCH` above existing tags, or
-  leave the explicit version empty.
+- **Invalid or low version:** Use `MAJOR.MINOR.PATCH` without a prefix or suffix;
+  it must be at least the project version and higher than all existing tags. Enter
+  the version already merged to the branch in the release workflow.
 - **Branch changed during build:** Rerun the workflow.
+- **Release version is not on the branch yet:** Update the version files through a
+  PR, wait for the required checks, merge it, and rerun the release workflow with
+  the same version.
 - **Tag/release already exists:** Increase the version. After a failed publish,
   inspect any remaining draft under Releases. Clean up only a confirmed
   unpublished failed attempt; leave published tags and packages unchanged. If the commit
-  and tag were already written, the number is reserved and the next automatic run
-  chooses the next number.
+  version PR was already merged, the number remains reserved; the preparation
+  script selects the next version when using automatic versioning.
 - **403 publishing:** Check Actions/repository policies for `GITHUB_TOKEN` and
   `contents: write`.
 - **HACS cannot find the package:** Check public repository access, a published
