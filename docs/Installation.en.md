@@ -472,8 +472,9 @@ key bindings are retained; no migration is required.
 
 Use the [coordinated update](#coordinated-update-through-marketplacehacs-and-ipk), or install
 the HA and receiver packages from the same release manually and restart both.
-Check release notes for migrations and any required reconfiguration. Back up
-configuration before changes.
+After restarting HA, the integration version shown for the device is refreshed
+automatically; no reconfiguration is required. Check release notes for migrations
+and any required reconfiguration. Back up configuration before changes.
 
 The bilingual update requires no reconfiguration. Without a saved preference,
 the editor and receiver start in German. Existing menus and credentials remain.

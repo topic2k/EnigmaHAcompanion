@@ -21,6 +21,23 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         migrated = await self.check_setup(saved)
         await self.check_setup(migrated)
 
+    async def test_setup_registers_current_device_version_and_preserves_user_metadata(self):
+        existing = types.SimpleNamespace(
+            id="device-1", identifiers={("enigmaha_companion", "enigmaha_companion")},
+            config_entries={"entry"}, name="EnigmaHA Companion", name_by_user="My Companion",
+            area_id="living-room", sw_version="1.3.1")
+        unrelated = types.SimpleNamespace(
+            id="device-2", identifiers={("another_integration", "device")},
+            config_entries={"other-entry"}, name_by_user="Other device", area_id="office",
+            sw_version="2.0.0")
+        await self.check_setup(device_entries=[existing, unrelated])
+        self.assertEqual(existing.id, "device-1")
+        self.assertEqual(existing.name_by_user, "My Companion")
+        self.assertEqual(existing.area_id, "living-room")
+        self.assertEqual(unrelated.sw_version, "2.0.0")
+        self.assertEqual(unrelated.name_by_user, "Other device")
+        self.assertEqual(unrelated.area_id, "office")
+
     async def test_setup_removes_legacy_update_entity_by_registry_identity(self):
         unrelated = [
             types.SimpleNamespace(entity_id="update.marketplace", domain="update", platform="marketplace",
@@ -44,14 +61,15 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                     disabled_by=disabled_by)
                 await self.check_setup(registry_entries=[legacy, *unrelated], expected_removed=[entity_id])
 
-    async def check_setup(self, saved=None, registry_entries=(), expected_removed=()):
+    async def check_setup(self, saved=None, registry_entries=(), expected_removed=(), device_entries=()):
         fake = {}
         for name in ("homeassistant", "homeassistant.components", "homeassistant.components.frontend",
                      "homeassistant.components.panel_custom", "homeassistant.components.http", "homeassistant.components.persistent_notification",
                      "homeassistant.helpers", "homeassistant.helpers.storage", "homeassistant.auth",
                      "homeassistant.auth.permissions", "homeassistant.auth.permissions.const",
                      "homeassistant.core", "homeassistant.const", "homeassistant.exceptions", "homeassistant.helpers.icon",
-                     "homeassistant.helpers.entity_registry", "homeassistant.helpers.issue_registry"):
+                     "homeassistant.helpers.entity_registry", "homeassistant.helpers.device_registry",
+                     "homeassistant.helpers.issue_registry"):
             fake[name] = types.ModuleType(name)
         panels = []
         async def register_panel(hass, **kwargs):
@@ -70,10 +88,33 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         fake["homeassistant.helpers.issue_registry"].async_delete_issue = lambda *args: None
         fake["homeassistant.components.persistent_notification"].async_dismiss = lambda *args: None
         fake["homeassistant.helpers.entity_registry"].async_get = lambda hass: hass.registry
+        class DeviceRegistry:
+            def __init__(self, devices):
+                self.devices = list(devices)
+                self.calls = []
+            def async_get_or_create(self, **kwargs):
+                self.calls.append(kwargs)
+                device = next((device for device in self.devices
+                               if device.identifiers.intersection(kwargs["identifiers"])), None)
+                if device is None:
+                    device = types.SimpleNamespace(
+                        id=f"device-{len(self.devices) + 1}", identifiers=kwargs["identifiers"],
+                        config_entries={kwargs["config_entry_id"]}, name=kwargs["name"],
+                        name_by_user=None, area_id=None, sw_version=kwargs["sw_version"])
+                    self.devices.append(device)
+                return device
+            def async_update_device(self, device_id, **kwargs):
+                self.updates.append((device_id, kwargs))
+                device = next(device for device in self.devices if device.id == device_id)
+                for key, value in kwargs.items():
+                    setattr(device, key, value)
+        fake["homeassistant.helpers.device_registry"].async_get = lambda hass: hass.device_registry
         store = types.SimpleNamespace(async_load=AsyncMock(side_effect=[saved, None, None]), async_save=AsyncMock())
         fake["homeassistant.helpers.storage"].Store = lambda *args: store
         views = []
         registry = types.SimpleNamespace(entities={item.entity_id: item for item in registry_entries}, removed=[])
+        device_registry = DeviceRegistry(device_entries)
+        device_registry.updates = []
         def remove_entity(entity_id):
             registry.removed.append(entity_id)
             registry.entities.pop(entity_id)
@@ -81,7 +122,8 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         hass = types.SimpleNamespace(data={}, config_entries=types.SimpleNamespace(
             async_forward_entry_setups=AsyncMock(), async_unload_platforms=AsyncMock(return_value=True)),
             http=types.SimpleNamespace(
-            async_register_static_paths=AsyncMock(), register_view=lambda view: views.append(view)), registry=registry)
+            async_register_static_paths=AsyncMock(), register_view=lambda view: views.append(view)),
+            registry=registry, device_registry=device_registry)
         spec = importlib.util.spec_from_file_location("eha_lifecycle_test", BUNDLE / "__init__.py",
                                                       submodule_search_locations=[str(BUNDLE)])
         module = importlib.util.module_from_spec(spec)
@@ -93,7 +135,27 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sum(view.url.endswith("/info") for view in views), 1)
             hass.http.async_register_static_paths.assert_awaited_once()
             entry = types.SimpleNamespace(options={}, entry_id="entry")
+            stale_device_id = next((device.id for device in device_entries
+                                    if (module.DOMAIN, module.DOMAIN) in device.identifiers
+                                    and device.sw_version != module.VERSION), None)
             self.assertTrue(await module.async_setup_entry(hass, entry))
+            self.assertEqual(device_registry.calls[0]["identifiers"], {(module.DOMAIN, module.DOMAIN)})
+            self.assertEqual(device_registry.calls[0]["config_entry_id"], entry.entry_id)
+            self.assertEqual(device_registry.calls[0]["sw_version"], module.VERSION)
+            self.assertEqual(device_registry.calls[0]["name"], "EnigmaHA Companion")
+            self.assertEqual(len(device_registry.devices), len(device_entries) +
+                             (not any((module.DOMAIN, module.DOMAIN) in device.identifiers
+                                      for device in device_entries)))
+            registered = next(device for device in device_registry.devices
+                              if (module.DOMAIN, module.DOMAIN) in device.identifiers)
+            self.assertEqual(registered.sw_version, module.VERSION)
+            module._register_device(hass, entry)
+            self.assertEqual(len(device_registry.calls), 2)
+            expected_updates = [(stale_device_id, {"sw_version": module.VERSION})] if stale_device_id else []
+            self.assertEqual(device_registry.updates, expected_updates)
+            self.assertEqual(len(device_registry.devices), len(device_entries) +
+                             (not any((module.DOMAIN, module.DOMAIN) in device.identifiers
+                                      for device in device_entries)))
             hass.config_entries.async_forward_entry_setups.assert_not_awaited()
             self.assertEqual(registry.removed, list(expected_removed))
             if expected_removed:
