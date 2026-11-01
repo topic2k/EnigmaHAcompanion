@@ -518,8 +518,10 @@ starten Menüeditor und Receiver auf Deutsch. Menüs und Zugangsdaten bleiben er
 
 Die HA-Integration über HACS oder das manuelle ZIP aktualisieren und HA neu
 starten. Das Receiver-Paket aus demselben Release installieren und die
-Receiver-GUI neu starten. Hinweise zu Migrationen und gegebenenfalls erforderlicher
-Neueinrichtung stehen in den Release-Informationen. Vor Änderungen die Konfiguration sichern.
+Receiver-GUI neu starten. Nach dem HA-Neustart wird die Versionsanzeige des
+Dienstgeräts automatisch aktualisiert; eine Neueinrichtung ist nicht erforderlich.
+Hinweise zu Migrationen und gegebenenfalls erforderlicher Neueinrichtung stehen
+in den Release-Informationen. Vor Änderungen die Konfiguration sichern.
 
 ## Fehlerbehebung und Entfernung
 
