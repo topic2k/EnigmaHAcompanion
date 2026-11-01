@@ -10,7 +10,7 @@ class ActionError(ValueError):
         self.status = status
 
 
-def prepare_action(document, request, get_state, can_control):
+def prepare_action(document, request, get_state, can_control, can_dim=None):
     """Resolve a command against the current server menu and user permissions.
 
     get_state(entity_id) returns a HA state string or None for a missing entity.
@@ -24,7 +24,8 @@ def prepare_action(document, request, get_state, can_control):
             raise ProtocolError("unsupported version")
         if type(request["revision"]) is not int or request["revision"] < 1:
             raise ProtocolError("invalid revision")
-        if not isinstance(request["entry_id"], str) or request["action"] != "toggle":
+        if (not isinstance(request["entry_id"], str) or not isinstance(request["action"], str)
+                or request["action"] not in {"toggle", "dim_up", "dim_down"}):
             raise ProtocolError("invalid action")
     except ProtocolError:
         raise ActionError("invalid_request", 400) from None
@@ -41,5 +42,13 @@ def prepare_action(document, request, get_state, can_control):
     state = get_state(entity_id)
     if state not in {"on", "off"}:
         raise ActionError("entity_unavailable", 409)
+    if request["action"] in {"dim_up", "dim_down"}:
+        if entity_id.split(".", 1)[0] != "light" or can_dim is None or not can_dim(entity_id):
+            raise ActionError("entity_not_supported", 409)
+        step = node.get("brightness_step_pct", 10)
+        if request["action"] == "dim_down":
+            step = -step
+        return {"domain": "light", "service": "turn_on",
+                "data": {"entity_id": entity_id, "brightness_step_pct": step}}
     return {"domain": entity_id.split(".", 1)[0], "service": "toggle",
             "data": {"entity_id": entity_id}}

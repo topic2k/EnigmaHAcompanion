@@ -433,6 +433,8 @@ HTTP überträgt auch den Token unverschlüsselt.
 | --- | --- |
 | Auf / Ab | Vorherigen / nächsten Eintrag wählen |
 | Links / Rechts | Eine Seite nach oben / unten blättern |
+| < neben 0 / Rewind | Ausgewähltes Licht abdunkeln, wenn es dimmbar ist |
+| > neben 0 / Forward | Ausgewähltes Licht aufhellen, wenn es dimmbar ist |
 | Recall | Eine Menübene zurück; auf oberster Ebene ohne Funktion |
 | OK / Grün | Untermenü öffnen oder Licht/Schalter umschalten |
 | Menü / Blau | Einstellungen öffnen |
@@ -444,8 +446,13 @@ HTTP überträgt auch den Token unverschlüsselt.
 
 Ein-/Aus-Zustände erscheinen mit HA-Entitätssymbolen: Ein gelb, Aus grau.
 Kann ein Symbol nicht dargestellt werden, bleibt der Zustand als Text sichtbar.
-Sensorwerte werden mit ihrer Einheit angezeigt. Dimmen, Szenen und Scripts
-werden nicht unterstützt.
+Sensorwerte werden mit ihrer Einheit angezeigt. Unterstützte Lichter zeigen
+ihren aktuellen Wert als Prozent vor dem Symbol; ausgeschaltete Lichter zeigen
+`0 %`. Szenen und Scripts werden nicht unterstützt.
+
+Die Schrittweite wird im HA-Editor pro Lichteintrag unter **Dimm-Schrittweite (%)**
+festgelegt. Zulässig sind 1–100 Prozentpunkte; ohne gespeicherten Wert gelten
+10 Prozentpunkte. Bestehende Menüs funktionieren ohne Migration oder Neueinrichtung.
 
 Bei einem Verbindungsfehler bleibt die letzte Anzeige als **OFFLINE** sichtbar.
 Schalten ist bis zum erfolgreichen Abruf gesperrt. Ein Schaltbefehl wird niemals
@@ -500,8 +507,10 @@ OpenATV-Tastenbelegungen bleiben erhalten; eine Migration ist nicht erforderlich
 
 1. In HA ein Untermenü „Test“ mit einer Lampe und einem Sensor speichern.
 2. Plugin öffnen: „Test“ mit OK öffnen, beide Zustände prüfen.
-3. Lampe mit OK umschalten und den erneut abgerufenen Zustand prüfen.
-4. Sensor mit OK wählen: Es darf kein Schaltbefehl ausgelöst werden.
+3. Lampe mit OK umschalten und den erneut abgerufenen Zustand prüfen. Bei einem
+   dimmbaren Licht mit < neben 0 oder Rewind abdunkeln und mit > neben 0 oder
+   Forward aufhellen; anschließend den Prozentwert prüfen.
+4. Sensor mit OK oder den Dimm-Tasten wählen: Es darf kein Steuerbefehl ausgelöst werden.
 5. Mit Recall zurück, mit Rot oder Exit aus jeder Ebene schließen.
 6. Im HA-Menüeditor einen Eintrag umbenennen, speichern und am Receiver Gelb drücken.
 7. Beide Sprachen im Editor und am Receiver einschließlich Hilfe und Fehlermeldungen

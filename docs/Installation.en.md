@@ -398,6 +398,8 @@ verification cannot be disabled. HTTP transmits the token without encryption.
 | --- | --- |
 | Up / Down | Select previous / next entry |
 | Left / Right | Page up / down through the list |
+| < next to 0 / Rewind | Dim the selected light when supported |
+| > next to 0 / Forward | Brighten the selected light when supported |
 | Recall | Go back one menu level; no action at the root |
 | OK / Green | Open submenu or toggle a light/switch |
 | Menu / Blue | Open settings |
@@ -409,7 +411,12 @@ verification cannot be disabled. HTTP transmits the token without encryption.
 
 On/off states use HA entity icons: yellow for on, grey for off. If an icon
 cannot be displayed, the state appears as text. Sensors show values with units.
-Dimming, scenes and scripts are unsupported.
+Supported lights show their current percentage before the icon; switched-off
+lights show `0 %`. Scenes and scripts are unsupported.
+
+Set the step size per light entry in the HA editor under **Dimming step (%)**.
+Allowed values are 1–100 percentage points; existing entries without a saved
+value use 10. Existing menus need no migration or reconfiguration.
 
 On connection failure, the last display remains visible with **OFFLINE**.
 Toggling is blocked until a successful refresh. Commands are never automatically
@@ -456,8 +463,10 @@ key bindings are retained; no migration is required.
 
 1. In HA, save a “Test” submenu containing a light and sensor.
 2. Open the plugin, press OK to open “Test”, and check both states.
-3. Toggle the light with OK and check the refreshed state.
-4. Press OK on the sensor: it must not send a command.
+3. Toggle the light with OK and check the refreshed state. For a dimmable light,
+   dim it with < next to 0 or Rewind and brighten it with > next to 0 or Forward;
+   check the displayed percentage.
+4. Press OK or a dimming key on the sensor: it must not send a control command.
 5. Press Recall to return, and Red or Exit at any level to close.
 6. Rename an entry in HA, save it and press Yellow on the receiver.
 7. Check both languages in the editor and receiver, including help and error

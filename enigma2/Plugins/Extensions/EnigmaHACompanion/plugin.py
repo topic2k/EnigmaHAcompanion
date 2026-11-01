@@ -10,7 +10,7 @@ from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.ChoiceBox import ChoiceBox
 from Screens.Screen import Screen
-from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont, RT_VALIGN_CENTER
+from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont, RT_HALIGN_CENTER, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
 
 from .companion.client import ClientError, CompanionClient
@@ -27,7 +27,7 @@ from .state_icons import StateIcons
 from .hotkeys import Hotkeys, settings_descriptor
 
 _KEYMAP_LOADED = False
-HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
+HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nDimmen: < / Rewind; aufhellen: > / Forward\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
         "OK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\n"
         "Gelb: Aktualisieren\n{channel_help}\nRot/Exit: Menü komplett schließen\nInfo: Programminformationen\n"
         "Sensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.")
@@ -58,12 +58,13 @@ class CompanionScreen(Screen):
         self["heading"] = Label("Home Assistant")
         self["list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         self["status"] = Label(self.t("Verbindung wird vorbereitet …"))
-        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nMenü/Blau: Einstellungen   Recall: Zurück   Info: Informationen"))
+        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nDimmen: < / Rewind   Aufhellen: > / Forward   Menü/Blau: Einstellungen   Recall: Zurück   Info: Informationen"))
         self["actions"] = ActionMap(["EnigmaHACompanionActions"], {
             "up": lambda: self.move(-1), "down": lambda: self.move(1),
             "channelPlus": lambda: self.move_channel_page(-1),
             "channelMinus": lambda: self.move_channel_page(1),
             "pageUp": lambda: self.move_page(-1), "pageDown": lambda: self.move_page(1),
+            "dimDown": lambda: self.dim(-1), "dimUp": lambda: self.dim(1),
             "back": self.back, "open": self.open_menu, "ok": self.activate,
             "settings": self.settings, "refresh": self.refresh, "close": self.close,
             "help": self.help, "info": self.information,
@@ -169,6 +170,24 @@ class CompanionScreen(Screen):
             client.execute(command)
             return self.snapshot(client)
         self.run(work, self.t("Schaltbefehl wird gesendet …"))
+
+    def dim(self, direction):
+        if not self.nav or not self.nav.selection:
+            return
+        if self.busy or not self.online:
+            self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
+            return
+        command = self.nav.dim(direction, self.states)
+        if command is None:
+            self["status"].setText(self.t("Dieser Eintrag unterstützt kein Dimmen oder ist nicht verfügbar."))
+            return
+        client = self.client
+
+        def work():
+            client.execute(command)
+            return self.snapshot(client)
+
+        self.run(work, self.t("Dimm-Befehl wird gesendet …"))
 
     @staticmethod
     def snapshot(client):
@@ -435,13 +454,25 @@ class CompanionScreen(Screen):
             state = self.states.get(node.get("entity_id"), {})
             size = min(self.row_height - 8, max(24, int(font_size * 1.2)))
             pixmap = self.state_icons.get(state, size) if node["type"] == "entity" else None
-            value_entry = (MultiContentEntryPixmapAlphaBlend(
-                pos=(label_width+16, (self.row_height-size)//2), size=(size, size), png=pixmap)
-                if pixmap is not None else MultiContentEntryText(
+            if pixmap is not None:
+                value_entries = []
+                brightness = state.get("brightness_pct")
+                if type(brightness) is int and 0 <= brightness <= 100:
+                    icon_x = label_width + value_width - size - 8
+                    value_entries.append(MultiContentEntryText(
+                        pos=(label_width + 16, 0), size=(max(0, icon_x - label_width - 16), self.row_height),
+                        font=0, flags=RT_HALIGN_CENTER | RT_VALIGN_CENTER, text="{} %".format(brightness)))
+                    icon_pos = icon_x
+                else:
+                    icon_pos = label_width + 16
+                value_entries.append(MultiContentEntryPixmapAlphaBlend(
+                    pos=(icon_pos, (self.row_height-size)//2), size=(size, size), png=pixmap))
+            else:
+                value_entries = [MultiContentEntryText(
                     pos=(label_width+16, 0), size=(value_width-16, self.row_height), font=0,
-                    flags=RT_VALIGN_CENTER, text=safe_text(value)))
+                    flags=RT_VALIGN_CENTER, text=safe_text(value))]
             rows.append([index, MultiContentEntryText(pos=(8, 0), size=(label_width, self.row_height), font=0,
-                                                     flags=RT_VALIGN_CENTER, text=safe_text(label)), value_entry])
+                                                     flags=RT_VALIGN_CENTER, text=safe_text(label)), *value_entries])
         self["list"].setList(rows)
         self["list"].moveToIndex(self.nav.stack[-1][1])
         self["heading"].setText(("" if self.online else "OFFLINE – ") + safe_text(self.nav.breadcrumb))

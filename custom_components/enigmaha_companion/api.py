@@ -16,7 +16,7 @@ from .const import BASE, CONF_LANGUAGE, DOMAIN, LANGUAGES
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
 from .enigmaha_protocol.menu import index_nodes, validate_display
 from .enigmaha_protocol.compatibility import (
-    COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION,
+    COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER,
     peer_status, protocol_version, valid_version, valid_receiver_id,
 )
 from .enigmaha_protocol.releases import UpdateError
@@ -125,10 +125,41 @@ class CompanionRuntime:
         return status
 
 
-def filtered_menu(menu, user):
+def filtered_menu(menu, user, dimming=False, can_dim=None):
     return receiver_menu(menu, user.id,
                          lambda entity: user.permissions.check_entity(entity, POLICY_READ),
-                         lambda entity: user.permissions.check_entity(entity, POLICY_CONTROL))
+                         lambda entity: user.permissions.check_entity(entity, POLICY_CONTROL),
+                         dimming, can_dim)
+
+
+def dimming_requested(request):
+    return request.headers.get(DIMMING_HEADER) == "1"
+
+
+def dimmable_light(state):
+    if state is None or not state.entity_id.startswith("light."):
+        return False
+    attributes = state.attributes
+    modes = attributes.get("supported_color_modes", ())
+    if isinstance(modes, (list, tuple, set, frozenset)) and any(
+            mode in {"brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"}
+            for mode in modes):
+        return True
+    features = attributes.get("supported_features", 0)
+    return isinstance(features, int) and not isinstance(features, bool) and bool(features & 1)
+
+
+def brightness_percent(state):
+    if not dimmable_light(state):
+        return None
+    if state.state == "off":
+        return 0
+    if state.state != "on":
+        return None
+    brightness = state.attributes.get("brightness")
+    if type(brightness) is not int or not 0 <= brightness <= 255:
+        return None
+    return min(100, max(1, int(round(brightness * 100 / 255)))) if brightness else 0
 
 
 async def read_json(request):
@@ -181,7 +212,9 @@ class MenuView(CompanionView):
         error = await self.receiver_error(runtime, request, user)
         if error is not None:
             return error
-        return self.reply(filtered_menu(runtime.menu, user))
+        dimming = dimming_requested(request)
+        return self.reply(filtered_menu(runtime.menu, user, dimming,
+                          lambda entity: dimmable_light(self.hass.states.get(entity))))
 
 
 class InfoView(CompanionView):
@@ -220,7 +253,9 @@ class StatesView(CompanionView):
             return error
         states = {}
         icons = {}
-        menu = filtered_menu(runtime.menu, user)
+        dimming = dimming_requested(request)
+        menu = filtered_menu(runtime.menu, user, dimming,
+                             lambda entity: dimmable_light(self.hass.states.get(entity)))
         for node in index_nodes(menu).values():
             if node["type"] != "entity" or not user.permissions.check_entity(node["entity_id"], POLICY_READ):
                 continue
@@ -234,6 +269,8 @@ class StatesView(CompanionView):
                     "unit_of_measurement": str(unit)[:64] if unit is not None else None,
                     "icon": None,
                 }
+                if dimming and dimmable_light(state):
+                    states[node["entity_id"]]["brightness_pct"] = brightness_percent(state)
                 icon = await runtime.icons.resolve(state)
                 if icon:
                     states[node["entity_id"]]["icon"] = icon["name"]
@@ -258,12 +295,20 @@ class ActionsView(CompanionView):
                 state = self.hass.states.get(entity_id)
                 return state.state if state else None
 
+            def can_dim(entity_id):
+                return dimmable_light(self.hass.states.get(entity_id))
+
             def can_control(entity_id):
                 return (user.permissions.check_entity(entity_id, POLICY_READ)
                         and user.permissions.check_entity(entity_id, POLICY_CONTROL))
 
             try:
-                plan = prepare_action(filtered_menu(runtime.menu, user), command, get_state, can_control)
+                dimming = dimming_requested(request)
+                plan = prepare_action(
+                    filtered_menu(runtime.menu, user, dimming,
+                                  lambda entity: dimmable_light(self.hass.states.get(entity))),
+                    command, get_state, can_control, can_dim,
+                )
             except ActionError as error:
                 return self.reply({"error": error.code}, error.status)
             try:
@@ -299,6 +344,15 @@ class ConfigView(CompanionView):
                 return self.reply({"error": "configuration_upgrade_required"}, 409)
             if menu["revision"] != runtime.menu["revision"]:
                 return self.reply({"error": "stale_menu"}, 409)
+            previous = validate_configuration(runtime.menu)["menus"][0]
+            previous_nodes = index_nodes({"root": previous})
+            for node in index_nodes(menu).values():
+                old = previous_nodes.get(node["id"])
+                if (node["type"] == "entity" and "brightness_step_pct" not in node
+                        and old is not None and old["type"] == "entity"
+                        and old["entity_id"] == node["entity_id"]
+                        and "brightness_step_pct" in old):
+                    node["brightness_step_pct"] = old["brightness_step_pct"]
             menu["revision"] += 1
             try:
                 validate_menu(menu)
@@ -310,7 +364,7 @@ class ConfigView(CompanionView):
             except (OSError, HomeAssistantError):
                 return self.reply({"error": "storage_failed"}, 500)
             runtime.menu = validate_configuration(menu)
-        return self.reply(menu)
+        return self.reply(legacy_menu(runtime.menu))
 
 
 class ConfigurationView(CompanionView):

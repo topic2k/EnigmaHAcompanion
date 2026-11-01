@@ -72,17 +72,25 @@ def validate_menu(document):
                 raise ProtocolError("too many children")
             pending.extend((child, depth + 1) for child in node["children"])
         elif kind == "entity":
-            _keys(node, ["type", "id", "label", "entity_id", "actions"], [], "entity node")
+            _keys(node, ["type", "id", "label", "entity_id", "actions"], ["brightness_step_pct"], "entity node")
             entity_id = node["entity_id"]
             if not isinstance(entity_id, str) or len(entity_id) > 255 or not ENTITY.fullmatch(entity_id):
                 raise ProtocolError("invalid entity_id")
+            domain = entity_id.split(".", 1)[0]
+            if "brightness_step_pct" in node:
+                _integer(node["brightness_step_pct"], 1, 100, "brightness_step_pct")
+                if domain != "light":
+                    raise ProtocolError("brightness_step_pct only allowed for lights")
             actions = node["actions"]
-            if not isinstance(actions, list) or any(action != "toggle" for action in actions):
+            if (not isinstance(actions, list) or any(not isinstance(action, str)
+                    or action not in {"toggle", "dim_up", "dim_down"} for action in actions)):
                 raise ProtocolError("unsupported actions")
-            if len(actions) > 1:
+            if len(actions) != len(set(actions)):
                 raise ProtocolError("duplicate actions")
-            if actions and entity_id.split(".", 1)[0] not in TOGGLE_DOMAINS:
+            if "toggle" in actions and domain not in TOGGLE_DOMAINS:
                 raise ProtocolError("domain does not support toggle")
+            if any(action in {"dim_up", "dim_down"} for action in actions) and domain != "light":
+                raise ProtocolError("domain does not support dimming")
         else:
             raise ProtocolError("unknown node type")
         node_id = node["id"]

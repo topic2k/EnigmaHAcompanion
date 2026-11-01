@@ -104,10 +104,13 @@ def legacy_menu(value):
         if access["mode"] not in {"all", "inherit"}:
             return None
         node.pop("access", None)
+        node.pop("brightness_step_pct", None)
+        if node["type"] == "entity":
+            node["actions"] = [action for action in node["actions"] if action == "toggle"]
     return _document(config, root)
 
 
-def receiver_menu(value, user_id, can_read, can_control):
+def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=None):
     """Use the same projection for menus, states, commands and admin previews."""
     config = validate_configuration(value)
 
@@ -120,6 +123,14 @@ def receiver_menu(value, user_id, can_read, can_control):
                 return None
             if not can_control(node["entity_id"]):
                 node["actions"] = []
+                node.pop("brightness_step_pct", None)
+            elif node["entity_id"].split(".", 1)[0] == "light" and dimming and can_dim and can_dim(node["entity_id"]):
+                node["actions"] = [action for action in node["actions"] if action == "toggle"]
+                node["actions"].extend(("dim_up", "dim_down"))
+                node["brightness_step_pct"] = node.get("brightness_step_pct", 10)
+            else:
+                node.pop("brightness_step_pct", None)
+                node["actions"] = [action for action in node["actions"] if action == "toggle"]
         else:
             had_children = bool(node["children"])
             node["children"] = [child for child in (visible(child) for child in node["children"]) if child is not None]

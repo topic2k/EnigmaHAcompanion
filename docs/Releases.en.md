@@ -109,9 +109,13 @@ receivers and target version. Both components must first be installed with the
 update feature before the coordinated workflow becomes available.
 
 Revise the automatically generated release notes after the workflow completes.
-Describe user-visible changes first, followed by a brief account of other changes
-without extensive technical detail. Include requirements, known issues and
-limitations that affect usage. Do not include reports of executed tests, test
+Include only short summaries of changes, grouped into **General**,
+**Home Assistant** (HA only) and **Receiver** (receiver only). Omit empty groups.
+Within each group, list user-visible changes first and avoid extensive technical
+detail. Highlight backward-incompatible changes separately under **Breaking changes**
+and briefly state required migrations or reconfiguration. Keep requirements,
+known issues and limitations brief and include them only when they affect usage.
+Do not include reports of executed tests, test
 results or links to test reports. Store new update and functional test reports
 under `.work/`. Use `.local_info/` for files intended for permanent local retention
 and leave existing files there. Do not publish either directory.

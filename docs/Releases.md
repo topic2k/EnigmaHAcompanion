@@ -122,9 +122,14 @@ Der Release mit der Updatefunktion muss zunächst einmal auf beiden Seiten
 installiert werden; erst danach ist der koordinierte Ablauf verfügbar.
 
 Die automatisch erzeugten Release-Informationen nach dem Workflow überarbeiten:
-Zuerst benutzersichtbare Änderungen beschreiben, danach weitere Änderungen kurz
-und knapp, ohne ausführliche technische Details. Voraussetzungen, bekannte Fehler
-und Grenzen nennen, soweit sie die Nutzung betreffen. Keine Informationen zu
+Nur kurze Zusammenfassungen der Änderungen aufnehmen, gruppiert nach **Allgemein**,
+**Home Assistant** (nur HA betreffend) und **Receiver** (nur Receiver betreffend).
+Leere Gruppen weglassen. Innerhalb jeder Gruppe zuerst benutzersichtbare Änderungen
+nennen und ausführliche technische Details vermeiden. Rückwärtsinkompatible
+Änderungen gesondert unter **Rückwärtsinkompatible Änderungen** hervorheben;
+erforderliche Migrationen oder Neueinrichtung kurz nennen. Voraussetzungen,
+bekannte Fehler und Grenzen nur kurz nennen, soweit sie die Nutzung betreffen.
+Keine Informationen zu
 ausgeführten Tests, Testergebnissen oder Links auf Testprotokolle aufnehmen.
 Neu erstellte Update- oder Funktionstestprotokolle unter `.work/` speichern;
 dauerhaft aufzubewahrende lokale Dateien gehören nach `.local_info/`.

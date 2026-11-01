@@ -8,6 +8,7 @@ PROTOCOL_HEADER = "X-EnigmaHA-Protocol"
 COMPONENT_HEADER = "X-EnigmaHA-Component"
 VERSION_HEADER = "X-EnigmaHA-Version"
 RECEIVER_HEADER = "X-EnigmaHA-Receiver-ID"
+DIMMING_HEADER = "X-EnigmaHA-Dimming"
 
 
 def valid_receiver_id(value):

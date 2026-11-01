@@ -65,8 +65,11 @@ Use `.work/` for disposable files created during work, including new update and
 functional test reports. Reports intended for permanent local retention belong
 in `.local_info/`. Run appropriate tests before delivery. Do not include reports
 of executed tests or their results in changelogs, documentation or release notes.
-Release notes describe user-visible changes first, followed by a brief account
-of other changes without extensive technical detail.
+Release notes contain only short summaries, grouped into “General”, “Home Assistant”
+(HA only) and “Receiver” (receiver only). Omit empty groups and list user-visible
+changes first within each group. Highlight backward-incompatible changes separately
+and briefly state required migrations or reconfiguration. See the
+[release guide](Releases.en.md#release-notes) for the format.
 Use native HA selectors with filters for entity selection.
 
 ## Home Assistant integration
