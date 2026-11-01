@@ -11,8 +11,9 @@ of the package version. See [update implementation and limitations](Development.
 Receiver requests to `/menu`, `/states` and `/actions` send
 `X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
 and `X-EnigmaHA-Protocol: 1`. Receivers that support dimming also send
-`X-EnigmaHA-Dimming: 1`; without it, responses and menu actions retain the
-previous format.
+`X-EnigmaHA-Dimming: 1`; receivers that support select entities send
+`X-EnigmaHA-Select: 1`. Without an optional header, responses and actions retain
+their previous format; older receivers receive no select actions or option lists.
 HA checks these headers after authentication and before reading data or executing
 an action. Companion view responses include `X-EnigmaHA-Component: homeassistant`
 and the local `X-EnigmaHA-Version` and `X-EnigmaHA-Protocol`. The receiver checks
@@ -109,6 +110,9 @@ of the still-running HA process. Repair issues clear only after observed complet
 - Entity entry: `type: entity`, `id`, `label`, `entity_id` and `actions`.
 - Optional `brightness_step_pct` on light entries (integer 1–100). It sets the
   dimming step in percentage points; entries without it default to 10.
+- Negotiated entity entries with `select_option` include `options`, a list of
+  1–500 unique, non-empty strings (up to 255 characters each). This runtime field
+  is not stored in HA configuration.
 - `children` defines ordering and may mix menus and entities.
 - IDs are unique throughout the document: 1–64 ASCII letters, digits, `_` or `-`.
 - Labels contain 1–120 characters without control characters. The limit is
@@ -122,7 +126,9 @@ v1 supports `toggle` for `light`, `switch` and `input_boolean`. `dim_up` and
 `dim_down` are allowed only for lights HA reports as dimmable; empty action lists
 mean display only. Dimming actions are omitted without
 `X-EnigmaHA-Dimming: 1`. The editor stores a step per light; missing values
-default to 10 percentage points. Scenes and scripts are unsupported.
+default to 10 percentage points. With `X-EnigmaHA-Select: 1`, `select_option` is
+available for `select` and `input_select`; the server rechecks options and control
+permission when confirming. Scenes and scripts are unsupported.
 
 UI languages are local presentation choices. Labels are user content and are
 not translated. Entity IDs, raw states, action names and error codes remain
@@ -161,8 +167,9 @@ storage failures return HTTP 500 `storage_failed` without changing live data.
 v1 documents are also accepted and converted into a collection. Stored v1 menus
 are automatically converted on load under the same storage key, preserving IDs,
 appearance and revision. No reconfiguration is required. GET/PUT `/config` remain
-available only for exactly one unrestricted menu; otherwise they return HTTP 409
-`configuration_upgrade_required`.
+available only for exactly one unrestricted menu without `select_option`; otherwise
+they return HTTP 409 `configuration_upgrade_required` to protect newer actions from
+older editors.
 
 POST `/preview` accepts `{"configuration": {...}, "user_id": "…"}` and filters
 the draft using the active user's current HA permissions without saving it.
@@ -223,11 +230,24 @@ Example command:
 {"schema_version": 1, "revision": 1, "entry_id": "ceiling", "action": "toggle"}
 ```
 
+A negotiated select command additionally includes `option` and the complete
+`options` snapshot from the menu response:
+
+```json
+{"schema_version": 1, "revision": 1, "entry_id": "mode", "action": "select_option",
+ "option": "Heat", "options": ["Auto", "Heat", "Off"]}
+```
+
+If the menu revision or HA options change before confirmation, the command is
+rejected without calling a service. Services are `select.select_option` and
+`input_select.select_option`, respectively.
+
 The receiver cannot choose arbitrary services, entity IDs or service data.
 HA validates revision, entry, action list, control permission and current state.
 For dimming actions, it resolves the entity and step only from the stored entry,
 checks current HA light capabilities again and calls `light.turn_on` with
-`brightness_step_pct`. Client-supplied targets or steps are not accepted.
+`brightness_step_pct`. Select actions recheck the current options and accept only
+an `option` from that list. Client-supplied targets or dimming steps are not accepted.
 `prepare_action` uses injected state and permission lookups; the HA adapter
 supplies them and calls the service with user context. Menus do not grant permissions.
 
@@ -242,7 +262,7 @@ The receiver blocks further actions while a request or command runs.
 | 401 | `unauthorized` (HTTP authentication) |
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
-| 409 | `stale_menu`, `entity_unavailable`, or `revision_limit` when saving |
+| 409 | `stale_menu`, `stale_options`, `option_not_available`, `entity_unavailable`, `entity_not_supported`, or `revision_limit` when saving |
 | 426 | `protocol_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, or `storage_failed` when saving |
 | 503 | Integration not loaded or already unloaded |

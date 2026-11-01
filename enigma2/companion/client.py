@@ -9,7 +9,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from enigmaha_protocol.menu import ProtocolError, validate_menu
 from enigmaha_protocol.icons import valid_icon
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER, peer_status, protocol_version, valid_version, valid_receiver_id
+from enigmaha_protocol.compatibility import (COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION,
+                                             PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER,
+                                             peer_status, protocol_version, valid_version, valid_receiver_id)
 from enigmaha_protocol.releases import UpdateError, validate_release
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -69,6 +71,7 @@ class CompanionClient:
             PROTOCOL_HEADER: str(PROTOCOL_VERSION),
             RECEIVER_HEADER: self.receiver_id,
             DIMMING_HEADER: "1",
+            SELECT_HEADER: "1",
         })
         try:
             with self._opener.open(request, timeout=self._timeout) as response:

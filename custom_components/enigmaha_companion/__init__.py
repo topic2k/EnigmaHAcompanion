@@ -1,5 +1,6 @@
 """EnigmaHA Companion custom integration."""
 
+import hashlib
 from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
@@ -14,6 +15,11 @@ from .updates import UpdateManager
 from .repair_issues import RepairCoordinator
 
 PLATFORMS = [Platform.UPDATE]
+
+
+def _panel_module_url(panel_path):
+    content_hash = hashlib.sha256(panel_path.read_bytes()).hexdigest()
+    return f"/enigmaha_companion/panel.js?v={VERSION}-{content_hash}"
 
 
 async def async_setup(hass, config):
@@ -49,7 +55,7 @@ async def async_setup_entry(hass, entry):
     await panel_custom.async_register_panel(
         hass, frontend_url_path=DOMAIN, webcomponent_name="enigmaha-panel",
         sidebar_title="EnigmaHA Companion", sidebar_icon="mdi:remote-tv",
-        module_url="/enigmaha_companion/panel.js?v=" + VERSION,
+        module_url=_panel_module_url(Path(__file__).parent / "panel.js"),
         require_admin=True,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

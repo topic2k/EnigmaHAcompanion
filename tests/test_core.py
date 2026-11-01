@@ -175,6 +175,71 @@ class MenuTests(unittest.TestCase):
         states["light.wohnzimmer"] = {"state": "off", "brightness_pct": 0}
         self.assertEqual(nav.rows(states)[0], ("Deckenlicht", "0 % Aus"))
 
+    def test_select_action_is_bound_to_current_options_and_permissions(self):
+        menu = copy.deepcopy(self.menu)
+        node = menu["root"]["children"][0]["children"][0]
+        node.update(entity_id="select.mode", actions=["select_option"], options=["Auto", "Heizen", "Aus"])
+        command = dict(self.command, action="select_option", option="Heizen",
+                       options=["Auto", "Heizen", "Aus"])
+        get_options = lambda entity: ["Auto", "Heizen", "Aus"]
+        plan = prepare_action(menu, command, lambda entity: "Auto", lambda entity: True,
+                              get_options=get_options)
+        self.assertEqual(plan, {"domain": "select", "service": "select_option",
+                                "data": {"entity_id": "select.mode", "option": "Heizen"}})
+        with self.assertRaises(ActionError) as caught:
+            prepare_action(menu, command, lambda entity: "Auto", lambda entity: False,
+                           get_options=get_options)
+        self.assertEqual(caught.exception.code, "forbidden")
+        with self.assertRaises(ActionError) as caught:
+            prepare_action(menu, command, lambda entity: "Auto", lambda entity: True,
+                           get_options=lambda entity: ["Auto", "Aus"])
+        self.assertEqual(caught.exception.code, "stale_options")
+        with self.assertRaises(ActionError) as caught:
+            prepare_action(menu, dict(command, option="Private"), lambda entity: "Auto",
+                           lambda entity: True, get_options=get_options)
+        self.assertEqual(caught.exception.code, "option_not_available")
+
+    def test_select_action_rejects_invalid_options_and_request_fields(self):
+        menu = copy.deepcopy(self.menu)
+        node = menu["root"]["children"][0]["children"][0]
+        node.update(entity_id="select.mode", actions=["select_option"], options=["Auto", "Heizen"])
+        command = dict(self.command, action="select_option", option="Heizen", options=["Auto", "Heizen"])
+        for options in (["Auto", "Auto"], ["Auto", 1], ["Auto", "Heizen\n"]):
+            node["options"] = options
+            with self.subTest(options=options), self.assertRaises(ProtocolError):
+                validate_menu(menu)
+        node["options"] = ["Auto", "Heizen"]
+        node["entity_id"] = "switch.mode"
+        with self.assertRaises(ProtocolError):
+            validate_menu(menu)
+        node["entity_id"] = "select.mode"
+        with self.assertRaises(ActionError) as caught:
+            prepare_action(menu, dict(command, entity_id="select.other"), lambda entity: "Auto",
+                           lambda entity: True, get_options=lambda entity: node["options"])
+        self.assertEqual(caught.exception.status, 400)
+        with self.assertRaises(ActionError) as caught:
+            prepare_action(menu, dict(command, extra=True), lambda entity: "Auto",
+                           lambda entity: True, get_options=lambda entity: node["options"])
+        self.assertEqual(caught.exception.status, 400)
+
+    def test_select_preview_is_tentative_until_activation_and_is_discarded_on_navigation(self):
+        menu = copy.deepcopy(self.menu)
+        node = menu["root"]["children"][0]["children"][0]
+        node.update(entity_id="input_select.mode", actions=["select_option"], options=["Auto", "Heizen", "Aus"])
+        states = {"input_select.mode": {"state": "Auto"}}
+        nav = Navigator(menu)
+        nav.activate(self.states)
+        nav.preview_select(1, states)
+        self.assertEqual(nav.rows(states)[0], ("Deckenlicht", "Heizen"))
+        command = nav.activate(states)
+        self.assertEqual(command, {"schema_version": 1, "revision": 1, "entry_id": "ceiling",
+                                   "action": "select_option", "option": "Heizen",
+                                   "options": ["Auto", "Heizen", "Aus"]})
+        self.assertEqual(states["input_select.mode"]["state"], "Auto")
+        nav.preview_select(1, states)
+        nav.move(1)
+        self.assertIsNone(nav.activate(states))
+
     def test_display_override_does_not_mutate_menu(self):
         nav = Navigator(self.menu, {"font_size": 36})
         self.assertEqual(nav.display["font_size"], 36)

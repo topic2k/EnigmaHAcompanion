@@ -339,6 +339,8 @@ test("create nested menu, select entity, save through HA", async () => {
     ui.button("Speichern").click();
     await tick();
     assert.equal(ui.saved().menus[0].children[0].label, "Wohnzimmer");
+    assert.equal(ui.saved().menus[0].children[0].children[0].entity_id, "light.ceiling");
+    assert.equal(ui.saved().menus[0].children[0].children[0].label, "Lampe <img src=x>");
     assert.equal(ui.panel.model.revision, 2);
     assert.equal(ui.panel.path.at(-1).label, "Wohnzimmer");
     assert.equal(ui.panel.dirty, false);
@@ -616,6 +618,34 @@ test("filter options use HA names in the editor language and retain native value
     assert.equal(requests.length, 3, "Load only new domains and languages, reusing earlier translations");
     assert.ok(requests.every(request => request.type === "frontend/get_translations"
       && request.category === "entity_component"));
+  } finally {ui.dom.window.close();}
+});
+
+test("native HA entity filters add select and input_select actions", async () => {
+  const ui = await createPanel();
+  try {
+    const states = {...ui.panel._hass.states,
+      "select.mode": {entity_id: "select.mode", attributes: {friendly_name: "Modus"}, state: "Auto"},
+      "input_select.scene": {entity_id: "input_select.scene", attributes: {friendly_name: "Szene"}, state: "Tag"}};
+    ui.panel.hass = {...ui.panel._hass, states};
+    await tick();
+
+    ui.select("domain", "select");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]').selector.entity.filter.domain, "select");
+    ui.select("entity", "select.mode");
+    ui.button("Entität hinzufügen").click();
+    ui.select("domain", "input_select");
+    assert.equal(ui.root.querySelector('[data-selector="entity"]').selector.entity.filter.domain, "input_select");
+    ui.select("entity", "input_select.scene");
+    ui.button("Entität hinzufügen").click();
+
+    assert.equal(JSON.stringify(ui.panel.model.root.children.map(node => [node.entity_id, node.actions])), JSON.stringify([
+      ["select.mode", ["select_option"]], ["input_select.scene", ["select_option"]],
+    ]));
+    await ui.panel.save();
+    assert.deepEqual(ui.saved().menus[0].children.map(node => node.actions), [
+      ["select_option"], ["select_option"],
+    ]);
   } finally {ui.dom.window.close();}
 });
 
@@ -1067,12 +1097,12 @@ test("entity icons and native field hints follow HA updates without replacing th
     ui.button("Entität hinzufügen").click();
     const field = ui.root.querySelector('ha-input[data-entity-id="light.ceiling"]');
     const icon = ui.root.querySelector('ha-state-icon[data-entity-id="light.ceiling"]');
-    assert.equal(field.hint, "Lampe <img src=x> (light.ceiling)");
+    assert.equal(field.hint, "Lampe <img src=x>");
     assert.equal(icon.stateObj, ui.panel._hass.states["light.ceiling"]);
     const state = {...icon.stateObj, attributes: {friendly_name: "Deckenlampe", icon: "mdi:ceiling-light"}};
     ui.panel.hass = {...ui.panel._hass, states: {...ui.panel._hass.states, "light.ceiling": state}};
     assert.equal(ui.root.querySelector('ha-input[data-entity-id="light.ceiling"]'), field);
-    assert.equal(field.hint, "Deckenlampe (light.ceiling)");
+    assert.equal(field.hint, "Deckenlampe");
     assert.equal(icon.stateObj, state);
     assert.equal(icon.icon, "mdi:ceiling-light");
     ui.panel.hass = {...ui.panel._hass, entities: {...ui.panel._hass.entities,
@@ -1081,12 +1111,13 @@ test("entity icons and native field hints follow HA updates without replacing th
     const next = {...ui.panel._hass, states: {...ui.panel._hass.states}, entities: {}};
     delete next.states["light.ceiling"];
     ui.panel.hass = next;
-    assert.equal(field.hint, "(light.ceiling)");
+    assert.equal(field.hint, "");
     assert.equal(icon.icon, undefined);
     assert.equal(icon.stateObj.entity_id, "light.ceiling");
     assert.equal(icon.stateObj.state, "unknown");
     assert.equal(ui.root.querySelector("img"), null);
     assert.equal(ui.panel.model.root.children[0].label, "Lampe <img src=x>");
+    assert.equal(ui.panel.model.root.children[0].entity_id, "light.ceiling");
   } finally {ui.dom.window.close();}
 });
 

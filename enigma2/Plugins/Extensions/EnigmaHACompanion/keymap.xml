@@ -5,15 +5,16 @@
     <key id="KEY_LEFT" mapto="pageUp" flags="mr" />
     <key id="KEY_RIGHT" mapto="pageDown" flags="mr" />
     <key id="KEY_REWIND" mapto="dimDown" flags="mr" />
-    <key id="KEY_PREVIOUS" mapto="dimDown" flags="mr" />
+    <key id="KEY_PREVIOUS" mapto="optionDown" flags="mr" />
     <key id="KEY_FASTFORWARD" mapto="dimUp" flags="mr" />
-    <key id="KEY_NEXT" mapto="dimUp" flags="mr" />
+    <key id="KEY_NEXT" mapto="optionUp" flags="mr" />
     <key id="KEY_BACK" mapto="back" flags="m" />
-    <key id="KEY_OK" mapto="ok" flags="m" />
+    <key id="KEY_OK" mapto="okDown" flags="m" />
+    <key id="KEY_OK" mapto="okUp" flags="b" />
     <key id="KEY_MENU" mapto="settings" flags="m" />
     <key id="KEY_EXIT" mapto="close" flags="m" />
     <key id="KEY_RED" mapto="close" flags="m" />
-    <key id="KEY_GREEN" mapto="ok" flags="m" />
+    <key id="KEY_GREEN" mapto="green" flags="m" />
     <key id="KEY_YELLOW" mapto="refresh" flags="m" />
     <key id="KEY_BLUE" mapto="settings" flags="m" />
     <key id="KEY_CHANNELUP" mapto="channelPlus" flags="mr" />

@@ -8,6 +8,9 @@ ENTITY = re.compile(r"[a-z_][a-z0-9_]*\.[a-z0-9_]+\Z")
 MAX_DEPTH = 8
 MAX_NODES = 500
 TOGGLE_DOMAINS = {"light", "switch", "input_boolean"}
+SELECT_DOMAINS = {"select", "input_select"}
+SELECT_ACTION = "select_option"
+MAX_SELECT_OPTIONS = 500
 
 
 class ProtocolError(ValueError):
@@ -33,6 +36,17 @@ def _text(value, maximum, path):
         raise ProtocolError("{}: invalid text".format(path))
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
         raise ProtocolError("{}: control characters forbidden".format(path))
+
+
+def validate_select_options(value):
+    if (not isinstance(value, list) or not value or len(value) > MAX_SELECT_OPTIONS
+            or any(not isinstance(option, str) for option in value)):
+        raise ProtocolError("invalid select options")
+    for option in value:
+        _text(option, 255, "select option")
+    if len(value) != len(set(value)):
+        raise ProtocolError("duplicate select options")
+    return list(value)
 
 
 def validate_display(value):
@@ -72,7 +86,8 @@ def validate_menu(document):
                 raise ProtocolError("too many children")
             pending.extend((child, depth + 1) for child in node["children"])
         elif kind == "entity":
-            _keys(node, ["type", "id", "label", "entity_id", "actions"], ["brightness_step_pct"], "entity node")
+            _keys(node, ["type", "id", "label", "entity_id", "actions"],
+                  ["brightness_step_pct", "options"], "entity node")
             entity_id = node["entity_id"]
             if not isinstance(entity_id, str) or len(entity_id) > 255 or not ENTITY.fullmatch(entity_id):
                 raise ProtocolError("invalid entity_id")
@@ -83,7 +98,7 @@ def validate_menu(document):
                     raise ProtocolError("brightness_step_pct only allowed for lights")
             actions = node["actions"]
             if (not isinstance(actions, list) or any(not isinstance(action, str)
-                    or action not in {"toggle", "dim_up", "dim_down"} for action in actions)):
+                    or action not in {"toggle", "dim_up", "dim_down", SELECT_ACTION} for action in actions)):
                 raise ProtocolError("unsupported actions")
             if len(actions) != len(set(actions)):
                 raise ProtocolError("duplicate actions")
@@ -91,6 +106,12 @@ def validate_menu(document):
                 raise ProtocolError("domain does not support toggle")
             if any(action in {"dim_up", "dim_down"} for action in actions) and domain != "light":
                 raise ProtocolError("domain does not support dimming")
+            if SELECT_ACTION in actions and (domain not in SELECT_DOMAINS or actions != [SELECT_ACTION]):
+                raise ProtocolError("domain does not support select_option")
+            if "options" in node:
+                if domain not in SELECT_DOMAINS or SELECT_ACTION not in actions:
+                    raise ProtocolError("options only allowed for select entities")
+                validate_select_options(node["options"])
         else:
             raise ProtocolError("unknown node type")
         node_id = node["id"]

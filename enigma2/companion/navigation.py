@@ -2,7 +2,7 @@
 
 from .i18n import translate
 
-from enigmaha_protocol.menu import index_nodes, validate_display, validate_menu
+from enigmaha_protocol.menu import SELECT_ACTION, index_nodes, validate_display, validate_menu
 
 
 class Navigator:
@@ -11,6 +11,7 @@ class Navigator:
         self.menu = validate_menu(document)
         self.nodes = index_nodes(self.menu)
         self.stack = [(self.menu["root"]["id"], 0)]
+        self.select_preview = None
         display = dict(self.menu["display"])
         if display_override:
             display.update(display_override)
@@ -30,6 +31,7 @@ class Navigator:
         return " / ".join(self.nodes[node_id]["label"] for node_id, _ in self.stack)
 
     def move(self, delta):
+        self.clear_select_preview()
         children = self.current["children"]
         if children:
             node_id, position = self.stack[-1]
@@ -62,6 +64,7 @@ class Navigator:
 
     def back(self):
         """Return whether a parent menu was entered; stay at the root otherwise."""
+        self.clear_select_preview()
         if len(self.stack) == 1:
             return False
         self.stack.pop()
@@ -73,16 +76,61 @@ class Navigator:
         if node is None:
             return None
         if node["type"] == "menu":
+            self.clear_select_preview()
             self.stack.append((node["id"], 0))
             return None
+        if SELECT_ACTION in node["actions"]:
+            preview = self.select_preview
+            self.select_preview = None
+            state = states.get(node["entity_id"], {}).get("state")
+            if (preview is None or preview[0] != node["id"] or preview[2] != tuple(node.get("options", ()))
+                    or preview[1] == state):
+                return None
+            return {"schema_version": 1, "revision": self.menu["revision"],
+                    "entry_id": node["id"], "action": SELECT_ACTION, "option": preview[1],
+                    "options": list(preview[2])}
+        self.clear_select_preview()
         state = states.get(node["entity_id"], {}).get("state")
         if "toggle" not in node["actions"] or state not in {"on", "off"}:
             return None
         return {"schema_version": 1, "revision": self.menu["revision"],
                 "entry_id": node["id"], "action": "toggle"}
 
+    def clear_select_preview(self):
+        had_preview = self.select_preview is not None
+        self.select_preview = None
+        return had_preview
+
+    def preview_select(self, direction, states):
+        """Change a select value locally; the HA service runs only on activation."""
+        node = self.selection
+        if (node is None or node["type"] != "entity" or SELECT_ACTION not in node["actions"]
+                or not node.get("options")):
+            return None
+        options = tuple(node["options"])
+        preview = self.select_preview
+        current = (preview[1] if preview is not None and preview[0] == node["id"]
+                   and preview[2] == options else states.get(node["entity_id"], {}).get("state"))
+        if current in options:
+            position = (options.index(current) + (1 if direction > 0 else -1)) % len(options)
+        else:
+            position = 0 if direction > 0 else len(options) - 1
+        selected = options[position]
+        self.select_preview = (node["id"], selected, options)
+        return selected
+
+    def choose_select_option(self, option):
+        """Use an item selected in the long-OK options list as a local preview."""
+        node = self.selection
+        if (node is None or node["type"] != "entity" or SELECT_ACTION not in node["actions"]
+                or option not in node.get("options", ())):
+            return False
+        self.select_preview = (node["id"], option, tuple(node["options"]))
+        return True
+
     def dim(self, direction, states):
         """Return a dimming command for the selected, currently available light."""
+        self.clear_select_preview()
         node = self.selection
         action = "dim_up" if direction > 0 else "dim_down" if direction < 0 else None
         if (node is None or node["type"] != "entity" or action not in node["actions"]
@@ -99,6 +147,10 @@ class Navigator:
             else:
                 state = states.get(node["entity_id"], {})
                 value = state.get("state")
+                preview = self.select_preview
+                if (SELECT_ACTION in node["actions"] and preview is not None and preview[0] == node["id"]
+                        and preview[2] == tuple(node.get("options", ()))):
+                    value = preview[1]
                 brightness = state.get("brightness_pct")
                 if (any(action in node["actions"] for action in ("dim_up", "dim_down"))
                         and type(brightness) is int and 0 <= brightness <= 100):
