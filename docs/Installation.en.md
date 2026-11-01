@@ -54,7 +54,7 @@ unknown protocols and missing/invalid identities block requests and actions.
 The receiver displays an explanation. A receiver must connect before it can be
 checked.
 
-The [coordinated update](#coordinated-update-through-hacs-and-ipk) brings HA and
+The [coordinated update](#coordinated-update-through-marketplacehacs-and-ipk) brings HA and
 participating receivers to the same release after confirmation. Menus, receiver
 settings and tokens are retained; no reconfiguration is required.
 
@@ -106,32 +106,19 @@ for setup, preview and automatic conversion of existing menus. HA manages the co
 
 ## Update indicator in Home Assistant
 
-The integration provides the `update.enigmaha_companion` update entity.
-It belongs to the **EnigmaHA Companion** device representing the HA service.
-For existing installations, installing the new files and restarting HA automatically
-creates the device and assigns the existing entity to it. Its entity ID, including
-a custom one, is retained. No reconfiguration or manual migration is required.
+Marketplace or HACS provides the EnigmaHA Companion update entity and is the only
+update indicator for the HA package. Install updates there.
 
-It shows the integration version actually running, the latest complete stable release and
-a link to its release information. It checks when the integration loads and every
-twelve hours afterwards. Use `homeassistant.update_entity` to request a manual
-check. The indicator needs GitHub internet access but does not require HACS.
-If a check fails, the entity becomes unavailable while the local receiver menu
-remains usable. A later successful check restores the indicator.
+After upgrading, EnigmaHA automatically removes its former update entity from the
+HA entity registry the next time the integration loads. It matches the old entity
+by integration, platform, unique ID and config entry, so renamed and disabled
+entities are removed too. Marketplace/HACS entities, menus and stored update jobs
+are retained; no reconfiguration is required.
 
-Use **Install** on this entity or `update.install` to update only Home Assistant.
-Receivers do not participate and do not need to be connected. Administrator
-privileges and an active HACS update entity are required. Automations can call
-the service in the system context.
-This entity does not support selecting a specific version or the backup option.
-
-HA updates to the offered release through HACS. Use **Settings → System → Repairs**
-to retry failed steps and confirm the final HA restart. The entity indicates an
-ongoing update and keeps its target version fixed. If a newer release is published
-between displaying and installing the update, review and confirm the refreshed
-offer. Until HA restarts, it continues to show the loaded version even if newer
-files are already installed. Existing configurations and update jobs need no
-migration or setup changes. The existing HACS update entity remains separate.
+If dashboard cards or automations refer to the former entity
+`update.enigmaha_companion`, change them to use the Marketplace or HACS entity.
+Its entity ID can vary by installation. Existing EnigmaHA jobs can still be
+continued through their repair notices under **Settings → System → Repairs**.
 After restarting HA, older receivers are detected on their next request.
 Incompatible protocols create an error repair; compatible protocols create an
 optional update repair. HA persistent notifications do not provide arbitrary
@@ -167,23 +154,22 @@ does not install the package again. Once HA is reachable, the version actually
 running is reconciled. Existing settings and update journals remain
 usable; no migration or setup changes are required.
 
-## Coordinated update through HACS and IPK
+## Coordinated update through Marketplace/HACS and IPK
 
 Both components must first run a version containing this update workflow. Update
-older installations through HACS and the IPK from the same release, then restart
-HA and the receiver GUI. For an existing ZIP installation, configure EnigmaHA in
-HACS first.
+older installations through Marketplace/HACS and the IPK from the same release,
+then restart HA and the receiver GUI. For an existing ZIP installation, configure EnigmaHA in
+Marketplace or HACS first.
 
-Requirements: an active HACS update entity for this repository, GitHub internet
-access from HA and each receiver, and root permissions for OpenATV's `opkg`.
+Requirements: an active Marketplace or HACS update entity for this repository,
+GitHub internet access from HA and each receiver, and root permissions for OpenATV's `opkg`.
 The receiver still uses its regular HA user token. HTTPS certificate verification
 remains enabled; no SSH credentials are required.
 
-1. Install the HA update through the **EnigmaHA Companion** HA update entity.
-   It offers the latest complete stable release and installs through HACS.
-   Receivers are updated separately afterwards.
-2. Confirm the HA restart under **Settings → System → Repairs**, then reload
-   the HA page.
+1. Install the HA update through the Marketplace or HACS update entity for
+   **EnigmaHA Companion**. Receivers are updated separately afterwards.
+2. Restart Home Assistant to load the new version. Continue any existing
+   EnigmaHA jobs under **Settings → System → Repairs**.
 3. Open the plugin on the receivers and keep it open. Older receivers create
    a repair notice when contacting HA. Choose **Fix** there and confirm updating
    to the release running in HA. Offline receivers are not discovered or
@@ -209,7 +195,7 @@ are stored in `/etc/enigma2/enigmaha_companion_receiver_id` and
 Lost connections do not cause a second IPK installation. If an `opkg` result is
 uncertain, inspect package status on the receiver; uncertain installations are
 not retried automatically. A missing GUI restart is offered again. Downgrades
-are blocked. Do not install another version through HACS or `opkg` during the
+are blocked. Do not install another version through Marketplace/HACS or `opkg` during the
 transaction. Update other receivers later; mismatched protocols keep them blocked.
 Manual installation of both packages from
 the same release remains available.
@@ -484,7 +470,7 @@ key bindings are retained; no migration is required.
 
 ## Updating
 
-Use the [coordinated update](#coordinated-update-through-hacs-and-ipk), or install
+Use the [coordinated update](#coordinated-update-through-marketplacehacs-and-ipk), or install
 the HA and receiver packages from the same release manually and restart both.
 Check release notes for migrations and any required reconfiguration. Back up
 configuration before changes.

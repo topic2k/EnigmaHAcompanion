@@ -56,7 +56,7 @@ Protokollversion. Bei gleichem Protokoll funktionieren unterschiedliche Releases
 Unterschiedliche oder unbekannte Protokolle sowie fehlende/ungültige Kennungen
 sperren Abrufe und Schaltbefehle. Der Receiver zeigt einen entsprechenden Hinweis.
 Ohne Receiver-Anfrage ist noch keine Prüfung möglich.
-Das [gemeinsame Update](#gemeinsames-update-über-hacs-und-ipk) bringt HA und die
+Das [gemeinsame Update](#gemeinsames-update-über-marketplacehacs-und-ipk) bringt HA und die
 beteiligten Receiver nach Bestätigung auf denselben Release. Menü,
 Receiver-Einstellungen und Token bleiben erhalten; eine Neueinrichtung ist nicht nötig.
 
@@ -113,37 +113,21 @@ nicht bei laufendem HA manuell bearbeitet werden.
 
 ## Update-Anzeige in Home Assistant
 
-Die Integration stellt die Update-Entität `update.enigmaha_companion` bereit.
-Sie ist dem Gerät **EnigmaHA Companion** zugeordnet, das den HA-Dienst darstellt.
-Bei bestehenden Installationen wird das Gerät nach Installation der neuen Dateien
-und einem HA-Neustart automatisch angelegt und die vorhandene Entität zugeordnet.
-Ihre Entitäts-ID, auch eine selbst vergebene, bleibt erhalten. Eine Neueinrichtung
-oder manuelle Migration ist nicht erforderlich.
+Marketplace oder HACS stellt die Update-Entität für EnigmaHA Companion bereit und
+ist die einzige Update-Anzeige für das HA-Paket. Installiere Updates dort.
 
-Sie zeigt die tatsächlich laufende Integrationsversion, den neuesten vollständigen
-stabilen Release und einen Link zu dessen Release-Informationen. Die Prüfung
-erfolgt beim Laden der Integration und anschließend alle zwölf Stunden. Über
-`homeassistant.update_entity` lässt sich die Prüfung auch manuell anfordern.
-Die Anzeige benötigt Internetzugang zu GitHub, aber kein HACS. Bei einem
-Prüffehler ist die Entität nicht verfügbar; das lokale Receiver-Menü bleibt nutzbar.
-Ein späterer erfolgreicher Abruf stellt die Anzeige wieder her.
+Nach dem Upgrade entfernt EnigmaHA beim nächsten Laden automatisch seine frühere
+Update-Entität aus der HA-Entity-Registry. Die Bereinigung erkennt sie an
+Integration, Plattform und Unique-ID sowie dem zugehörigen Konfigurationseintrag;
+auch eine umbenannte oder deaktivierte Entität wird entfernt. Marketplace-/HACS-
+Entitäten, Menüs und gespeicherte Updateaufträge bleiben erhalten. Eine
+Neueinrichtung ist nicht nötig.
 
-Über **Installieren** an dieser Entität oder `update.install` lässt sich das
-HA-Update starten. Es aktualisiert ausschließlich Home Assistant; Receiver werden
-nicht aufgenommen und müssen dafür nicht verbunden sein. Benötigt werden
-Administratorrechte und eine aktive HACS-Update-Entität. Automationen
-können den Dienst im Systemkontext aufrufen. Eine eigene Versionsauswahl und
-die Backup-Option unterstützt diese Entität nicht.
-
-HA wird über HACS auf den angebotenen Release aktualisiert. Fehlgeschlagene
-Schritte und den abschließenden HA-Neustart findest du unter
-**Einstellungen → System → Reparaturen**.
-Die Entität zeigt den laufenden Updatevorgang an und hält dessen Zielversion fest.
-Wird zwischen Anzeige und Installation ein neuerer Release veröffentlicht,
-musst du das aktualisierte Angebot erneut bestätigen. Bis zum HA-Neustart zeigt
-sie weiterhin die geladene Version, auch wenn neuere Dateien bereits installiert
-sind. Bestehende Konfigurationen und Updateaufträge benötigen keine Migration
-oder Neueinrichtung. Die vorhandene HACS-Update-Entität bleibt separat bestehen.
+Falls Dashboardkarten oder Automationen auf die frühere Entität
+`update.enigmaha_companion` verweisen, ändere den Verweis auf die Marketplace- oder
+HACS-Entität. Ihre Entity-ID kann je nach Installation abweichen. Bereits
+begonnene EnigmaHA-Aufträge bleiben über ihre Reparaturhinweise unter
+**Einstellungen → System → Reparaturen** verfügbar.
 Nach dem HA-Neustart werden ältere Receiver beim nächsten Kontakt erkannt.
 Bei inkompatiblem Protokoll erscheint eine Fehler-Reparatur, bei kompatiblem
 Protokoll ein freiwilliger Reparaturhinweis. HA-Benachrichtigungen unterstützen
@@ -183,23 +167,24 @@ wieder erreichbar ist, wird die tatsächlich laufende Version abgeglichen.
 Bestehende Konfigurationen und Updatejournale bleiben nutzbar; eine Migration
 oder Neueinrichtung ist nicht erforderlich.
 
-## Gemeinsames Update über HACS und IPK
+## Gemeinsames Update über Marketplace/HACS und IPK
 
 Beide Komponenten müssen einmal in einer Version installiert sein, die diesen
-Updateablauf enthält. Ältere Installationen zuerst über HACS bzw. das IPK aus
+Updateablauf enthält. Ältere Installationen zuerst über Marketplace/HACS bzw. das IPK aus
 demselben Release aktualisieren und HA sowie die Receiver-GUI neu starten.
-Bei einer bisherigen ZIP-Installation zuerst EnigmaHA in HACS einrichten.
+Bei einer bisherigen ZIP-Installation zuerst EnigmaHA in Marketplace oder HACS
+einrichten.
 
-Voraussetzungen sind eine aktive HACS-Update-Entität für dieses Repository,
-Internetzugang zu GitHub auf HA und den Receivern sowie Root-Rechte für `opkg`
+Voraussetzungen sind eine aktive Marketplace- oder HACS-Update-Entität für dieses
+Repository, Internetzugang zu GitHub auf HA und den Receivern sowie Root-Rechte für `opkg`
 auf OpenATV. Der Receiver benötigt weiterhin nur seinen normalen HA-Benutzertoken.
 Die HTTPS-Zertifikatsprüfung bleibt aktiv. Zusätzliche SSH-Zugangsdaten sind nicht nötig.
 
-1. Über die HA-Update-Entität **EnigmaHA Companion** das HA-Update installieren.
-   Angeboten wird der neueste vollständige stabile Release. Die Installation
-   erfolgt über HACS; Receiver werden dabei noch nicht aktualisiert.
-2. Den HA-Neustart unter **Einstellungen → System → Reparaturen** bestätigen.
-   Anschließend die HA-Seite neu laden.
+1. Über die Marketplace- oder HACS-Update-Entität für **EnigmaHA Companion** das
+   HA-Update installieren. Receiver werden dabei noch nicht aktualisiert.
+2. Home Assistant neu starten, damit die neue Version geladen wird. Bereits
+   begonnene EnigmaHA-Aufträge setzt du unter **Einstellungen → System →
+   Reparaturen** fort.
 3. Das Plugin auf den Receivern öffnen und geöffnet lassen. Ältere Receiver
    erzeugen beim Kontakt mit HA einen Reparaturhinweis. Dort **Beheben** wählen
    und das Update auf den Release der laufenden HA-Version bestätigen.
@@ -227,8 +212,8 @@ Verbindungsabbrüche lösen keine zweite IPK-Installation aus. Bei unklarem
 `opkg`-Ergebnis den Paketstatus am Receiver prüfen; eine Installation mit
 unklarem Ausgang wird nicht automatisch wiederholt. Ein fehlender GUI-Neustart
 wird erneut angeboten. Downgrades sind gesperrt. Während eines Vorgangs keine
-andere Version über HACS oder `opkg` installieren. Nicht beteiligte Receiver
-später aktualisieren; bei ungleichem Protokoll bleiben sie gesperrt.
+andere Version über Marketplace/HACS oder `opkg` installieren. Nicht beteiligte
+Receiver später aktualisieren; bei ungleichem Protokoll bleiben sie gesperrt.
 Die manuelle Installation beider Pakete aus demselben Release bleibt möglich.
 
 Der Repair-Assistent setzt offene Updateaufträge fort und bietet fehlgeschlagene

@@ -21,7 +21,30 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         migrated = await self.check_setup(saved)
         await self.check_setup(migrated)
 
-    async def check_setup(self, saved=None):
+    async def test_setup_removes_legacy_update_entity_by_registry_identity(self):
+        unrelated = [
+            types.SimpleNamespace(entity_id="update.marketplace", domain="update", platform="marketplace",
+                                  unique_id="enigmaha_companion_integration_update", config_entry_id="entry"),
+            types.SimpleNamespace(entity_id="update.hacs", domain="update", platform="hacs",
+                                  unique_id="enigmaha_companion_integration_update", config_entry_id="entry"),
+            types.SimpleNamespace(entity_id="update.other_unique_id", domain="update", platform="enigmaha_companion",
+                                  unique_id="other", config_entry_id="entry"),
+            types.SimpleNamespace(entity_id="sensor.legacy", domain="sensor", platform="enigmaha_companion",
+                                  unique_id="enigmaha_companion_integration_update", config_entry_id="entry"),
+            types.SimpleNamespace(entity_id="update.other_entry", domain="update", platform="enigmaha_companion",
+                                  unique_id="enigmaha_companion_integration_update", config_entry_id="other-entry"),
+        ]
+        for entity_id, disabled_by in (("update.enigmaha_companion", None),
+                                       ("update.custom_companion_name", None),
+                                       ("update.disabled_companion", "user")):
+            with self.subTest(entity_id=entity_id, disabled_by=disabled_by):
+                legacy = types.SimpleNamespace(
+                    entity_id=entity_id, domain="update", platform="enigmaha_companion",
+                    unique_id="enigmaha_companion_integration_update", config_entry_id="entry",
+                    disabled_by=disabled_by)
+                await self.check_setup(registry_entries=[legacy, *unrelated], expected_removed=[entity_id])
+
+    async def check_setup(self, saved=None, registry_entries=(), expected_removed=()):
         fake = {}
         for name in ("homeassistant", "homeassistant.components", "homeassistant.components.frontend",
                      "homeassistant.components.panel_custom", "homeassistant.components.http", "homeassistant.components.persistent_notification",
@@ -42,18 +65,23 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         fake["homeassistant.auth.permissions.const"].POLICY_READ = "read"
         fake["homeassistant.auth.permissions.const"].POLICY_CONTROL = "control"
         fake["homeassistant.core"].Context = lambda **kwargs: kwargs
-        fake["homeassistant.const"].Platform = types.SimpleNamespace(UPDATE="update")
         fake["homeassistant.exceptions"].HomeAssistantError = RuntimeError
         fake["homeassistant.helpers.icon"].async_get_icons = AsyncMock(return_value={})
         fake["homeassistant.helpers.issue_registry"].async_delete_issue = lambda *args: None
         fake["homeassistant.components.persistent_notification"].async_dismiss = lambda *args: None
+        fake["homeassistant.helpers.entity_registry"].async_get = lambda hass: hass.registry
         store = types.SimpleNamespace(async_load=AsyncMock(side_effect=[saved, None, None]), async_save=AsyncMock())
         fake["homeassistant.helpers.storage"].Store = lambda *args: store
         views = []
+        registry = types.SimpleNamespace(entities={item.entity_id: item for item in registry_entries}, removed=[])
+        def remove_entity(entity_id):
+            registry.removed.append(entity_id)
+            registry.entities.pop(entity_id)
+        registry.async_remove = remove_entity
         hass = types.SimpleNamespace(data={}, config_entries=types.SimpleNamespace(
             async_forward_entry_setups=AsyncMock(), async_unload_platforms=AsyncMock(return_value=True)),
             http=types.SimpleNamespace(
-            async_register_static_paths=AsyncMock(), register_view=lambda view: views.append(view)))
+            async_register_static_paths=AsyncMock(), register_view=lambda view: views.append(view)), registry=registry)
         spec = importlib.util.spec_from_file_location("eha_lifecycle_test", BUNDLE / "__init__.py",
                                                       submodule_search_locations=[str(BUNDLE)])
         module = importlib.util.module_from_spec(spec)
@@ -64,9 +92,13 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(views), 11)
             self.assertEqual(sum(view.url.endswith("/info") for view in views), 1)
             hass.http.async_register_static_paths.assert_awaited_once()
-            entry = types.SimpleNamespace(options={})
+            entry = types.SimpleNamespace(options={}, entry_id="entry")
             self.assertTrue(await module.async_setup_entry(hass, entry))
-            hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(entry, ["update"])
+            hass.config_entries.async_forward_entry_setups.assert_not_awaited()
+            self.assertEqual(registry.removed, list(expected_removed))
+            if expected_removed:
+                module._remove_legacy_update_entity(hass, entry)
+                self.assertEqual(registry.removed, list(expected_removed))
             self.assertEqual(panels[0]["module_url"], module._panel_module_url(BUNDLE / "panel.js"))
             with tempfile.TemporaryDirectory() as directory:
                 first_panel = Path(directory) / "first.js"
@@ -91,15 +123,8 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(runtime.menu, saved)
                 store.async_save.assert_not_awaited()
             self.assertTrue(panels[0]["require_admin"])
-            hass.config_entries.async_unload_platforms.return_value = False
-            self.assertFalse(await module.async_unload_entry(hass, entry))
-            self.assertTrue(runtime.active)
-            self.assertTrue(runtime.updates.active)
-            self.assertIs(hass.data[module.DOMAIN]["runtime"], runtime)
-            self.assertEqual(removed, [])
-            hass.config_entries.async_unload_platforms.return_value = True
             self.assertTrue(await module.async_unload_entry(hass, entry))
-            hass.config_entries.async_unload_platforms.assert_awaited_with(entry, ["update"])
+            hass.config_entries.async_unload_platforms.assert_not_awaited()
             self.assertFalse(runtime.active)
             self.assertNotIn("runtime", hass.data[module.DOMAIN])
             self.assertEqual(removed, [module.DOMAIN])

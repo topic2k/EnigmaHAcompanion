@@ -54,7 +54,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through Marketplace or HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -74,18 +74,18 @@
           }
         },
         "progress": {
-          "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
+          "ha_installing": "Updating HA through Marketplace or HACS to release {version}. Please wait.",
           "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
-          "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
+          "hacs_unavailable": "Marketplace/HACS update unavailable. Install EnigmaHA through Marketplace or HACS and enable its update entity.",
           "download_failed": "Could not download release. Check the internet connection and try again.",
           "invalid_release": "The release does not contain valid, complete update packages.",
           "downgrade_blocked": "A participating system is newer than the offered release. No downgrade was performed.",
           "update_unavailable": "Update coordination is unavailable. Reload the integration.",
           "receiver_update_unavailable": "Receiver cannot be identified. Open the plugin and try again.",
           "update_in_progress": "An update is already running. Close this dialog and reopen the ongoing repair.",
-          "hacs_version_changed": "The HACS installation changed meanwhile. Check the update state in the editor.",
+          "hacs_version_changed": "The Marketplace or HACS installation changed meanwhile. Check the update state in the editor.",
           "already_current": "Both sides are already current. Check the state again.",
           "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
@@ -113,7 +113,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through Marketplace or HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -133,18 +133,18 @@
           }
         },
         "progress": {
-          "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
+          "ha_installing": "Updating HA through Marketplace or HACS to release {version}. Please wait.",
           "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
-          "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
+          "hacs_unavailable": "Marketplace/HACS update unavailable. Install EnigmaHA through Marketplace or HACS and enable its update entity.",
           "download_failed": "Could not download release. Check the internet connection and try again.",
           "invalid_release": "The release does not contain valid, complete update packages.",
           "downgrade_blocked": "A participating system is newer than the offered release. No downgrade was performed.",
           "update_unavailable": "Update coordination is unavailable. Reload the integration.",
           "receiver_update_unavailable": "Receiver cannot be identified. Open the plugin and try again.",
           "update_in_progress": "An update is already running. Close this dialog and reopen the ongoing repair.",
-          "hacs_version_changed": "The HACS installation changed meanwhile. Check the update state in the editor.",
+          "hacs_version_changed": "The Marketplace or HACS installation changed meanwhile. Check the update state in the editor.",
           "already_current": "Both sides are already current. Check the state again.",
           "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
@@ -172,7 +172,7 @@
           },
           "confirm": {
             "title": "Confirm coordinated update",
-            "description": "HA and receivers {receivers} will use release {version}. HA updates through HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
+            "description": "HA and receivers {receivers} will use release {version}. HA updates through Marketplace or HACS. Open EnigmaHA Companion on each participating receiver and keep it open. Confirm IPK installation there, then confirm the GUI restart. Confirm the HA restart separately afterwards. The target version stays fixed for this job."
           },
           "retry": {
             "title": "Offer update again?",
@@ -208,18 +208,18 @@
           }
         },
         "progress": {
-          "ha_installing": "Updating HA through HACS to release {version}. Please wait.",
+          "ha_installing": "Updating HA through Marketplace or HACS to release {version}. Please wait.",
           "receivers": "Release {version}: Open EnigmaHA Companion on receivers {receivers} and keep it open. Confirm installation there, then confirm the GUI restart. Progress is checked automatically."
         },
         "error": {
-          "hacs_unavailable": "HACS update unavailable. Install EnigmaHA through HACS and enable its update entity.",
+          "hacs_unavailable": "Marketplace/HACS update unavailable. Install EnigmaHA through Marketplace or HACS and enable its update entity.",
           "download_failed": "Could not download release. Check the internet connection and try again.",
           "invalid_release": "The release does not contain valid, complete update packages.",
           "downgrade_blocked": "A participating system is newer than the offered release. No downgrade was performed.",
           "update_unavailable": "Update coordination is unavailable. Reload the integration.",
           "receiver_update_unavailable": "Receiver cannot be identified. Open the plugin and try again.",
           "update_in_progress": "An update is already running. Close this dialog and reopen the ongoing repair.",
-          "hacs_version_changed": "The HACS installation changed meanwhile. Check the update state in the editor.",
+          "hacs_version_changed": "The Marketplace or HACS installation changed meanwhile. Check the update state in the editor.",
           "already_current": "Both sides are already current. Check the state again.",
           "update_storage_failed": "Could not save update progress. Check free space and file permissions.",
           "stale_update": "This update job is no longer current. Reopen the repair.",
