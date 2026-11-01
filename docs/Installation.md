@@ -98,8 +98,10 @@ sie lassen sich in HA nicht auswählen.
 5. **Speichern** wählen.
 
 Lampen, Schalter und `input_boolean` werden automatisch als schaltbar eingerichtet.
-Andere Entitäten dienen der Anzeige. Der angemeldete Receiver-Benutzer benötigt
-auch bei schaltbaren Einträgen die passenden HA-Berechtigungen.
+`select`- und `input_select`-Entitäten können mit einer Optionsauswahl bedient
+werden; beim Blättern bleibt die Vorschau kursiv sichtbar, bis sie mit OK bestätigt
+oder verworfen wird. Andere Entitäten dienen der Anzeige. Der angemeldete
+Receiver-Benutzer benötigt passende HA-Lese- und Steuerungsberechtigungen.
 
 Über **Menüs verwalten** können gemeinsame und persönliche Menüs angelegt werden.
 **Freigabe** begrenzt ganze Menüs, Untermenüs und einzelne Einträge auf ausgewählte
@@ -433,10 +435,10 @@ HTTP überträgt auch den Token unverschlüsselt.
 | --- | --- |
 | Auf / Ab | Vorherigen / nächsten Eintrag wählen |
 | Links / Rechts | Eine Seite nach oben / unten blättern |
-| < neben 0 / Rewind | Ausgewähltes Licht abdunkeln, wenn es dimmbar ist |
-| > neben 0 / Forward | Ausgewähltes Licht aufhellen, wenn es dimmbar ist |
+| < neben 0 / Rewind | Bei Select-Entitäten vorherige Option vorschauen; sonst dimmbares Licht abdunkeln |
+| > neben 0 / Forward | Bei Select-Entitäten nächste Option vorschauen; sonst dimmbares Licht aufhellen |
 | Recall | Eine Menübene zurück; auf oberster Ebene ohne Funktion |
-| OK / Grün | Untermenü öffnen oder Licht/Schalter umschalten |
+| OK / Grün | Select-Vorschau bestätigen; ohne Vorschau Optionsliste öffnen. Sonst Untermenü öffnen oder Licht/Schalter umschalten |
 | Menü / Blau | Einstellungen öffnen |
 | Gelb | Menü und Zustände neu laden |
 | Kanal + / − | Eine Seite nach oben / unten; über **Ch+/− umkehren** umkehrbar |
@@ -453,6 +455,12 @@ ihren aktuellen Wert als Prozent vor dem Symbol; ausgeschaltete Lichter zeigen
 Die Schrittweite wird im HA-Editor pro Lichteintrag unter **Dimm-Schrittweite (%)**
 festgelegt. Zulässig sind 1–100 Prozentpunkte; ohne gespeicherten Wert gelten
 10 Prozentpunkte. Bestehende Menüs funktionieren ohne Migration oder Neueinrichtung.
+
+Select- und Eingabeauswahl-Entitäten lassen sich im HA-Editor wie andere Entitäten
+hinzufügen. Auf dem Receiver blättern `<` und `>` durch die Optionen; kurzes OK
+bestätigt die geänderte Vorschau. Ohne Vorschau öffnet kurzes OK die Optionsliste,
+langes OK öffnet sie jederzeit. Andere Tastenaktionen verwerfen eine unbestätigte
+Vorschau. Ältere Receiver zeigen Select-Entitäten weiterhin nur lesbar an.
 
 Bei einem Verbindungsfehler bleibt die letzte Anzeige als **OFFLINE** sichtbar.
 Schalten ist bis zum erfolgreichen Abruf gesperrt. Ein Schaltbefehl wird niemals
@@ -505,15 +513,17 @@ OpenATV-Tastenbelegungen bleiben erhalten; eine Migration ist nicht erforderlich
 
 ## Funktionsprüfung
 
-1. In HA ein Untermenü „Test“ mit einer Lampe und einem Sensor speichern.
+1. In HA ein Untermenü „Test“ mit einer Lampe, einer Select-Entität und einem Sensor speichern.
 2. Plugin öffnen: „Test“ mit OK öffnen, beide Zustände prüfen.
 3. Lampe mit OK umschalten und den erneut abgerufenen Zustand prüfen. Bei einem
    dimmbaren Licht mit < neben 0 oder Rewind abdunkeln und mit > neben 0 oder
    Forward aufhellen; anschließend den Prozentwert prüfen.
-4. Sensor mit OK oder den Dimm-Tasten wählen: Es darf kein Steuerbefehl ausgelöst werden.
-5. Mit Recall zurück, mit Rot oder Exit aus jeder Ebene schließen.
-6. Im HA-Menüeditor einen Eintrag umbenennen, speichern und am Receiver Gelb drücken.
-7. Beide Sprachen im Editor und am Receiver einschließlich Hilfe und Fehlermeldungen
+4. Bei der Select-Entität mit `<`/`>` eine Option vorschauen und mit OK bestätigen;
+   die Optionsliste mit langem OK öffnen und ohne Auswahl verlassen.
+5. Sensor mit OK oder den Dimm-Tasten wählen: Es darf kein Steuerbefehl ausgelöst werden.
+6. Mit Recall zurück, mit Rot oder Exit aus jeder Ebene schließen.
+7. Im HA-Menüeditor einen Eintrag umbenennen, speichern und am Receiver Gelb drücken.
+8. Beide Sprachen im Editor und am Receiver einschließlich Hilfe und Fehlermeldungen
    prüfen. Eigene Namen müssen unverändert bleiben.
 
 ## Aktualisieren

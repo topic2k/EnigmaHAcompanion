@@ -10,13 +10,14 @@ from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Screens.ChoiceBox import ChoiceBox
 from Screens.Screen import Screen
-from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, gFont, RT_HALIGN_CENTER, RT_VALIGN_CENTER
+from enigma import eListboxPythonMultiContent, eSize, eTimer, getDesktop, getFontFaces, gFont, RT_HALIGN_CENTER, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
 
 from .companion.client import ClientError, CompanionClient
 from .companion.updater import ReceiverUpdater, load_receiver_id
 from .enigmaha_protocol.releases import UpdateError, version_tuple
 from .enigmaha_protocol.compatibility import VERSION, PROTOCOL_VERSION, valid_version
+from .enigmaha_protocol.menu import SELECT_ACTION
 from .companion.navigation import Navigator
 from .companion.position import MenuPosition
 from .companion.i18n import translate
@@ -27,14 +28,28 @@ from .state_icons import StateIcons
 from .hotkeys import Hotkeys, settings_descriptor
 
 _KEYMAP_LOADED = False
-HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nDimmen: < / Rewind; aufhellen: > / Forward\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
-        "OK/Grün: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\n"
+HELP = ("Auf/Ab: Eintrag wählen\nLinks/Rechts: eine Seite aufwärts/abwärts\nSelect: < / > blättern; Vorschau kursiv bis OK; lang OK: Optionsliste\nDimmen (bei anderen Einträgen): < / Rewind; aufhellen: > / Forward\nRecall: eine Ebene zurück; im Hauptmenü ohne Funktion\n"
+        "Grün: Select-Auswahl verwerfen; OK: Untermenü öffnen oder Licht/Schalter umschalten\nMenü/Blau: Einstellungen\n"
         "Gelb: Aktualisieren\n{channel_help}\nRot/Exit: Menü komplett schließen\nInfo: Programminformationen\n"
         "Sensoren sind nur lesbar. Die Menüstruktur wird in Home Assistant festgelegt.")
 
 
 def safe_text(value):
     return " ".join(str(value).split())
+
+
+def italic_font_face(face, available_faces=None):
+    faces = list(getFontFaces() if available_faces is None else available_faces)
+    if face and any(name.casefold() in face.casefold() for name in ("italic", "oblique")):
+        return face
+    candidates = ([face + suffix for suffix in (" Italic", "-Italic", " Oblique", "-Oblique")]
+                  if face else [])
+    candidates.extend(("Italic", "Oblique"))
+    for candidate in candidates:
+        match = next((name for name in faces if name.casefold() == candidate.casefold()), None)
+        if match is not None:
+            return match
+    return face
 
 
 class CompanionScreen(Screen):
@@ -58,14 +73,16 @@ class CompanionScreen(Screen):
         self["heading"] = Label("Home Assistant")
         self["list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         self["status"] = Label(self.t("Verbindung wird vorbereitet …"))
-        self["footer"] = Label(self.t("OK/Grün: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nDimmen: < / Rewind   Aufhellen: > / Forward   Menü/Blau: Einstellungen   Recall: Zurück   Info: Informationen"))
+        self["footer"] = Label(self.t("Grün: Select verwerfen   OK: Öffnen/Schalten   Gelb: Laden   Rot/Exit: Schließen\nSelect: < / > blättern, Vorschau kursiv bis OK   Dimmen (sonst): < / Rewind   Aufhellen: > / Forward   Menü/Blau: Einstellungen   Recall: Zurück   Info: Informationen"))
         self["actions"] = ActionMap(["EnigmaHACompanionActions"], {
             "up": lambda: self.move(-1), "down": lambda: self.move(1),
             "channelPlus": lambda: self.move_channel_page(-1),
             "channelMinus": lambda: self.move_channel_page(1),
             "pageUp": lambda: self.move_page(-1), "pageDown": lambda: self.move_page(1),
             "dimDown": lambda: self.dim(-1), "dimUp": lambda: self.dim(1),
-            "back": self.back, "open": self.open_menu, "ok": self.activate,
+            "optionDown": lambda: self.select_step(-1), "optionUp": lambda: self.select_step(1),
+            "back": self.back, "open": self.open_menu, "ok": self.activate, "green": self.green,
+            "okDown": self.ok_down, "okUp": self.ok_up,
             "settings": self.settings, "refresh": self.refresh, "close": self.close,
             "help": self.help, "info": self.information,
         }, -2)
@@ -85,9 +102,16 @@ class CompanionScreen(Screen):
         self.row_height = max(28, int(40*self.ui_scale))
         self.timer = eTimer()
         try:
-            self.timer.callback.append(self.refresh)
+            self.timer.callback.append(self.auto_refresh)
         except AttributeError:
-            self.timer_connection = self.timer.timeout.connect(self.refresh)
+            self.timer_connection = self.timer.timeout.connect(self.auto_refresh)
+        self.ok_timer = eTimer()
+        try:
+            self.ok_timer.callback.append(self.long_ok)
+        except AttributeError:
+            self.ok_timer_connection = self.ok_timer.timeout.connect(self.long_ok)
+        self.ok_press_active = False
+        self.ok_long_fired = False
         self.onClose.append(self.cleanup)
         # Layout runs before Session makes this screen the active modal dialog.
         # Opening first-run settings is only safe once execution has begun.
@@ -127,9 +151,38 @@ class CompanionScreen(Screen):
         return max(1, self.list_height // self.row_height)
 
     def move(self, amount):
+        self.cancel_ok_press()
         if self.nav:
             self.nav.move(amount)
             self.render()
+
+    def select_step(self, direction):
+        self.cancel_ok_press()
+        if not self.nav or not self.nav.selection:
+            return
+        if SELECT_ACTION not in self.nav.selection["actions"]:
+            self.dim(direction)
+            return
+        if self.busy or not self.online:
+            self.discard_select_preview()
+            self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
+            return
+        option = self.nav.preview_select(direction, self.states)
+        if option is None:
+            self["status"].setText(self.t("Dieser Eintrag ist nur lesbar oder nicht verfügbar."))
+            return
+        self.render()
+        self["status"].setText(self.t("Auswahl: {option} · OK bestätigt", option=option))
+
+    def discard_select_preview(self):
+        self.cancel_ok_press()
+        if self.nav and self.nav.clear_select_preview():
+            self.render()
+
+    def cancel_ok_press(self):
+        self.ok_timer.stop()
+        self.ok_press_active = False
+        self.ok_long_fired = False
 
     def move_channel_page(self, direction):
         if self.config["reverse_channel_paging"]:
@@ -144,36 +197,117 @@ class CompanionScreen(Screen):
             self.move(target - position)
 
     def back(self):
+        self.discard_select_preview()
         if self.nav and self.nav.back():
             self.render()
 
     def open_menu(self):
+        self.discard_select_preview()
         if self.nav and self.nav.selection and self.nav.selection["type"] == "menu":
             self.nav.activate(self.states)
             self.render()
 
     def activate(self):
+        self.cancel_ok_press()
         if not self.nav or not self.nav.selection:
             return
         if self.nav.selection["type"] == "menu":
             self.open_menu()
             return
         if self.busy or not self.online:
+            self.discard_select_preview()
             self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
             return
-        command = self.nav.activate(self.states)
-        if command is None:
-            self["status"].setText(self.t("Dieser Eintrag ist nur lesbar oder nicht verfügbar."))
+        is_select = SELECT_ACTION in self.nav.selection["actions"]
+        if is_select and self.nav.select_preview is None:
+            self.show_select_options()
             return
+        command = self.nav.activate(self.states)
+        if is_select:
+            self.render()
+        if command is None:
+            if not is_select:
+                self["status"].setText(self.t("Dieser Eintrag ist nur lesbar oder nicht verfügbar."))
+            return
+        self.execute_action(command, self.t("Auswahl wird gesetzt …") if is_select
+                            else self.t("Schaltbefehl wird gesendet …"))
+
+    def green(self):
+        selection = self.nav.selection if self.nav else None
+        self.discard_select_preview()
+        if selection and SELECT_ACTION in selection.get("actions", ()):
+            return
+        self.activate()
+
+    def ok_down(self):
+        if self.ok_press_active:
+            return
+        self.ok_press_active = True
+        self.ok_long_fired = False
+        self.ok_timer.start(700, True)
+
+    def ok_up(self):
+        if not self.ok_press_active and not self.ok_long_fired:
+            return
+        self.ok_timer.stop()
+        long_press = self.ok_long_fired
+        self.ok_press_active = False
+        self.ok_long_fired = False
+        if not long_press:
+            self.activate()
+
+    def long_ok(self):
+        if not self.ok_press_active:
+            return
+        self.ok_long_fired = True
+        self.ok_press_active = False
+        if (self.nav and self.nav.selection and SELECT_ACTION in self.nav.selection["actions"]
+                and self.nav.selection.get("options")):
+            self.show_select_options()
+        else:
+            self.activate()
+
+    def show_select_options(self):
+        node = self.nav.selection if self.nav else None
+        if (node is None or SELECT_ACTION not in node["actions"] or not node.get("options")):
+            return
+        if self.busy or not self.online:
+            self.discard_select_preview()
+            self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
+            return
+        state = self.states.get(node["entity_id"], {}).get("state")
+        preview = self.nav.select_preview
+        selected = preview[1] if preview is not None and preview[0] == node["id"] else state
+        selection = node["options"].index(selected) if selected in node["options"] else 0
+        identity = (self.nav.menu["revision"], node["id"], tuple(node["options"]))
+        self.session.openWithCallback(
+            lambda choice: self.select_option_chosen(choice, identity), ChoiceBox,
+            title=node["label"], list=[(option, option) for option in node["options"]], selection=selection)
+
+    def select_option_chosen(self, choice, identity):
+        if choice is None:
+            self.discard_select_preview()
+            return
+        if not self.nav or (self.nav.menu["revision"], self.nav.selection["id"] if self.nav.selection else None,
+                            tuple(self.nav.selection.get("options", ())) if self.nav.selection else ()) != identity:
+            self.discard_select_preview()
+            self["status"].setText(self.t("Menü/Zustand geändert. Gelb: neu laden."))
+            return
+        option = choice[1] if isinstance(choice, (tuple, list)) and len(choice) > 1 else choice
+        if self.nav.choose_select_option(option):
+            self.activate()
+
+    def execute_action(self, command, message):
         client = self.client
         def work():
             client.execute(command)
             return self.snapshot(client)
-        self.run(work, self.t("Schaltbefehl wird gesendet …"))
+        self.run(work, message)
 
     def dim(self, direction):
         if not self.nav or not self.nav.selection:
             return
+        self.discard_select_preview()
         if self.busy or not self.online:
             self["status"].setText(self.t("Bitte aktuelle Zustände abwarten. Gelb: erneut laden."))
             return
@@ -203,10 +337,19 @@ class CompanionScreen(Screen):
         return menu, client.get_states(menu)
 
     def refresh(self):
+        self.discard_select_preview()
         if self.closed or self.busy or not hasattr(self, "client"):
             return
         client = self.client
         self.run(lambda: self.snapshot(client), self.t("Zustände werden geladen …"))
+
+    def auto_refresh(self):
+        if self.closed or self.busy or not hasattr(self, "client"):
+            return
+        if self.nav and self.nav.select_preview is not None:
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return
+        self.refresh()
 
     def run(self, work, message):
         self.timer.stop()
@@ -420,6 +563,7 @@ class CompanionScreen(Screen):
         self.timer.start(self.config["refresh_seconds"] * 1000, True)
 
     def close(self, *args, **kwargs):
+        self.discard_select_preview()
         if self.update_installing:
             self["status"].setText(self.t("Receiver-Update wird installiert. Bitte warten …"))
             return
@@ -438,6 +582,9 @@ class CompanionScreen(Screen):
         face, font_size, self.row_height = self.appearance.menu_font(
             self.config["font_family"], self.config["font_size"])
         self["list"].l.setFont(0, gFont(face, font_size))
+        preview = self.nav.select_preview
+        if preview is not None:
+            self["list"].l.setFont(1, gFont(italic_font_face(face), font_size))
         self["list"].l.setItemHeight(self.row_height)
         instance = getattr(self["list"], "instance", None)
         if instance is not None:
@@ -451,9 +598,13 @@ class CompanionScreen(Screen):
         rows = []
         for index, (label, value) in enumerate(self.nav.rows(self.states)):
             node = self.nav.current["children"][index]
+            italic_preview = (preview is not None and preview[0] == node["id"]
+                              and SELECT_ACTION in node["actions"]
+                              and preview[2] == tuple(node.get("options", ())))
             state = self.states.get(node.get("entity_id"), {})
             size = min(self.row_height - 8, max(24, int(font_size * 1.2)))
-            pixmap = self.state_icons.get(state, size) if node["type"] == "entity" else None
+            pixmap = (self.state_icons.get(state, size)
+                      if node["type"] == "entity" and not italic_preview else None)
             if pixmap is not None:
                 value_entries = []
                 brightness = state.get("brightness_pct")
@@ -469,7 +620,8 @@ class CompanionScreen(Screen):
                     pos=(icon_pos, (self.row_height-size)//2), size=(size, size), png=pixmap))
             else:
                 value_entries = [MultiContentEntryText(
-                    pos=(label_width+16, 0), size=(value_width-16, self.row_height), font=0,
+                    pos=(label_width+16, 0), size=(value_width-16, self.row_height),
+                    font=1 if italic_preview else 0,
                     flags=RT_VALIGN_CENTER, text=safe_text(value))]
             rows.append([index, MultiContentEntryText(pos=(8, 0), size=(label_width, self.row_height), font=0,
                                                      flags=RT_VALIGN_CENTER, text=safe_text(label)), *value_entries])
@@ -478,6 +630,7 @@ class CompanionScreen(Screen):
         self["heading"].setText(("" if self.online else "OFFLINE – ") + safe_text(self.nav.breadcrumb))
 
     def settings(self):
+        self.discard_select_preview()
         if self.busy:
             self["status"].setText(self.t("Bitte laufenden Abruf abwarten; danach Menü erneut drücken."))
             return
@@ -502,12 +655,14 @@ class CompanionScreen(Screen):
             self["status"].setText(self.t("Menü drücken, um Home Assistant einzurichten."))
 
     def help(self):
+        self.discard_select_preview()
         channel_help = ("Ch+ abwärts / − aufwärts: seitenweise blättern" if self.config["reverse_channel_paging"]
                         else "Ch+ aufwärts / − abwärts: seitenweise blättern")
         self.session.open(MessageBox, self.t(HELP, channel_help=self.t(channel_help)),
                           type=MessageBox.TYPE_INFO)
 
     def information(self):
+        self.discard_select_preview()
         if self.closed or self.info_pending is not None:
             return
         if not self.online or not hasattr(self, "client"):
@@ -546,6 +701,7 @@ class CompanionScreen(Screen):
         self.closed = True
         self.generation += 1
         self.timer.stop()
+        self.ok_timer.stop()
         self.state_icons.close()
 
 

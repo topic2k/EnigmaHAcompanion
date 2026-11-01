@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -66,6 +67,17 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             entry = types.SimpleNamespace(options={})
             self.assertTrue(await module.async_setup_entry(hass, entry))
             hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(entry, ["update"])
+            self.assertEqual(panels[0]["module_url"], module._panel_module_url(BUNDLE / "panel.js"))
+            with tempfile.TemporaryDirectory() as directory:
+                first_panel = Path(directory) / "first.js"
+                second_panel = Path(directory) / "second.js"
+                first_panel.write_text("custom panel build one", encoding="utf-8")
+                second_panel.write_text("custom panel build two", encoding="utf-8")
+                first_url = module._panel_module_url(first_panel)
+                second_url = module._panel_module_url(second_panel)
+                self.assertNotEqual(first_url, second_url)
+                self.assertTrue(first_url.startswith(f"/enigmaha_companion/panel.js?v={module.VERSION}-"))
+                self.assertTrue(second_url.startswith(f"/enigmaha_companion/panel.js?v={module.VERSION}-"))
             runtime = hass.data[module.DOMAIN]["runtime"]
             self.assertIs(runtime.config_entry, entry)
             self.assertEqual(runtime.menu["schema_version"], 2)

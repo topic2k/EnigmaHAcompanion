@@ -93,7 +93,9 @@ and size on each receiver; these choices are not available in HA.
 5. Choose **Save**.
 
 Lights, switches and `input_boolean` helpers are configured as toggleable.
-Other entities are read-only. The receiver user still needs HA permissions.
+`select` and `input_select` entities support option selection; other entities are
+read-only. While browsing, the preview stays italic until confirmed with OK or
+discarded. The receiver user needs the matching HA read and control permissions.
 Your own menu and entity names are never automatically translated.
 
 Use **Manage menus** to create shared and personal menus. **Access** restricts
@@ -398,10 +400,10 @@ verification cannot be disabled. HTTP transmits the token without encryption.
 | --- | --- |
 | Up / Down | Select previous / next entry |
 | Left / Right | Page up / down through the list |
-| < next to 0 / Rewind | Dim the selected light when supported |
-| > next to 0 / Forward | Brighten the selected light when supported |
+| < next to 0 / Rewind | Preview the previous select option; otherwise dim the selected light when supported |
+| > next to 0 / Forward | Preview the next select option; otherwise brighten the selected light when supported |
 | Recall | Go back one menu level; no action at the root |
-| OK / Green | Open submenu or toggle a light/switch |
+| OK / Green | Confirm a select preview; open its option list when unchanged. Otherwise open a submenu or toggle a light/switch |
 | Menu / Blue | Open settings |
 | Yellow | Reload menu and states |
 | Channel + / − | Page up / down; reversible through **Reverse Ch+/−** |
@@ -417,6 +419,12 @@ lights show `0 %`. Scenes and scripts are unsupported.
 Set the step size per light entry in the HA editor under **Dimming step (%)**.
 Allowed values are 1–100 percentage points; existing entries without a saved
 value use 10. Existing menus need no migration or reconfiguration.
+
+Add Select and Input select entities in the HA editor like other entities. On the
+receiver, `<` and `>` browse their options; short OK confirms a changed preview.
+With no preview, short OK opens the option list; long OK opens it at any time.
+Other key actions discard an unconfirmed preview. Older receivers continue to
+show select entities as read-only entries.
 
 On connection failure, the last display remains visible with **OFFLINE**.
 Toggling is blocked until a successful refresh. Commands are never automatically
@@ -461,15 +469,17 @@ key bindings are retained; no migration is required.
 
 ## Functional check
 
-1. In HA, save a “Test” submenu containing a light and sensor.
+1. In HA, save a “Test” submenu containing a light, select entity and sensor.
 2. Open the plugin, press OK to open “Test”, and check both states.
 3. Toggle the light with OK and check the refreshed state. For a dimmable light,
    dim it with < next to 0 or Rewind and brighten it with > next to 0 or Forward;
    check the displayed percentage.
-4. Press OK or a dimming key on the sensor: it must not send a control command.
-5. Press Recall to return, and Red or Exit at any level to close.
-6. Rename an entry in HA, save it and press Yellow on the receiver.
-7. Check both languages in the editor and receiver, including help and error
+4. Browse a select option with `<`/`>` and confirm it with OK; open its list with
+   long OK and leave without choosing an option.
+5. Press OK or a dimming key on the sensor: it must not send a control command.
+6. Press Recall to return, and Red or Exit at any level to close.
+7. Rename an entry in HA, save it and press Yellow on the receiver.
+8. Check both languages in the editor and receiver, including help and error
    messages. Confirm your own names remain unchanged.
 
 ## Updating

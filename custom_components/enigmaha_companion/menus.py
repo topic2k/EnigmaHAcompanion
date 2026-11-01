@@ -1,7 +1,10 @@
 """Stored menu collections, lossless v1 migration and receiver projections."""
 
 from .enigmaha_protocol import ProtocolError, validate_menu
-from .enigmaha_protocol.menu import MAX_NODES, _integer, _keys, index_nodes, validate_display
+from .enigmaha_protocol.menu import (
+    MAX_NODES, SELECT_ACTION, SELECT_DOMAINS, _integer, _keys, index_nodes,
+    validate_display, validate_select_options,
+)
 
 
 def _access(value, root=False):
@@ -44,6 +47,8 @@ def validate_configuration(value):
     """Validate v2; migrate a published v1 menu without changing IDs/revision."""
     if isinstance(value, dict) and value.get("schema_version") == 1:
         menu = validate_menu(value)
+        for node in index_nodes(menu).values():
+            node.pop("options", None)
         menu["root"]["access"] = {"mode": "all"}
         return {"schema_version": 2, "revision": menu["revision"],
                 "display": menu["display"], "menus": [menu["root"]]}
@@ -73,7 +78,8 @@ def validate_configuration(value):
             seen.add(node_id)
             access = _access(node.get("access", {"mode": "all" if depth == 0 else "inherit"}), depth == 0)
             accesses[node_id] = access
-            target.update({key: item for key, item in node.items() if key not in {"access", "children"}})
+            target.update({key: item for key, item in node.items()
+                           if key not in {"access", "children", "options"}})
             if "children" in node:
                 if not isinstance(node["children"], list) or len(node["children"]) > MAX_NODES:
                     raise ProtocolError("children must be a bounded array")
@@ -101,7 +107,8 @@ def legacy_menu(value):
     root = config["menus"][0]
     for node in index_nodes({"root": root}).values():
         access = node.get("access", {"mode": "inherit"})
-        if access["mode"] not in {"all", "inherit"}:
+        if access["mode"] not in {"all", "inherit"} or (
+                node["type"] == "entity" and SELECT_ACTION in node["actions"]):
             return None
         node.pop("access", None)
         node.pop("brightness_step_pct", None)
@@ -110,7 +117,8 @@ def legacy_menu(value):
     return _document(config, root)
 
 
-def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=None):
+def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=None,
+                  select=False, get_options=None):
     """Use the same projection for menus, states, commands and admin previews."""
     config = validate_configuration(value)
 
@@ -121,10 +129,25 @@ def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=
         if node["type"] == "entity":
             if not can_read(node["entity_id"]):
                 return None
-            if not can_control(node["entity_id"]):
+            domain = node["entity_id"].split(".", 1)[0]
+            if domain in SELECT_DOMAINS:
+                node.pop("brightness_step_pct", None)
+                node.pop("options", None)
+                options = None
+                if select and SELECT_ACTION in node["actions"] and can_control(node["entity_id"]) and get_options:
+                    try:
+                        options = validate_select_options(get_options(node["entity_id"]))
+                    except ProtocolError:
+                        options = None
+                if options:
+                    node["actions"] = [SELECT_ACTION]
+                    node["options"] = options
+                else:
+                    node["actions"] = []
+            elif not can_control(node["entity_id"]):
                 node["actions"] = []
                 node.pop("brightness_step_pct", None)
-            elif node["entity_id"].split(".", 1)[0] == "light" and dimming and can_dim and can_dim(node["entity_id"]):
+            elif domain == "light" and dimming and can_dim and can_dim(node["entity_id"]):
                 node["actions"] = [action for action in node["actions"] if action == "toggle"]
                 node["actions"].extend(("dim_up", "dim_down"))
                 node["brightness_step_pct"] = node.get("brightness_step_pct", 10)

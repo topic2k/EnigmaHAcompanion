@@ -40,6 +40,8 @@ const ENIGMAHA_EN = {
   "Licht": "Light",
   "Schalter": "Switch",
   "Helfer-Schalter": "Toggle helper",
+  "Auswahl": "Select",
+  "Eingabeauswahl": "Input select",
   "Dimm-Schrittweite (%)": "Dimming step (%)",
   "Schrittweite zwischen 1 und 100 Prozent": "Step size from 1 to 100 percent",
   "Sensor": "Sensor",
@@ -187,7 +189,7 @@ class EnigmaHAPanel extends HTMLElement {
 
   entityDescription(entityId) {
     const name = this._hass.states?.[entityId]?.attributes.friendly_name;
-    return name ? `${name} (${entityId})` : `(${entityId})`;
+    return name || "";
   }
 
   updateEntryEntities() {
@@ -206,7 +208,8 @@ class EnigmaHAPanel extends HTMLElement {
   entityActions(entityId) {
     const domain = entityId.split(".")[0];
     return domain === "light" ? ["toggle", "dim_up", "dim_down"]
-      : ["switch", "input_boolean"].includes(domain) ? ["toggle"] : [];
+      : ["switch", "input_boolean"].includes(domain) ? ["toggle"]
+        : ["select", "input_select"].includes(domain) ? ["select_option"] : [];
   }
 
   menuForSave() {
@@ -826,6 +829,7 @@ class EnigmaHAPanel extends HTMLElement {
     }
     if (deviceClass) return undefined;
     const fallback = {light: "Licht", switch: "Schalter", input_boolean: "Helfer-Schalter",
+      select: "Auswahl", input_select: "Eingabeauswahl",
       sensor: "Sensor", binary_sensor: "Binärsensor"};
     return fallback[domain] ? this.t(fallback[domain]) : domain;
   }

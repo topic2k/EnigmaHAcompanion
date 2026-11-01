@@ -1,5 +1,6 @@
 """Exercise the packaged Screen with Enigma2/Twisted interface doubles."""
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import sys
@@ -227,6 +228,18 @@ class ReceiverTests(unittest.TestCase):
         self.addCleanup(screen.cleanup)
         screen.loaded((menu or self.menu, self.states), screen.generation)
         return screen
+
+    def install_select_menu(self, entity_id="input_select.mode"):
+        self.menu = copy.deepcopy(self.menu)
+        node = self.menu["root"]["children"][0]["children"][0]
+        node.update(entity_id=entity_id, actions=["select_option"],
+                    options=["Auto", "Heizen", "Aus"])
+        self.states = dict(self.states, **{entity_id: {"state": "Auto", "friendly_name": "Modus"}})
+        self.screen.client.get_menu = lambda: self.menu
+        self.screen.client.get_states = lambda menu: self.states
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.screen.nav.activate(self.states)
+        self.screen.render()
 
     def test_menu_position_option_defaults_on_and_saves_without_changing_legacy_settings(self):
         settings = sys.modules[PLUGIN.__package__ + ".settings"]
@@ -456,16 +469,19 @@ class ReceiverTests(unittest.TestCase):
         self.addCleanup(screen.cleanup)
         self.assertEqual(screen["status"].text, "Preparing connection …")
         self.assertIn("Menu/Blue: Settings", screen["footer"].text)
+        self.assertIn("preview italic until OK", screen["footer"].text)
         screen.loaded((self.menu, self.states), screen.generation)
         self.assertEqual(screen["status"].text, "Connected")
         self.assertEqual(screen.nav.language, "en")
         screen.help()
         self.assertIn("Up/Down: Select entry", self.dialogs[-1][0][1])
-        self.assertIn("Dim: < / Rewind; brighten: > / Forward", self.dialogs[-1][0][1])
+        self.assertIn("preview is italic until OK", self.dialogs[-1][0][1])
+        self.assertIn("Dim (other entries): < / Rewind; brighten: > / Forward", self.dialogs[-1][0][1])
         self.assertIn("Ch+ up / − down", self.dialogs[-1][0][1])
         screen.appearance.language = "de"
         screen.help()
-        self.assertIn("Dimmen: < / Rewind; aufhellen: > / Forward", self.dialogs[-1][0][1])
+        self.assertIn("Vorschau kursiv bis OK", self.dialogs[-1][0][1])
+        self.assertIn("Dimmen (bei anderen Einträgen): < / Rewind; aufhellen: > / Forward", self.dialogs[-1][0][1])
         screen.appearance.language = "en"
         screen.config["reverse_channel_paging"] = True
         screen.help()
@@ -482,6 +498,12 @@ class ReceiverTests(unittest.TestCase):
         for key in ("KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT", "KEY_MENU", "KEY_OK", "KEY_EXIT",
                     "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_REWIND", "KEY_FASTFORWARD"):
             self.assertIn(mappings[key], self.screen["actions"].actions)
+
+    def test_green_has_its_own_action(self):
+        mapping = next(key.attrib for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
+                       if key.attrib["id"] == "KEY_GREEN")
+        self.assertEqual(mapping["mapto"], "green")
+        self.assertIn("green", self.screen["actions"].actions)
 
     def test_channel_keys_page_through_list_and_stop_at_boundaries(self):
         mappings = {key.attrib["id"]: key.attrib for key in
@@ -556,6 +578,165 @@ class ReceiverTests(unittest.TestCase):
                         self.assertEqual(self.screen.nav.stack, [("home", position)])
         self.assertEqual(self.commands, [])
         self.assertEqual(self.pending, [])
+
+    def test_select_keys_preview_without_sending_and_ok_confirms_once(self):
+        for domain in ("input_select", "select"):
+            with self.subTest(domain=domain):
+                self.install_select_menu(domain + ".mode")
+                commands_before = len(self.commands)
+                self.press("optionUp")
+                self.assertEqual(len(self.commands), commands_before)
+                self.assertEqual(self.states[domain + ".mode"]["state"], "Auto")
+                self.assertEqual(self.screen.nav.rows(self.states)[0][1], "Heizen")
+
+                self.press("ok")
+                self.assertIsNone(self.screen.nav.select_preview)
+                self.assertEqual(self.screen["list"].rows[0][2]["font"], 0)
+                self.assertEqual(len(self.pending), 1)
+                self.pending.pop().fire()
+                self.assertEqual(self.commands[-1], {"schema_version": 1, "revision": self.menu["revision"],
+                    "entry_id": "ceiling", "action": "select_option", "option": "Heizen",
+                    "options": ["Auto", "Heizen", "Aus"]})
+
+    def test_auto_refresh_keeps_select_preview_until_confirmation_or_manual_refresh(self):
+        for domain in ("input_select", "select"):
+            with self.subTest(domain=domain):
+                self.install_select_menu(domain + ".mode")
+                self.press("optionUp")
+                preview = self.screen.nav.select_preview
+                automatic_refresh = self.screen.timer.callback[0]
+
+                automatic_refresh()
+                automatic_refresh()
+
+                self.assertEqual(self.screen.nav.select_preview, preview)
+                self.assertEqual(self.pending, [])
+                self.assertTrue(self.screen.timer.running)
+                self.screen.refresh()
+                self.assertIsNone(self.screen.nav.select_preview)
+                self.assertEqual(len(self.pending), 1)
+                self.pending.pop().fire()
+
+    def test_select_preview_is_italic_and_restores_on_discard(self):
+        fonts = {}
+        self.screen["list"].l.setFont = lambda index, font: fonts.__setitem__(index, font)
+        with patch.object(PLUGIN, "gFont", side_effect=lambda *args: args), \
+                patch.object(PLUGIN, "getFontFaces", return_value=["Regular", "Regular Italic", "Italic"]):
+            self.assertEqual(PLUGIN.italic_font_face("Regular"), "Regular Italic")
+            self.assertEqual(PLUGIN.italic_font_face("SkinFont"), "Italic")
+            self.assertEqual(PLUGIN.italic_font_face("SkinFont", ["SkinFont"]), "SkinFont")
+            for domain in ("input_select", "select"):
+                with self.subTest(domain=domain):
+                    self.install_select_menu(domain + ".mode")
+                    self.press("optionUp")
+                    self.assertEqual(self.screen["list"].rows[0][2]["font"], 1)
+                    self.assertEqual(fonts[1], ("Regular Italic", fonts[0][1]))
+                    self.press("green")
+                    self.assertIsNone(self.screen.nav.select_preview)
+                    self.assertEqual(self.screen["list"].rows[0][2]["font"], 0)
+                    self.assertEqual(self.pending, [])
+                    self.assertEqual(self.commands, [])
+
+    def test_ok_on_current_select_value_clears_preview_without_sending(self):
+        for domain in ("input_select", "select"):
+            with self.subTest(domain=domain):
+                self.install_select_menu(domain + ".mode")
+                for _ in range(3):
+                    self.press("optionUp")
+                self.assertEqual(self.screen.nav.select_preview[1], "Auto")
+
+                self.press("ok")
+
+                self.assertIsNone(self.screen.nav.select_preview)
+                self.assertEqual(self.screen["list"].rows[0][2]["font"], 0)
+                self.assertEqual(self.pending, [])
+                self.assertEqual(self.commands, [])
+
+    def test_green_discards_select_preview_for_both_domains_without_sending(self):
+        mapping = next(key.attrib["mapto"] for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
+                       if key.attrib["id"] == "KEY_GREEN")
+        for domain in ("input_select", "select"):
+            with self.subTest(domain=domain):
+                self.install_select_menu(domain + ".mode")
+                self.press("optionUp")
+                self.assertEqual(self.screen.nav.select_preview,
+                                 ("ceiling", "Heizen", ("Auto", "Heizen", "Aus")))
+                self.press(mapping)
+                self.assertIsNone(self.screen.nav.select_preview)
+                self.assertEqual(self.screen.nav.rows(self.states)[0][1], "Auto")
+                self.assertEqual(self.pending, [])
+                self.assertEqual(self.commands, [])
+                self.assertEqual(self.dialogs, [])
+
+    def test_green_without_preview_does_not_open_select_options(self):
+        mapping = next(key.attrib["mapto"] for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
+                       if key.attrib["id"] == "KEY_GREEN")
+        for domain in ("input_select", "select"):
+            with self.subTest(domain=domain):
+                self.install_select_menu(domain + ".mode")
+                self.press(mapping)
+                self.assertEqual(self.pending, [])
+                self.assertEqual(self.commands, [])
+                self.assertEqual(self.dialogs, [])
+
+    def test_green_cancels_an_in_progress_ok_press_without_later_confirmation(self):
+        mapping = next(key.attrib["mapto"] for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
+                       if key.attrib["id"] == "KEY_GREEN")
+        self.install_select_menu("select.mode")
+        self.press("optionUp")
+        self.screen.ok_down()
+        self.press(mapping)
+        self.screen.long_ok()
+        self.screen.ok_up()
+        self.assertIsNone(self.screen.nav.select_preview)
+        self.assertEqual(self.pending, [])
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.dialogs, [])
+
+    def test_green_keeps_submenu_and_toggle_behavior_for_other_entries(self):
+        mapping = next(key.attrib["mapto"] for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
+                       if key.attrib["id"] == "KEY_GREEN")
+        self.press(mapping)
+        self.assertEqual(len(self.screen.nav.stack), 2)
+        self.assertEqual(self.screen.nav.selection["id"], "ceiling")
+        self.press(mapping)
+        self.assertEqual(len(self.pending), 1)
+        self.pending.pop().fire()
+        self.assertEqual(self.commands[-1]["action"], "toggle")
+
+    def test_long_ok_opens_select_options_and_release_does_not_confirm_twice(self):
+        self.install_select_menu()
+        self.press("optionUp")
+        self.screen.ok_down()
+        self.screen.long_ok()
+        self.screen.ok_up()
+        self.assertEqual(self.commands, [])
+        args, kwargs = self.dialogs[-1]
+        self.assertEqual(args[1], PLUGIN.ChoiceBox)
+        self.assertEqual(kwargs["title"], "Deckenlicht")
+        self.assertEqual(kwargs["list"], [("Auto", "Auto"), ("Heizen", "Heizen"), ("Aus", "Aus")])
+        args[0](("Aus", "Aus"))
+        self.assertEqual(len(self.pending), 1)
+        self.pending.pop().fire()
+        self.assertEqual(self.commands[0]["option"], "Aus")
+
+    def test_short_ok_without_preview_opens_options_and_cancel_sends_nothing(self):
+        self.install_select_menu()
+        self.screen.ok_down()
+        self.screen.ok_up()
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.pending, [])
+        args, _ = self.dialogs[-1]
+        args[0](None)
+        self.assertIsNone(self.screen.nav.select_preview)
+        self.assertEqual(self.commands, [])
+
+    def test_other_actions_discard_select_preview_without_sending(self):
+        self.install_select_menu()
+        self.press("optionUp")
+        self.press("dimUp")
+        self.assertIsNone(self.screen.nav.select_preview)
+        self.assertEqual(self.commands, [])
 
     def test_info_uses_worker_and_preserves_navigation_and_refresh(self):
         data = {"user_name": "Anna {user}\nReceiver", "menus": 2, "submenus": 3,
@@ -906,8 +1087,8 @@ class ReceiverTests(unittest.TestCase):
         self.press("open")
         mappings = {key.attrib["id"]: key.attrib for key in
                     ET.parse(BUNDLE / "keymap.xml").findall(".//key")}
-        for key, action in (("KEY_REWIND", "dimDown"), ("KEY_PREVIOUS", "dimDown"),
-                            ("KEY_FASTFORWARD", "dimUp"), ("KEY_NEXT", "dimUp")):
+        for key, action in (("KEY_REWIND", "dimDown"), ("KEY_PREVIOUS", "optionDown"),
+                            ("KEY_FASTFORWARD", "dimUp"), ("KEY_NEXT", "optionUp")):
             with self.subTest(key=key):
                 self.assertEqual(mappings[key]["mapto"], action)
                 self.assertEqual(mappings[key]["flags"], "mr")

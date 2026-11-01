@@ -12,7 +12,9 @@ sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import API_PATH, ClientError, CompanionClient, MAX_RESPONSE_BYTES
 from companion.navigation import Navigator
 from enigmaha_protocol import ActionError, prepare_action
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER
+from enigmaha_protocol.compatibility import (COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER,
+                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER)
+from enigmaha_protocol.menu import index_nodes
 from enigmaha_protocol.releases import asset_url, ipk_name
 
 
@@ -72,16 +74,22 @@ class FakeHA(BaseHTTPRequestHandler):
             return
         command = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         states = self.server.snapshot["states"]
+        def get_options(entity):
+            return next((node["options"] for node in index_nodes(self.server.menu).values()
+                         if node["type"] == "entity" and node["entity_id"] == entity), None)
         try:
             plan = prepare_action(self.server.menu, command,
                                   lambda entity: states.get(entity, {}).get("state"),
-                                  lambda entity: True, lambda entity: True)
+                                  lambda entity: True, lambda entity: True, get_options)
         except ActionError as error:
             self.reply(error.status, {"error": error.code})
             return
         self.server.plans.append(plan)
         entity = plan["data"]["entity_id"]
-        states[entity]["state"] = "on" if states[entity]["state"] == "off" else "off"
+        if plan["service"] == "select_option":
+            states[entity]["state"] = plan["data"]["option"]
+        else:
+            states[entity]["state"] = "on" if states[entity]["state"] == "off" else "off"
         if self.server.mode == "lost_reply":
             # The service ran, but the client cannot know it from this response.
             self.close_connection = True
@@ -158,6 +166,29 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(headers[VERSION_HEADER.lower()], VERSION)
         self.assertEqual(headers[PROTOCOL_HEADER.lower()], str(PROTOCOL_VERSION))
         self.assertEqual(headers[DIMMING_HEADER.lower()], "1")
+        self.assertEqual(headers[SELECT_HEADER.lower()], "1")
+
+    def test_select_menu_options_and_command_are_validated_end_to_end(self):
+        node = self.server.menu["root"]["children"][0]["children"][0]
+        node.update(entity_id="select.mode", actions=["select_option"], options=["Auto", "Heizen", "Aus"])
+        self.server.snapshot["states"].pop("light.wohnzimmer")
+        self.server.snapshot["states"]["select.mode"] = {
+            "state": "Auto", "unit_of_measurement": None, "icon": None}
+        menu = self.client.get_menu()
+        select_node = index_nodes(menu)["ceiling"]
+        self.assertEqual(select_node["options"], ["Auto", "Heizen", "Aus"])
+        states = self.client.get_states(menu)
+        self.assertEqual(states["select.mode"]["state"], "Auto")
+        command = {"schema_version": 1, "revision": menu["revision"], "entry_id": "ceiling",
+                   "action": "select_option", "option": "Heizen", "options": select_node["options"]}
+        self.assertEqual(self.client.execute(command), {"accepted": True})
+        self.assertEqual(self.server.plans[-1], {"domain": "select", "service": "select_option",
+                                                 "data": {"entity_id": "select.mode", "option": "Heizen"}})
+
+        node["options"] = ["Auto", "Auto"]
+        with self.assertRaises(ClientError) as caught:
+            self.client.get_menu()
+        self.assertEqual(caught.exception.code, "invalid_menu")
 
     def test_brightness_percent_is_optional_and_validated(self):
         light = self.server.menu["root"]["children"][0]["children"][0]

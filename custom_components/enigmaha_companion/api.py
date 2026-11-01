@@ -14,10 +14,10 @@ from homeassistant.exceptions import HomeAssistantError
 
 from .const import BASE, CONF_LANGUAGE, DOMAIN, LANGUAGES
 from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, validate_menu
-from .enigmaha_protocol.menu import index_nodes, validate_display
+from .enigmaha_protocol.menu import index_nodes, validate_display, validate_select_options
 from .enigmaha_protocol.compatibility import (
     COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER,
-    peer_status, protocol_version, valid_version, valid_receiver_id,
+    SELECT_HEADER, peer_status, protocol_version, valid_version, valid_receiver_id,
 )
 from .enigmaha_protocol.releases import UpdateError
 from .icons import IconResolver
@@ -125,15 +125,28 @@ class CompanionRuntime:
         return status
 
 
-def filtered_menu(menu, user, dimming=False, can_dim=None):
+def filtered_menu(menu, user, dimming=False, can_dim=None, select=False, get_options=None):
     return receiver_menu(menu, user.id,
                          lambda entity: user.permissions.check_entity(entity, POLICY_READ),
                          lambda entity: user.permissions.check_entity(entity, POLICY_CONTROL),
-                         dimming, can_dim)
+                         dimming, can_dim, select, get_options)
 
 
 def dimming_requested(request):
     return request.headers.get(DIMMING_HEADER) == "1"
+
+
+def select_requested(request):
+    return request.headers.get(SELECT_HEADER) == "1"
+
+
+def current_select_options(state):
+    if state is None or state.state in {"unknown", "unavailable"}:
+        return None
+    try:
+        return validate_select_options(state.attributes.get("options"))
+    except (AttributeError, TypeError, ValueError):
+        return None
 
 
 def dimmable_light(state):
@@ -213,8 +226,10 @@ class MenuView(CompanionView):
         if error is not None:
             return error
         dimming = dimming_requested(request)
+        select = select_requested(request)
         return self.reply(filtered_menu(runtime.menu, user, dimming,
-                          lambda entity: dimmable_light(self.hass.states.get(entity))))
+                          lambda entity: dimmable_light(self.hass.states.get(entity)), select,
+                          lambda entity: current_select_options(self.hass.states.get(entity))))
 
 
 class InfoView(CompanionView):
@@ -254,8 +269,10 @@ class StatesView(CompanionView):
         states = {}
         icons = {}
         dimming = dimming_requested(request)
+        select = select_requested(request)
         menu = filtered_menu(runtime.menu, user, dimming,
-                             lambda entity: dimmable_light(self.hass.states.get(entity)))
+                             lambda entity: dimmable_light(self.hass.states.get(entity)), select,
+                             lambda entity: current_select_options(self.hass.states.get(entity)))
         for node in index_nodes(menu).values():
             if node["type"] != "entity" or not user.permissions.check_entity(node["entity_id"], POLICY_READ):
                 continue
@@ -302,12 +319,17 @@ class ActionsView(CompanionView):
                 return (user.permissions.check_entity(entity_id, POLICY_READ)
                         and user.permissions.check_entity(entity_id, POLICY_CONTROL))
 
+            def get_options(entity_id):
+                return current_select_options(self.hass.states.get(entity_id))
+
             try:
                 dimming = dimming_requested(request)
+                select = select_requested(request)
                 plan = prepare_action(
                     filtered_menu(runtime.menu, user, dimming,
-                                  lambda entity: dimmable_light(self.hass.states.get(entity))),
-                    command, get_state, can_control, can_dim,
+                                  lambda entity: dimmable_light(self.hass.states.get(entity)), select,
+                                  get_options),
+                    command, get_state, can_control, can_dim, get_options,
                 )
             except ActionError as error:
                 return self.reply({"error": error.code}, error.status)

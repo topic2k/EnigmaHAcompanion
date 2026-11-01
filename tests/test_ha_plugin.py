@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "dist/unpacked/homeassistant/custom_components/enigmaha_companion"
 sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import CompanionClient, ClientError
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER
+from enigmaha_protocol.compatibility import (COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER,
+                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER)
 
 
 def load_api():
@@ -91,7 +92,10 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         self.calls = []
         async def service(domain, service, data, blocking, context):
             self.calls.append((domain, service, data, context.user_id))
-            self.state.state = "on" if self.state.state == "off" else "off"
+            if service == "select_option":
+                self.state.state = data["option"]
+            else:
+                self.state.state = "on" if self.state.state == "off" else "off"
         self.hass = types.SimpleNamespace(data={},
             registry=types.SimpleNamespace(async_get=lambda entity: None),
             async_add_executor_job=lambda func, *args: asyncio.to_thread(func, *args),
@@ -192,6 +196,10 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
     def dimming_headers(self):
         return {COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
                 PROTOCOL_HEADER: str(PROTOCOL_VERSION), DIMMING_HEADER: "1"}
+
+    def select_headers(self):
+        return {COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
+                PROTOCOL_HEADER: str(PROTOCOL_VERSION), SELECT_HEADER: "1"}
 
     async def test_mismatched_or_unidentified_receivers_are_blocked_on_all_routes(self):
         for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: "99"}, "protocol_mismatch"),
@@ -441,6 +449,48 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status, 403)
         self.state.attributes["supported_color_modes"] = {"brightness"}
         self.state.state = "unavailable"
+        async with await self.request("POST", "/actions", "receiver", command, headers) as response:
+            self.assertEqual(response.status, 409)
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_select_options_are_negotiated_rechecked_and_permission_limited(self):
+        self.state = types.SimpleNamespace(entity_id="input_select.mode", state="Auto",
+                                           attributes={"friendly_name": "Modus", "options": ["Auto", "Heizen", "Aus"]})
+        configuration = API.validate_configuration(self.menu)
+        node = configuration["menus"][0]["children"][0]["children"][0]
+        node.update(entity_id="input_select.mode", actions=["select_option"])
+        self.runtime.menu = API.validate_configuration(configuration)
+
+        async with await self.request("GET", "/menu", "receiver") as response:
+            legacy_menu = await response.json()
+        legacy_node = legacy_menu["root"]["children"][0]["children"][0]
+        self.assertEqual(legacy_node["actions"], [])
+        self.assertNotIn("options", legacy_node)
+
+        headers = self.select_headers()
+        async with await self.request("GET", "/menu", "receiver", peer_headers=headers) as response:
+            menu = await response.json()
+        select_node = menu["root"]["children"][0]["children"][0]
+        self.assertEqual(select_node["actions"], ["select_option"])
+        self.assertEqual(select_node["options"], ["Auto", "Heizen", "Aus"])
+        async with await self.request("GET", "/menu", "reader", peer_headers=headers) as response:
+            reader_node = (await response.json())["root"]["children"][0]["children"][0]
+        self.assertEqual(reader_node["actions"], [])
+        self.assertNotIn("options", reader_node)
+
+        command = {"schema_version": 1, "revision": menu["revision"], "entry_id": "ceiling",
+                   "action": "select_option", "option": "Heizen", "options": select_node["options"]}
+        async with await self.request("GET", "/states", "receiver", peer_headers=headers) as response:
+            states = await response.json()
+        self.assertEqual(states["states"]["input_select.mode"]["state"], "Auto")
+        async with await self.request("POST", "/actions", "receiver", command, headers) as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.calls[-1], ("input_select", "select_option",
+                                         {"entity_id": "input_select.mode", "option": "Heizen"}, "receiver-id"))
+        async with await self.request("POST", "/actions", "reader", command, headers) as response:
+            self.assertEqual(response.status, 403)
+
+        self.state.attributes["options"] = ["Auto", "Aus"]
         async with await self.request("POST", "/actions", "receiver", command, headers) as response:
             self.assertEqual(response.status, 409)
         self.assertEqual(len(self.calls), 1)
@@ -724,6 +774,15 @@ class MenuConfigurationTests(unittest.TestCase):
         self.assertEqual(API.validate_configuration(self.config), self.config)
         self.config["menus"][0]["children"].clear()
         self.assertTrue(self.legacy["root"]["children"])
+
+    def test_select_options_are_runtime_data_not_persisted_configuration(self):
+        legacy = copy.deepcopy(self.legacy)
+        node = legacy["root"]["children"][0]["children"][0]
+        node.update(entity_id="select.mode", actions=["select_option"], options=["Auto", "Heat"])
+        migrated = API.validate_configuration(legacy)
+        stored = migrated["menus"][0]["children"][0]["children"][0]
+        self.assertEqual(stored["actions"], ["select_option"])
+        self.assertNotIn("options", stored)
 
     def test_empty_selected_users_and_missing_users_never_grant_access(self):
         for access in ({"mode": "none"}, {"mode": "users", "users": []},
