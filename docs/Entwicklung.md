@@ -240,20 +240,22 @@ sowie [`TryQuitMainloop`](https://github.com/openatv/enigma2/blob/master/lib/pyt
 Die bestehenden Python-Paketabhängigkeiten decken auch Hashing, UUID und
 Prozessaufrufe ab; `python3-netclient` zieht `python3-crypt` nach.
 
-Die eigene Update-Entität bietet `INSTALL` und `PROGRESS` an. Ihre
-Installationsaktion prüft den Administrator- beziehungsweise Systemkontext,
-validiert den angezeigten Release erneut und startet über `UpdateManager`
-einen Auftrag ausschließlich für HA. Der HACS-Aufruf erhält den Benutzerkontext;
-der HA-Neustart bleibt ein getrennter Schritt. Receiver-Reparaturen bieten älteren
-Receivern den Release der laufenden HA-Version an, ohne HACS aufzurufen oder HA
-neu zu starten. IPK-Installation und GUI-Neustart erfordern lokale Bestätigungen.
-Änderungen am gespeicherten Auftrag aktualisieren die Entität ebenso
-wie die bisherigen Reparaturhinweise. Das Abbrechen des Dienstaufrufs beendet
-die vom Manager verwaltete Installation nicht. Speicherformat und Entitätskennung
-bleiben erhalten; eine Migration ist nicht erforderlich. Die vorhandenen
-Reparaturdaten akzeptieren zusätzlich kompatible ältere Receiver. Das optionale
-Feld `job_issue` ordnet einen laufenden Auftrag dem passenden Hinweis zu; ohne
-dieses Feld gilt weiterhin die bisherige Protokollreparatur.
+Die HA-Update-Entität wird ausschließlich von Marketplace oder HACS bereitgestellt;
+die Integration veröffentlicht keine eigene Update-Plattform mehr. Beim Setup
+entfernt sie den früheren Eintrag anhand seiner Plattform, Unique-ID und des
+zugehörigen Konfigurationseintrags aus der Entity-Registry. Marketplace-/HACS-
+Einträge und Nutzerdaten bleiben unberührt.
+
+`UpdateManager` bleibt für bestätigte HA-/Receiver-Aufträge und Reparaturdialoge
+zuständig. Receiver-Reparaturen bieten älteren Receivern den Release der laufenden
+HA-Version an, ohne Marketplace/HACS aufzurufen oder HA neu zu starten.
+IPK-Installation und GUI-Neustart erfordern lokale Bestätigungen. Änderungen am
+gespeicherten Auftrag aktualisieren die Reparaturhinweise. Das Abbrechen eines
+Dienstaufrufs beendet die vom Manager verwaltete Installation nicht. Das
+gespeicherte Auftragsformat bleibt erhalten; bereits begonnene Aufträge lassen
+sich fortsetzen. Die vorhandenen Reparaturdaten akzeptieren zusätzlich kompatible
+ältere Receiver. Das optionale Feld `job_issue` ordnet einen laufenden Auftrag dem
+passenden Hinweis zu; ohne dieses Feld gilt weiterhin die bisherige Protokollreparatur.
 
 Das IPK kompiliert im `postinst` die Python-Dateien des Plugins mit geprüften
 Quellcode-Hashes für alle Optimierungsstufen neu. Die reproduzierbaren

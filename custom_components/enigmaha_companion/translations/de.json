@@ -54,7 +54,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über Marketplace oder HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -74,18 +74,18 @@
           }
         },
         "progress": {
-          "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
+          "ha_installing": "HA wird über Marketplace oder HACS auf Release {version} aktualisiert. Bitte warten.",
           "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
-          "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
+          "hacs_unavailable": "Marketplace-/HACS-Update nicht verfügbar. EnigmaHA über Marketplace oder HACS installieren und die Update-Entität aktivieren.",
           "download_failed": "Release konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.",
           "invalid_release": "Der Release enthält keine gültigen, vollständigen Updatepakete.",
           "downgrade_blocked": "Ein beteiligtes System ist neuer als der angebotene Release. Kein Downgrade ausgeführt.",
           "update_unavailable": "Updatekoordination ist nicht verfügbar. Integration neu laden.",
           "receiver_update_unavailable": "Receiver kann nicht eindeutig zugeordnet werden. Plugin öffnen und erneut versuchen.",
           "update_in_progress": "Ein Update läuft bereits. Dialog schließen und die laufende Reparatur erneut öffnen.",
-          "hacs_version_changed": "Die HACS-Installation wurde inzwischen geändert. Updatezustand im Editor prüfen.",
+          "hacs_version_changed": "Die Installation über Marketplace oder HACS wurde inzwischen geändert. Updatezustand im Editor prüfen.",
           "already_current": "Beide Seiten sind bereits aktuell. Zustand erneut prüfen.",
           "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
@@ -113,7 +113,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über Marketplace oder HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -133,18 +133,18 @@
           }
         },
         "progress": {
-          "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
+          "ha_installing": "HA wird über Marketplace oder HACS auf Release {version} aktualisiert. Bitte warten.",
           "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
-          "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
+          "hacs_unavailable": "Marketplace-/HACS-Update nicht verfügbar. EnigmaHA über Marketplace oder HACS installieren und die Update-Entität aktivieren.",
           "download_failed": "Release konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.",
           "invalid_release": "Der Release enthält keine gültigen, vollständigen Updatepakete.",
           "downgrade_blocked": "Ein beteiligtes System ist neuer als der angebotene Release. Kein Downgrade ausgeführt.",
           "update_unavailable": "Updatekoordination ist nicht verfügbar. Integration neu laden.",
           "receiver_update_unavailable": "Receiver kann nicht eindeutig zugeordnet werden. Plugin öffnen und erneut versuchen.",
           "update_in_progress": "Ein Update läuft bereits. Dialog schließen und die laufende Reparatur erneut öffnen.",
-          "hacs_version_changed": "Die HACS-Installation wurde inzwischen geändert. Updatezustand im Editor prüfen.",
+          "hacs_version_changed": "Die Installation über Marketplace oder HACS wurde inzwischen geändert. Updatezustand im Editor prüfen.",
           "already_current": "Beide Seiten sind bereits aktuell. Zustand erneut prüfen.",
           "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",
@@ -172,7 +172,7 @@
           },
           "confirm": {
             "title": "Gemeinsames Update bestätigen",
-            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
+            "description": "HA und die Receiver {receivers} werden auf Release {version} gebracht. HA wird über Marketplace oder HACS aktualisiert. Öffne EnigmaHA Companion auf jedem beteiligten Receiver und lasse es geöffnet. Bestätige dort die IPK-Installation und anschließend den GUI-Neustart. Den HA-Neustart bestätigst du danach separat. Die Zielversion bleibt für diesen Auftrag fest."
           },
           "retry": {
             "title": "Update erneut anbieten?",
@@ -208,18 +208,18 @@
           }
         },
         "progress": {
-          "ha_installing": "HA wird über HACS auf Release {version} aktualisiert. Bitte warten.",
+          "ha_installing": "HA wird über Marketplace oder HACS auf Release {version} aktualisiert. Bitte warten.",
           "receivers": "Release {version}: EnigmaHA Companion auf den Receivern {receivers} öffnen und geöffnet lassen. Dort Installation und anschließend GUI-Neustart bestätigen. Der Fortschritt wird automatisch geprüft."
         },
         "error": {
-          "hacs_unavailable": "HACS-Update nicht verfügbar. EnigmaHA über HACS installieren und die Update-Entität aktivieren.",
+          "hacs_unavailable": "Marketplace-/HACS-Update nicht verfügbar. EnigmaHA über Marketplace oder HACS installieren und die Update-Entität aktivieren.",
           "download_failed": "Release konnte nicht geladen werden. Internetverbindung prüfen und erneut versuchen.",
           "invalid_release": "Der Release enthält keine gültigen, vollständigen Updatepakete.",
           "downgrade_blocked": "Ein beteiligtes System ist neuer als der angebotene Release. Kein Downgrade ausgeführt.",
           "update_unavailable": "Updatekoordination ist nicht verfügbar. Integration neu laden.",
           "receiver_update_unavailable": "Receiver kann nicht eindeutig zugeordnet werden. Plugin öffnen und erneut versuchen.",
           "update_in_progress": "Ein Update läuft bereits. Dialog schließen und die laufende Reparatur erneut öffnen.",
-          "hacs_version_changed": "Die HACS-Installation wurde inzwischen geändert. Updatezustand im Editor prüfen.",
+          "hacs_version_changed": "Die Installation über Marketplace oder HACS wurde inzwischen geändert. Updatezustand im Editor prüfen.",
           "already_current": "Beide Seiten sind bereits aktuell. Zustand erneut prüfen.",
           "update_storage_failed": "Updatefortschritt konnte nicht gespeichert werden. Speicherplatz und Dateirechte prüfen.",
           "stale_update": "Dieser Updateauftrag ist nicht mehr aktuell. Reparatur erneut öffnen.",

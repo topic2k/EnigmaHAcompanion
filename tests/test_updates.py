@@ -378,6 +378,63 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(UPDATES.UpdateError):
             self.manager.hacs_entity()
 
+    async def test_marketplace_installs_pinned_release_and_restores_existing_job(self):
+        self.state.entity_id = "update.marketplace_enigmaha"
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="marketplace")
+        await self.manager.check()
+        snapshot = await self.manager.snapshot()
+        self.assertEqual(snapshot["hacs"], {"entity_id": self.state.entity_id,
+                                             "installed_version": "v" + UPDATES.VERSION})
+        candidate_id = self.manager.candidate["id"]
+        await self.manager.start(candidate_id, self.receivers, self.user)
+        await self.manager.task
+        self.assertEqual(self.calls[0], ("update", "install", {
+            "entity_id": self.state.entity_id, "version": "v2.0.0"}, "admin"))
+        self.assertEqual(self.store.data["entity_id"], self.state.entity_id)
+
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="hacs")
+        restored = UPDATES.UpdateManager(self.hass, self.store, copy.deepcopy(self.store.data))
+        self.assertEqual((await restored.snapshot())["job"]["phase"], "receivers")
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_marketplace_rejects_invalid_or_ambiguous_update_entities(self):
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="marketplace")
+        with self.subTest(reason="unsupported platform"):
+            self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="other")
+            with self.assertRaises(UPDATES.UpdateError):
+                self.manager.hacs_entity()
+
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="marketplace")
+        self.state.attributes["release_url"] = "https://github.com/other/repo/releases/v2.0.0"
+        with self.subTest(reason="different repository"), self.assertRaises(UPDATES.UpdateError):
+            self.manager.hacs_entity()
+        self.state.attributes["release_url"] = releases.REPOSITORY_URL + "/releases/v2.0.0"
+
+        self.state.attributes["supported_features"] = 1
+        with self.subTest(reason="missing feature"), self.assertRaises(UPDATES.UpdateError):
+            self.manager.hacs_entity()
+        self.state.attributes["supported_features"] = 23
+
+        for state in ("unknown", "unavailable"):
+            self.state.state = state
+            with self.subTest(reason=state), self.assertRaises(UPDATES.UpdateError):
+                self.manager.hacs_entity()
+        self.state.state = "on"
+
+        self.hass.registry.async_get = lambda entity: None
+        with self.subTest(reason="missing registry entry"), self.assertRaises(UPDATES.UpdateError):
+            self.manager.hacs_entity()
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(platform="marketplace")
+
+        duplicate = types.SimpleNamespace(entity_id="update.second_enigmaha", state="on", attributes=dict(self.state.attributes))
+        self.hass.states.async_all = lambda: [self.state, duplicate]
+        self.hass.registry.async_get = lambda entity: types.SimpleNamespace(
+            platform="marketplace" if entity == self.state.entity_id else "hacs")
+        with self.subTest(reason="mixed HACS and Marketplace entities"):
+            with self.assertRaises(UPDATES.UpdateError) as caught:
+                self.manager.hacs_entity()
+            self.assertEqual(caught.exception.code, "hacs_unavailable")
+
     async def test_failed_ha_restart_retains_target_and_requires_new_confirmation(self):
         await self.start()
         await self.manager.receiver_plan("a" * 32, "receiver-user", "2.0.0")

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.const import Platform
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.storage import Store
 
 from .api import CompanionRuntime, register_views
@@ -14,7 +14,16 @@ from .menus import validate_configuration
 from .updates import UpdateManager
 from .repair_issues import RepairCoordinator
 
-PLATFORMS = [Platform.UPDATE]
+LEGACY_UPDATE_UNIQUE_ID = DOMAIN + "_integration_update"
+
+
+def _remove_legacy_update_entity(hass, entry):
+    registry = async_get_entity_registry(hass)
+    for entity in tuple(registry.entities.values()):
+        if (entity.domain == "update" and entity.platform == DOMAIN
+                and entity.unique_id == LEGACY_UPDATE_UNIQUE_ID
+                and entity.config_entry_id == entry.entry_id):
+            registry.async_remove(entity.entity_id)
 
 
 def _panel_module_url(panel_path):
@@ -35,6 +44,7 @@ async def async_setup(hass, config):
 
 
 async def async_setup_entry(hass, entry):
+    _remove_legacy_update_entity(hass, entry)
     store = Store(hass, 1, DOMAIN + ".menu")
     saved = await store.async_load()
     menu = validate_configuration(saved if saved is not None else empty_menu())
@@ -58,13 +68,10 @@ async def async_setup_entry(hass, entry):
         module_url=_panel_module_url(Path(__file__).parent / "panel.js"),
         require_admin=True,
     )
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass, entry):
-    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        return False
     runtime = hass.data[DOMAIN].get("runtime")
     if runtime is not None:
         await runtime.updates.close()

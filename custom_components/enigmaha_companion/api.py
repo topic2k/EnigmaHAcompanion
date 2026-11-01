@@ -68,8 +68,8 @@ class CompanionRuntime:
             "no_receiver": (("No receiver request in the last 5 minutes. Versions are checked when connecting."
                              if english else "Noch keine Receiver-Anfrage in den letzten 5 Minuten. Die Prüfung erfolgt beim Verbinden.")
                             if not receivers else None),
-            "hacs": (("HACS update unavailable. Install EnigmaHA through HACS first and enable its update entity."
-                      if english else "HACS-Update nicht verfügbar. EnigmaHA zuerst über HACS installieren und die Update-Entität aktivieren.")
+            "hacs": (("Marketplace/HACS update unavailable. Install EnigmaHA through Marketplace or HACS first and enable its update entity."
+                      if english else "Marketplace-/HACS-Update nicht verfügbar. EnigmaHA zuerst über Marketplace oder HACS installieren und die Update-Entität aktivieren.")
                      if updates is not None and not updates.get("hacs") else None),
         }
         job = updates.get("job") if updates else None

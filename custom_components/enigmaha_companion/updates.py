@@ -86,7 +86,7 @@ class UpdateManager:
             entry = registry.async_get(state.entity_id)
             release_url = state.attributes.get("release_url", "")
             features = state.attributes.get("supported_features", 0)
-            if (entry is not None and entry.platform == "hacs" and isinstance(release_url, str)
+            if (entry is not None and entry.platform in {"hacs", "marketplace"} and isinstance(release_url, str)
                     and (release_url == REPOSITORY_URL or release_url.startswith(REPOSITORY_URL + "/releases/"))
                     and isinstance(features, int) and not isinstance(features, bool) and features & 3 == 3):
                 matches.append(state)
