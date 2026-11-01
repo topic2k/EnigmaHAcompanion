@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "dist/unpacked/homeassistant/custom_components/enigmaha_companion"
 sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import CompanionClient, ClientError
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER
 
 
 def load_api():
@@ -188,6 +188,10 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             headers={"Authorization": "Bearer " + user,
                      **({COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION, PROTOCOL_HEADER: str(PROTOCOL_VERSION)}
                         if peer_headers is None else peer_headers)}, json=body)
+
+    def dimming_headers(self):
+        return {COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
+                PROTOCOL_HEADER: str(PROTOCOL_VERSION), DIMMING_HEADER: "1"}
 
     async def test_mismatched_or_unidentified_receivers_are_blocked_on_all_routes(self):
         for headers, reason in [({COMPONENT_HEADER: "receiver", VERSION_HEADER: "99.0.0", PROTOCOL_HEADER: "99"}, "protocol_mismatch"),
@@ -394,6 +398,67 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.calls, [("light", "toggle", {"entity_id": "light.wohnzimmer"}, "receiver-id")])
         states = await asyncio.to_thread(client.get_states, menu)
         self.assertEqual(states["light.wohnzimmer"]["icon"]["name"], "mdi:lightbulb")
+
+    async def test_dimming_is_negotiated_and_checks_light_support_and_permissions(self):
+        self.state.attributes.update(supported_color_modes={"brightness"}, brightness=127)
+        self.state.state = "on"
+        async with await self.request("GET", "/menu", "receiver") as response:
+            old_menu = await response.json()
+        light = old_menu["root"]["children"][0]["children"][0]
+        self.assertEqual(light["actions"], ["toggle"])
+        self.assertNotIn("brightness_step_pct", light)
+        async with await self.request("GET", "/states", "receiver") as response:
+            old_states = await response.json()
+        self.assertNotIn("brightness_pct", old_states["states"]["light.wohnzimmer"])
+
+        headers = self.dimming_headers()
+        async with await self.request("GET", "/menu", "receiver", peer_headers=headers) as response:
+            new_menu = await response.json()
+        light = new_menu["root"]["children"][0]["children"][0]
+        self.assertEqual(light["actions"], ["toggle", "dim_up", "dim_down"])
+        self.assertEqual(light["brightness_step_pct"], 10)
+        async with await self.request("GET", "/states", "receiver", peer_headers=headers) as response:
+            new_states = await response.json()
+        self.assertEqual(new_states["states"]["light.wohnzimmer"]["brightness_pct"], 50)
+        self.state.state = "off"
+        async with await self.request("GET", "/states", "receiver", peer_headers=headers) as response:
+            self.assertEqual((await response.json())["states"]["light.wohnzimmer"]["brightness_pct"], 0)
+
+        command = self.command(action="dim_up")
+        async with await self.request("POST", "/actions", "receiver", command, headers) as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.calls[-1], ("light", "turn_on",
+            {"entity_id": "light.wohnzimmer", "brightness_step_pct": 10}, "receiver-id"))
+        async with await self.request("POST", "/actions", "reader", command, headers) as response:
+            self.assertEqual(response.status, 403)
+
+        self.state.attributes["supported_color_modes"] = {"onoff"}
+        self.state.attributes.pop("supported_features", None)
+        async with await self.request("GET", "/menu", "receiver", peer_headers=headers) as response:
+            unsupported = await response.json()
+        self.assertEqual(unsupported["root"]["children"][0]["children"][0]["actions"], ["toggle"])
+        async with await self.request("POST", "/actions", "receiver", command, headers) as response:
+            self.assertEqual(response.status, 403)
+        self.state.attributes["supported_color_modes"] = {"brightness"}
+        self.state.state = "unavailable"
+        async with await self.request("POST", "/actions", "receiver", command, headers) as response:
+            self.assertEqual(response.status, 409)
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_legacy_menu_editor_preserves_step_without_exposing_new_fields(self):
+        configuration = API.validate_configuration(self.menu)
+        configuration["menus"][0]["children"][0]["children"][0]["brightness_step_pct"] = 25
+        self.runtime.menu = API.validate_configuration(configuration)
+        async with await self.request("GET", "/config") as response:
+            legacy = await response.json()
+        node = legacy["root"]["children"][0]["children"][0]
+        self.assertNotIn("brightness_step_pct", node)
+        self.assertEqual(node["actions"], ["toggle"])
+        async with await self.request("PUT", "/config", body=legacy) as response:
+            self.assertEqual(response.status, 200)
+            saved = await response.json()
+        self.assertNotIn("brightness_step_pct", saved["root"]["children"][0]["children"][0])
+        self.assertEqual(self.runtime.menu["menus"][0]["children"][0]["children"][0]["brightness_step_pct"], 25)
 
     async def test_receiver_reports_changed_ha_protocol_without_sending_an_action(self):
         client = CompanionClient(self.url, "receiver")

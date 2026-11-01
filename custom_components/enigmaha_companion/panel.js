@@ -40,6 +40,8 @@ const ENIGMAHA_EN = {
   "Licht": "Light",
   "Schalter": "Switch",
   "Helfer-Schalter": "Toggle helper",
+  "Dimm-Schrittweite (%)": "Dimming step (%)",
+  "Schrittweite zwischen 1 und 100 Prozent": "Step size from 1 to 100 percent",
   "Sensor": "Sensor",
   "Binärsensor": "Binary sensor",
   "Entitätstyp": "Entity type",
@@ -202,7 +204,9 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   entityActions(entityId) {
-    return ["light", "switch", "input_boolean"].includes(entityId.split(".")[0]) ? ["toggle"] : [];
+    const domain = entityId.split(".")[0];
+    return domain === "light" ? ["toggle", "dim_up", "dim_down"]
+      : ["switch", "input_boolean"].includes(domain) ? ["toggle"] : [];
   }
 
   menuForSave() {
@@ -210,7 +214,9 @@ class EnigmaHAPanel extends HTMLElement {
     // supported entity domains instead of being an editor preference.
     const prepare = node => node.type === "menu"
       ? {...node, children: node.children.map(prepare)}
-      : {...node, actions: this.entityActions(node.entity_id)};
+      : {...node,
+        ...(node.entity_id.split(".")[0] === "light" ? {brightness_step_pct: node.brightness_step_pct ?? 10} : {}),
+        actions: this.entityActions(node.entity_id)};
     return {...this.configuration, revision: this.model.revision, display: {...this.model.display},
       menus: this.configuration.menus.map(node => prepare(node.id === this.model.root?.id ? this.model.root : node))};
   }
@@ -887,6 +893,7 @@ class EnigmaHAPanel extends HTMLElement {
       const state = this._hass.states[entityId];
       const label = String(state.attributes.friendly_name || entityId).slice(0, 120);
       const node = {type: "entity", id: this.id(), label, entity_id: entityId,
+        ...(entityId.split(".")[0] === "light" ? {brightness_step_pct: 10} : {}),
         actions: this.entityActions(entityId)};
       current.children.push(node);
       this.selectedEntity = undefined;
@@ -1039,6 +1046,15 @@ class EnigmaHAPanel extends HTMLElement {
       } else {
         name.dataset.entityId = node.entity_id;
         name.hint = this.entityDescription(node.entity_id);
+        if (node.entity_id.split(".")[0] === "light") {
+          this.field(content, "brightness-step-" + node.id, this.t("Dimm-Schrittweite (%)"),
+            node.brightness_step_pct ?? 10, value => {
+              if (!/^\d+$/.test(value)) return;
+              const step = Number(value);
+              if (step >= 1 && step <= 100) node.brightness_step_pct = step;
+            }, {type: "number", min: 1, max: 100, step: 1});
+          content.lastChild.hint = this.t("Schrittweite zwischen 1 und 100 Prozent");
+        }
       }
       const move = offset => this.moveEntry(current, index, index + offset);
       const remove = this.iconButton(this.t("Entfernen"), "delete-outline", async () => {

@@ -14,8 +14,13 @@
   Tests vor Übergabe passend zur Änderung ausführen.
 - Keine Informationen zu ausgeführten Tests oder deren Erfolg bzw. Fehlschlag in
   Changelogs, Dokumentation oder Release-Informationen aufnehmen.
-- Release-Informationen beschreiben zuerst benutzersichtbare Änderungen. Weitere
-  Änderungen danach kurz und knapp, ohne ausführliche technische Details aufführen.
+- Release-Informationen enthalten nur kurze Zusammenfassungen der Änderungen,
+  gruppiert nach „Allgemein“, „Home Assistant“ (nur HA betreffend) und „Receiver“
+  (nur Receiver betreffend). Leere Gruppen weglassen. Innerhalb jeder Gruppe zuerst
+  benutzersichtbare Änderungen nennen; ausführliche technische Details vermeiden.
+- Rückwärtsinkompatible Änderungen in Release-Informationen gesondert unter
+  „Rückwärtsinkompatible Änderungen“ hervorheben und erforderliche Migrationen oder
+  Neueinrichtung kurz nennen.
 - `.local_info/` enthält Dateien, die der Benutzer dauerhaft lokal behalten möchte.
   Vorhandene Dateien dort belassen und nicht als temporäre Arbeitsdateien behandeln.
 - `.work/` ist für während der Arbeit erzeugte Dateien vorgesehen, die gelöscht

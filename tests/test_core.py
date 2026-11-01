@@ -56,6 +56,39 @@ class MenuTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             validate_menu(self.menu)
 
+    def test_brightness_step_and_dimming_actions_are_light_only(self):
+        self.light["brightness_step_pct"] = 25
+        self.light["actions"] = ["toggle", "dim_up", "dim_down"]
+        self.assertEqual(validate_menu(self.menu)["root"]["children"][0]["children"][0]["brightness_step_pct"], 25)
+        for step in (0, 101, True, 1.0, "10"):
+            with self.subTest(step=step):
+                self.light["brightness_step_pct"] = step
+                with self.assertRaises(ProtocolError):
+                    validate_menu(self.menu)
+        self.light["brightness_step_pct"] = 10
+        self.light["entity_id"] = "switch.test"
+        with self.assertRaises(ProtocolError):
+            validate_menu(self.menu)
+
+    def test_dimming_actions_use_configured_step_and_direction(self):
+        self.light["actions"] = ["toggle", "dim_up", "dim_down"]
+        self.light["brightness_step_pct"] = 17
+        for action, step in (("dim_up", 17), ("dim_down", -17)):
+            command = dict(self.command, action=action)
+            plan = prepare_action(self.menu, command,
+                                  lambda entity: "on", lambda entity: True,
+                                  lambda entity: True)
+            self.assertEqual(plan, {"domain": "light", "service": "turn_on",
+                                    "data": {"entity_id": "light.wohnzimmer", "brightness_step_pct": step}})
+
+    def test_dimming_rejects_unsupported_or_unavailable_lights(self):
+        self.light["actions"] = ["toggle", "dim_up", "dim_down"]
+        command = dict(self.command, action="dim_up")
+        for state, supported in (("on", False), ("off", False), ("unknown", True), ("unavailable", True)):
+            with self.subTest(state=state, supported=supported), self.assertRaises(ActionError):
+                prepare_action(self.menu, command, lambda entity: state, lambda entity: True,
+                               lambda entity: supported)
+
     def test_depth_and_total_limits(self):
         node = self.menu["root"]
         for number in range(9):
@@ -129,6 +162,18 @@ class MenuTests(unittest.TestCase):
         nav.move(1)
         self.assertIsNone(nav.activate(self.states))
         self.assertEqual(nav.rows(self.states)[1], ("Temperatur", "22.4 °C"))
+
+    def test_navigation_builds_dimming_commands_and_shows_brightness(self):
+        self.light["actions"] = ["toggle", "dim_up", "dim_down"]
+        self.light["brightness_step_pct"] = 12
+        states = {"light.wohnzimmer": {"state": "on", "brightness_pct": 64}}
+        nav = Navigator(self.menu)
+        nav.activate(states)
+        command = nav.dim(1, states)
+        self.assertEqual(command, dict(self.command, action="dim_up"))
+        self.assertEqual(nav.rows(states)[0], ("Deckenlicht", "64 % Ein"))
+        states["light.wohnzimmer"] = {"state": "off", "brightness_pct": 0}
+        self.assertEqual(nav.rows(states)[0], ("Deckenlicht", "0 % Aus"))
 
     def test_display_override_does_not_mutate_menu(self):
         nav = Navigator(self.menu, {"font_size": 36})

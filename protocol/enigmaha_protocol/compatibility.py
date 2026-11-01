@@ -2,12 +2,14 @@
 
 import re
 
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 PROTOCOL_VERSION = 1
 PROTOCOL_HEADER = "X-EnigmaHA-Protocol"
 COMPONENT_HEADER = "X-EnigmaHA-Component"
 VERSION_HEADER = "X-EnigmaHA-Version"
 RECEIVER_HEADER = "X-EnigmaHA-Receiver-ID"
+DIMMING_HEADER = "X-EnigmaHA-Dimming"
+SELECT_HEADER = "X-EnigmaHA-Select"
 
 
 def valid_receiver_id(value):

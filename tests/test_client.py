@@ -12,7 +12,7 @@ sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import API_PATH, ClientError, CompanionClient, MAX_RESPONSE_BYTES
 from companion.navigation import Navigator
 from enigmaha_protocol import ActionError, prepare_action
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER
 from enigmaha_protocol.releases import asset_url, ipk_name
 
 
@@ -75,7 +75,7 @@ class FakeHA(BaseHTTPRequestHandler):
         try:
             plan = prepare_action(self.server.menu, command,
                                   lambda entity: states.get(entity, {}).get("state"),
-                                  lambda entity: True)
+                                  lambda entity: True, lambda entity: True)
         except ActionError as error:
             self.reply(error.status, {"error": error.code})
             return
@@ -157,6 +157,23 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(headers[COMPONENT_HEADER.lower()], "receiver")
         self.assertEqual(headers[VERSION_HEADER.lower()], VERSION)
         self.assertEqual(headers[PROTOCOL_HEADER.lower()], str(PROTOCOL_VERSION))
+        self.assertEqual(headers[DIMMING_HEADER.lower()], "1")
+
+    def test_brightness_percent_is_optional_and_validated(self):
+        light = self.server.menu["root"]["children"][0]["children"][0]
+        light["actions"] = ["toggle", "dim_up", "dim_down"]
+        light["brightness_step_pct"] = 10
+        self.server.snapshot["states"]["light.wohnzimmer"]["brightness_pct"] = 64
+        states = self.client.get_states(self.server.menu)
+        self.assertEqual(states["light.wohnzimmer"]["brightness_pct"], 64)
+        for invalid in (True, -1, 101, 1.5, "64"):
+            with self.subTest(invalid=invalid):
+                self.server.snapshot["states"]["light.wohnzimmer"]["brightness_pct"] = invalid
+                with self.assertRaises(ClientError):
+                    self.client.get_states(self.server.menu)
+        self.server.snapshot["states"]["sensor.wohnzimmer_temperatur"]["brightness_pct"] = 42
+        with self.assertRaises(ClientError):
+            self.client.get_states(self.server.menu)
 
     def test_only_update_route_allows_an_identified_peer_with_a_different_protocol(self):
         self.server.peer_headers[VERSION_HEADER] = "2.0.0"

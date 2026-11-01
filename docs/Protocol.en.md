@@ -10,7 +10,9 @@ of the package version. See [update implementation and limitations](Development.
 
 Receiver requests to `/menu`, `/states` and `/actions` send
 `X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
-and `X-EnigmaHA-Protocol: 1`.
+and `X-EnigmaHA-Protocol: 1`. Receivers that support dimming also send
+`X-EnigmaHA-Dimming: 1`; without it, responses and menu actions retain the
+previous format.
 HA checks these headers after authentication and before reading data or executing
 an action. Companion view responses include `X-EnigmaHA-Component: homeassistant`
 and the local `X-EnigmaHA-Version` and `X-EnigmaHA-Protocol`. The receiver checks
@@ -105,6 +107,8 @@ of the still-running HA process. Repair issues clear only after observed complet
   explicit choices take precedence.
 - `root`: menu with `type`, `id`, `label` and `children`.
 - Entity entry: `type: entity`, `id`, `label`, `entity_id` and `actions`.
+- Optional `brightness_step_pct` on light entries (integer 1–100). It sets the
+  dimming step in percentage points; entries without it default to 10.
 - `children` defines ordering and may mix menus and entities.
 - IDs are unique throughout the document: 1–64 ASCII letters, digits, `_` or `-`.
 - Labels contain 1–120 characters without control characters. The limit is
@@ -114,10 +118,11 @@ of the still-running HA process. Repair issues clear only after observed complet
 - Empty menus are valid. Entities are selected in HA; subsequently deleted
   entities remain visible as missing entries.
 
-v1 supports `toggle` for `light`, `switch` and `input_boolean`. Empty action
-lists mean display only. Other domains are read-only. The editor derives actions
-when adding and saving; the protocol also permits empty lists for toggleable
-domains. Dimming, scenes and scripts are unsupported.
+v1 supports `toggle` for `light`, `switch` and `input_boolean`. `dim_up` and
+`dim_down` are allowed only for lights HA reports as dimmable; empty action lists
+mean display only. Dimming actions are omitted without
+`X-EnigmaHA-Dimming: 1`. The editor stores a step per light; missing values
+default to 10 percentage points. Scenes and scripts are unsupported.
 
 UI languages are local presentation choices. Labels are user content and are
 not translated. Entity IDs, raw states, action names and error codes remain
@@ -199,7 +204,9 @@ Failed persistence leaves the current menu and revision unchanged.
 
 `states` maps selected `entity_id` values to objects with `state` (string,
 up to 255 characters), `unit_of_measurement` (string up to 64 characters or null),
-and `icon` (MDI name or null). `icons` maps referenced MDI names to SVG `path`
+and `icon` (MDI name or null). With negotiated dimming support, a dimmable light
+may also include `brightness_pct` (integer 0–100 or null when unknown); switched-off
+lights report `0`. `icons` maps referenced MDI names to SVG `path`
 data for a 24 × 24 viewBox. Duplicate icons are sent once per response. Names
 consist of `mdi:` and 1–100 lowercase letters, digits or hyphens. Paths contain
 at most 16384 characters and only SVG path commands, numbers and separators.
@@ -218,6 +225,9 @@ Example command:
 
 The receiver cannot choose arbitrary services, entity IDs or service data.
 HA validates revision, entry, action list, control permission and current state.
+For dimming actions, it resolves the entity and step only from the stored entry,
+checks current HA light capabilities again and calls `light.turn_on` with
+`brightness_step_pct`. Client-supplied targets or steps are not accepted.
 `prepare_action` uses injected state and permission lookups; the HA adapter
 supplies them and calls the service with user context. Menus do not grant permissions.
 

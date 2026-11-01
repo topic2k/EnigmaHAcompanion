@@ -4,6 +4,10 @@
     <key id="KEY_DOWN" mapto="down" flags="mr" />
     <key id="KEY_LEFT" mapto="pageUp" flags="mr" />
     <key id="KEY_RIGHT" mapto="pageDown" flags="mr" />
+    <key id="KEY_REWIND" mapto="dimDown" flags="mr" />
+    <key id="KEY_PREVIOUS" mapto="dimDown" flags="mr" />
+    <key id="KEY_FASTFORWARD" mapto="dimUp" flags="mr" />
+    <key id="KEY_NEXT" mapto="dimUp" flags="mr" />
     <key id="KEY_BACK" mapto="back" flags="m" />
     <key id="KEY_OK" mapto="ok" flags="m" />
     <key id="KEY_MENU" mapto="settings" flags="m" />
