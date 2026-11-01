@@ -9,6 +9,11 @@
   dokumentieren. Bestehende Nutzerdaten nicht ungefragt löschen. Die zugesagte
   Unterstützung der aktuellen Zielsysteme OpenATV und HA beibehalten.
 - Entwicklung und Receiver-Tests erfolgen ausschließlich für und auf OpenATV.
+- Für HA-Tests `V:\enigma2-connect\dev\ha\` verwenden. Receiver-Tests auf der VU+ mit den
+  Zugangsdaten aus `V:\EnigmaHACompanion\.local_info\.zugänge.json` weiterhin ausschließlich
+  unter OpenATV durchführen.
+- Für die Testumgebungen HA-Testlabor und VU+ sind keine Backups erforderlich.
+  Beide Instanzen dienen ausschließlich Tests.
 - Für die Entitätsauswahl im HA-Editor native HA-Selector-Komponenten mit Filtern nutzen.
 - Zugangsdaten, `.local_info/`, `.work/` und `.temp/` nicht committen.
   Tests vor Übergabe passend zur Änderung ausführen.
