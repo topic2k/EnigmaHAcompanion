@@ -72,8 +72,12 @@ erstellte Update- oder Funktionstestprotokolle. Dauerhaft aufzubewahrende lokale
 Protokolle gehören nach `.local_info/`. Vor Übergabe die zur Änderung passenden
 Tests ausführen. Informationen zu ausgeführten Tests und deren Ergebnissen
 gehören nicht in Changelogs, Dokumentation oder Release-Informationen.
-Release-Informationen nennen zuerst benutzersichtbare Änderungen und danach
-weitere Änderungen kurz und ohne ausführliche technische Details.
+Release-Informationen enthalten nur kurze Zusammenfassungen, gruppiert nach
+„Allgemein“, „Home Assistant“ (nur HA betreffend) und „Receiver“ (nur Receiver
+betreffend). Leere Gruppen weglassen und innerhalb jeder Gruppe zuerst
+benutzersichtbare Änderungen nennen. Rückwärtsinkompatible Änderungen gesondert
+hervorheben und erforderliche Migrationen oder Neueinrichtung kurz nennen.
+Das Format beschreibt die [Release-Anleitung](Releases.md#release-hinweise).
 
 ## Home-Assistant-Integration
 
