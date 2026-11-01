@@ -81,6 +81,16 @@ class Navigator:
         return {"schema_version": 1, "revision": self.menu["revision"],
                 "entry_id": node["id"], "action": "toggle"}
 
+    def dim(self, direction, states):
+        """Return a dimming command for the selected, currently available light."""
+        node = self.selection
+        action = "dim_up" if direction > 0 else "dim_down" if direction < 0 else None
+        if (node is None or node["type"] != "entity" or action not in node["actions"]
+                or states.get(node["entity_id"], {}).get("state") not in {"on", "off"}):
+            return None
+        return {"schema_version": 1, "revision": self.menu["revision"],
+                "entry_id": node["id"], "action": action}
+
     def rows(self, states):
         rows = []
         for node in self.current["children"]:
@@ -89,7 +99,15 @@ class Navigator:
             else:
                 state = states.get(node["entity_id"], {})
                 value = state.get("state")
-                if value is None:
+                brightness = state.get("brightness_pct")
+                if (any(action in node["actions"] for action in ("dim_up", "dim_down"))
+                        and type(brightness) is int and 0 <= brightness <= 100):
+                    if value in {"on", "off"}:
+                        value = "{} % {}".format(brightness,
+                                translate("Ein", self.language) if value == "on" else translate("Aus", self.language))
+                    else:
+                        value = "{} %".format(brightness)
+                elif value is None:
                     value = translate("Nicht vorhanden", self.language)
                 elif value == "unavailable":
                     value = translate("Nicht verfügbar", self.language)

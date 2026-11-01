@@ -158,7 +158,7 @@ def load_receiver():
     enigma.eListboxPythonMultiContent, enigma.eTimer = object, Timer
     enigma.eSize = lambda width, height: types.SimpleNamespace(width=lambda: width, height=lambda: height)
     enigma.getDesktop = lambda _: types.SimpleNamespace(size=lambda: types.SimpleNamespace(width=lambda: 1280, height=lambda: 720))
-    enigma.gFont, enigma.RT_VALIGN_CENTER = lambda *args: args, 1
+    enigma.gFont, enigma.RT_VALIGN_CENTER, enigma.RT_HALIGN_CENTER = lambda *args: args, 1, 2
     enigma.getFontFaces = lambda: ["Regular"]
     fake["twisted.internet.threads"].deferToThread = lambda work: Pending(work)
     spec = importlib.util.spec_from_file_location(package.__name__ + ".plugin", BUNDLE / "plugin.py")
@@ -461,7 +461,12 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(screen.nav.language, "en")
         screen.help()
         self.assertIn("Up/Down: Select entry", self.dialogs[-1][0][1])
+        self.assertIn("Dim: < / Rewind; brighten: > / Forward", self.dialogs[-1][0][1])
         self.assertIn("Ch+ up / − down", self.dialogs[-1][0][1])
+        screen.appearance.language = "de"
+        screen.help()
+        self.assertIn("Dimmen: < / Rewind; aufhellen: > / Forward", self.dialogs[-1][0][1])
+        screen.appearance.language = "en"
         screen.config["reverse_channel_paging"] = True
         screen.help()
         self.assertIn("Ch+ down / − up", self.dialogs[-1][0][1])
@@ -475,7 +480,7 @@ class ReceiverTests(unittest.TestCase):
         keymap = ET.parse(BUNDLE / "keymap.xml")
         mappings = {key.attrib["id"]: key.attrib["mapto"] for key in keymap.findall(".//key")}
         for key in ("KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT", "KEY_MENU", "KEY_OK", "KEY_EXIT",
-                    "KEY_CHANNELUP", "KEY_CHANNELDOWN"):
+                    "KEY_CHANNELUP", "KEY_CHANNELDOWN", "KEY_REWIND", "KEY_FASTFORWARD"):
             self.assertIn(mappings[key], self.screen["actions"].actions)
 
     def test_channel_keys_page_through_list_and_stop_at_boundaries(self):
@@ -890,6 +895,58 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(list(directory.iterdir()), [], "No SVG files accumulate")
         self.screen.cleanup()
         self.assertFalse(directory.exists())
+
+    def test_separate_dimming_keys_send_once_and_place_percent_before_symbol(self):
+        light = self.menu["root"]["children"][0]["children"][0]
+        light["actions"] = ["toggle", "dim_up", "dim_down"]
+        light["brightness_step_pct"] = 15
+        self.states["light.wohnzimmer"].update(state="on", brightness_pct=64,
+            icon={"name": "mdi:lightbulb", "path": "M0,0H24V24H0Z"})
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.press("open")
+        mappings = {key.attrib["id"]: key.attrib for key in
+                    ET.parse(BUNDLE / "keymap.xml").findall(".//key")}
+        for key, action in (("KEY_REWIND", "dimDown"), ("KEY_PREVIOUS", "dimDown"),
+                            ("KEY_FASTFORWARD", "dimUp"), ("KEY_NEXT", "dimUp")):
+            with self.subTest(key=key):
+                self.assertEqual(mappings[key]["mapto"], action)
+                self.assertEqual(mappings[key]["flags"], "mr")
+        self.press(mappings["KEY_FASTFORWARD"]["mapto"])
+        self.assertTrue(self.screen.busy)
+        self.press(mappings["KEY_NEXT"]["mapto"])
+        self.assertEqual(len(self.pending), 1)
+        self.pending.pop().fire()
+        self.assertEqual(self.commands[-1], {"schema_version": 1, "revision": 1,
+            "entry_id": "ceiling", "action": "dim_up"})
+        for key, action in (("KEY_PREVIOUS", "dim_down"), ("KEY_REWIND", "dim_down"),
+                            ("KEY_NEXT", "dim_up")):
+            self.press(mappings[key]["mapto"])
+            self.assertTrue(self.screen.busy)
+            self.pending.pop().fire()
+            self.assertEqual(self.commands[-1]["action"], action)
+        self.assertEqual([command["action"] for command in self.commands],
+                         ["dim_up", "dim_down", "dim_down", "dim_up"])
+        self.assertEqual(self.screen["list"].rows[0][2]["text"], "64 %")
+        self.assertEqual(self.screen["list"].rows[0][3]["kind"], "pixmap")
+
+    def test_brightness_percent_is_centered_in_space_before_symbol(self):
+        self.press("open")
+        state = self.screen.states["light.wohnzimmer"]
+        state.update(state="on", icon={"name": "mdi:lightbulb", "path": "M0,0H24V24H0Z"})
+        with patch.dict(PLUGIN.StateIcons.get.__globals__,
+                        LoadPixmap=lambda path, **kwargs: {"path": path, **kwargs}):
+            for width, font_size in ((640, 28), (1280, 36), (1920, 44)):
+                self.screen.list_width = width
+                self.screen.config["font_size"] = font_size
+                for brightness in (0, 100):
+                    with self.subTest(width=width, font_size=font_size, brightness=brightness):
+                        state["brightness_pct"] = brightness
+                        self.screen.render()
+                        value, icon = self.screen["list"].rows[0][2:4]
+                        self.assertEqual(value["text"], "{} %".format(brightness))
+                        self.assertEqual(value["flags"], PLUGIN.RT_HALIGN_CENTER | PLUGIN.RT_VALIGN_CENTER)
+                        self.assertEqual(value["pos"][0] + value["size"][0], icon["pos"][0])
+                        self.assertEqual(icon["kind"], "pixmap")
 
     def test_failed_symbol_decoding_keeps_readable_state(self):
         self.press("open")

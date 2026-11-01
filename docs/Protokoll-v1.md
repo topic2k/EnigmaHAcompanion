@@ -11,7 +11,9 @@ stehen in der [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen)
 
 Receiver-Anfragen an `/menu`, `/states` und `/actions` senden
 `X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
-und `X-EnigmaHA-Protocol: 1`.
+und `X-EnigmaHA-Protocol: 1`. Receiver mit Dimm-Unterstützung senden zusätzlich
+`X-EnigmaHA-Dimming: 1`; ohne diesen Header bleiben Antwortfelder und Menüaktionen
+im bisherigen Format.
 HA prüft die Header nach der Authentifizierung und vor dem Abruf bzw. Schalten.
 Antworten der Companion-Views enthalten `X-EnigmaHA-Component: homeassistant`
 und die eigene `X-EnigmaHA-Version` sowie `X-EnigmaHA-Protocol`. Der Receiver
@@ -112,6 +114,8 @@ Die maßgebliche Validierung liegt in `protocol/enigmaha_protocol/menu.py`.
   beziehungsweise Receiver-Profil, feste Werte haben Vorrang.
 - `root`: Menü mit `type`, `id`, `label` und `children`.
 - Entitätseintrag: `type: entity`, `id`, `label`, `entity_id`, `actions`.
+- Optionale `brightness_step_pct` (Ganzzahl 1–100) an Lichteinträgen. Sie legt
+  die Schrittweite in Prozentpunkten fest; bei älteren Einträgen ohne Feld gilt 10.
 - `children` bestimmt die Reihenfolge; Menü- und Entitätseinträge dürfen gemischt sein.
 - Alle IDs sind dokumentweit eindeutig, 1–64 ASCII-Buchstaben, Ziffern, `_` oder `-`.
 - Labels enthalten 1–120 Zeichen und keine Steuerzeichen. Maximal 500 Knoten
@@ -121,11 +125,11 @@ Die maßgebliche Validierung liegt in `protocol/enigmaha_protocol/menu.py`.
 - Leere Menüs sind zulässig. Bestehende Entitäten werden bei der HA-Konfiguration
   ausgewählt; später gelöschte Entitäten bleiben im Menü sichtbar als fehlend.
 
-v1 unterstützt `toggle` für `light`, `switch` und `input_boolean`. Eine leere
-Aktionsliste bedeutet nur Anzeige. Alle anderen Domains sind in diesem Stand
-ausschließlich lesbar. Der HA-Editor leitet die Aktionen beim Hinzufügen und
-Speichern automatisch aus der Domain ab. Das Protokoll erlaubt auch eine leere
-Aktionsliste für diese Domains. Dimmen, Szenen und Scripts werden nicht unterstützt.
+v1 unterstützt `toggle` für `light`, `switch` und `input_boolean`. `dim_up` und
+`dim_down` sind nur für nach HA-Fähigkeiten dimmbare Lichter zulässig; eine leere
+Aktionsliste bedeutet nur Anzeige. Ohne `X-EnigmaHA-Dimming: 1` werden Dimmaktionen
+ausgeblendet. Der HA-Editor speichert die Schrittweite pro Licht; fehlende Werte
+verhalten sich wie 10 Prozentpunkte. Szenen und Scripts werden nicht unterstützt.
 
 ## Menüsammlung und Benutzerfreigaben
 
@@ -208,7 +212,10 @@ gespeicherte Menü. Bei einem veralteten Stand antwortet sie mit HTTP 409
 
 `states` ist eine Map von konfigurierten `entity_id` zu Objekten mit `state`
 (String, maximal 255 Zeichen), `unit_of_measurement` (String bis 64 Zeichen
-oder null) und `icon` (MDI-Name oder null). `icons` ordnet den referenzierten
+oder null) und `icon` (MDI-Name oder null). Bei ausgehandeltem Dimm-Support kann
+ein dimmbares Licht zusätzlich `brightness_pct` (Ganzzahl 0–100 oder null bei
+unbekannter Helligkeit) enthalten. Ausgeschaltete Lichter melden `0`.
+`icons` ordnet den referenzierten
 MDI-Namen ihren SVG-`path`-Daten für eine ViewBox von 24 × 24 zu. Gleiche Symbole
 werden pro Antwort nur einmal übertragen. Namen bestehen aus `mdi:` und 1–100
 Kleinbuchstaben, Ziffern oder Bindestrichen; Pfade sind auf 16384 Zeichen begrenzt
@@ -229,6 +236,10 @@ Beispiel für einen Befehl:
 Der Receiver sendet keine frei wählbaren Service-Namen, Entity-IDs oder Service-Daten.
 Die HA-Seite prüft die aktuelle Revision, den Eintrag, dessen Aktionsliste, die
 Steuerungsberechtigung des angemeldeten Benutzers und den aktuellen Zustand.
+Für Dimmaktionen bestimmt sie Entity-ID und Schrittweite ausschließlich aus dem
+gespeicherten Eintrag, prüft erneut die aktuelle HA-Lichtfähigkeit und ruft
+`light.turn_on` mit `brightness_step_pct` auf. Clientseitig übergebene Ziele oder
+Schrittweiten werden nicht akzeptiert.
 `prepare_action` implementiert diese Prüfungen mit injizierten Zustands- und
 Berechtigungsabfragen. Die HA-Anbindung führt diese gegen HA aus und ruft
 den Service mit Benutzerkontext auf. Ein Menü ersetzt keine HA-Berechtigung.
@@ -245,7 +256,7 @@ blockiert das Receiver-UI weitere Schaltaktionen.
 | 401 | `unauthorized` (HTTP-Authentifizierung) |
 | 403 | `forbidden`, `action_not_allowed` |
 | 404 | `entry_not_found` |
-| 409 | `stale_menu`, `entity_unavailable`, beim Speichern `revision_limit` |
+| 409 | `stale_menu`, `entity_unavailable`, `entity_not_supported`, beim Speichern `revision_limit` |
 | 426 | `protocol_mismatch`, `unidentified_peer` |
 | 500 | `service_failed`, beim Speichern `storage_failed` |
 | 503 | Integration nicht geladen oder bereits entladen |

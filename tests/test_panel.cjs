@@ -345,6 +345,29 @@ test("create nested menu, select entity, save through HA", async () => {
   } finally {ui.dom.window.close();}
 });
 
+test("light entries expose a bounded dimming step and persist the selected value", async () => {
+  const ui = await createPanel();
+  try {
+    ui.select("new-menu", "Wohnzimmer");
+    ui.button("Untermenü hinzufügen").click();
+    ui.button("Untermenü bearbeiten").click();
+    ui.select("entity", "light.ceiling");
+    ui.button("Entität hinzufügen").click();
+    const node = ui.panel.model.root.children[0].children[0];
+    assert.equal(node.brightness_step_pct, 10);
+    const field = ui.root.querySelector(`[data-field="brightness-step-${node.id}"]`);
+    assert.equal(field.type, "number");
+    assert.equal(field.min, 1);
+    assert.equal(field.max, 100);
+    field.value = "25";
+    field.dispatchEvent(new ui.dom.window.Event("input", {bubbles: true, composed: true}));
+    ui.button("Speichern").click();
+    await tick();
+    assert.equal(ui.saved().menus[0].children[0].children[0].brightness_step_pct, 25);
+    assert.deepEqual(ui.saved().menus[0].children[0].children[0].actions, ["toggle", "dim_up", "dim_down"]);
+  } finally {ui.dom.window.close();}
+});
+
 test("refresh preserves both scroll positions and submenu navigation resets the list", async () => {
   const ui = await createPanel();
   try {
@@ -720,7 +743,8 @@ test("native menu title and entry edits preserve display settings without appear
     assert.equal(ui.saved().menus[0].label, "Mein Zuhause");
     assert.deepEqual(ui.saved().display, {font_family: "Regular", font_size: 28});
     assert.equal(ui.saved().menus[0].children[0].label, "Deckenlicht");
-    assert.deepEqual(ui.saved().menus[0].children[0].actions, ["toggle"]);
+    assert.deepEqual(ui.saved().menus[0].children[0].actions, ["toggle", "dim_up", "dim_down"]);
+    assert.equal(ui.saved().menus[0].children[0].brightness_step_pct, 10);
     assert.equal(ui.button("Speichern").disabled, true);
   } finally {ui.dom.window.close();}
 });
@@ -1088,7 +1112,7 @@ test("saving derives supported receiver actions throughout nested menus without 
     };
     await ui.panel.save();
     assert.deepEqual(sent.menus[0].children[0].children.map(n => n.actions),
-      [["toggle"], ["toggle"], ["toggle"], [], []]);
+      [["toggle", "dim_up", "dim_down"], ["toggle"], ["toggle"], [], []]);
   } finally {ui.dom.window.close();}
 });
 

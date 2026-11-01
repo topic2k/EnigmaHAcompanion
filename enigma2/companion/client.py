@@ -9,7 +9,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from enigmaha_protocol.menu import ProtocolError, validate_menu
 from enigmaha_protocol.icons import valid_icon
-from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, peer_status, protocol_version, valid_version, valid_receiver_id
+from enigmaha_protocol.compatibility import COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER, peer_status, protocol_version, valid_version, valid_receiver_id
 from enigmaha_protocol.releases import UpdateError, validate_release
 
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -68,6 +68,7 @@ class CompanionClient:
             COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
             PROTOCOL_HEADER: str(PROTOCOL_VERSION),
             RECEIVER_HEADER: self.receiver_id,
+            DIMMING_HEADER: "1",
         })
         try:
             with self._opener.open(request, timeout=self._timeout) as response:
@@ -164,11 +165,17 @@ class CompanionClient:
         if (not isinstance(icons, dict) or len(icons) > len(allowed)
                 or any(not valid_icon({"name": name, "path": path}) for name, path in icons.items())):
             raise ClientError("invalid_response")
-        for value in states.values():
-            if (not isinstance(value, dict) or set(value) != {"state", "unit_of_measurement", "icon"}
+        for entity_id, value in states.items():
+            if (not isinstance(value, dict)
+                    or set(value) not in ({"state", "unit_of_measurement", "icon"},
+                                         {"state", "unit_of_measurement", "icon", "brightness_pct"})
                     or not isinstance(value["state"], str) or len(value["state"]) > 255
                     or (value["unit_of_measurement"] is not None and
-                        (not isinstance(value["unit_of_measurement"], str) or len(value["unit_of_measurement"]) > 64))):
+                        (not isinstance(value["unit_of_measurement"], str) or len(value["unit_of_measurement"]) > 64))
+                    or ("brightness_pct" in value and
+                        (not entity_id.startswith("light.") or
+                         (value["brightness_pct"] is not None and
+                          (type(value["brightness_pct"]) is not int or not 0 <= value["brightness_pct"] <= 100))))):
                 raise ClientError("invalid_response")
             name = value["icon"]
             if name is not None and (not isinstance(name, str) or name not in icons or value["state"] not in {"on", "off"}):
