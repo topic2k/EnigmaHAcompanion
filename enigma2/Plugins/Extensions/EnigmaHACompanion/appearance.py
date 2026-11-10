@@ -28,6 +28,8 @@ class Appearance:
         self.scale = min(desktop.width() / 1280.0, desktop.height() / 720.0)
         self.font = skin_font(self.definition.font_family)
         self.list_font = None
+        self.blue_arrow_path = None
+        self.has_update_arrow = False
         for name, source in (("width", "width"), ("height", "height"), ("margin", "margin"),
                              ("header", "header"), ("footer", "footer_height"), ("status", "status")):
             setattr(self, name, self.px(getattr(self.definition, source)))
@@ -90,6 +92,7 @@ class Appearance:
         label_attrs = {"font": "%s;%s" % (self.font, self.px(20)), "valign": "center"}
         list_attrs = {"scrollbarMode": "showOnDemand"}
         self.definition.decorate(self, root, element, label_attrs, list_attrs)
+        self.has_update_arrow = setup and bool(self.blue_arrow_path)
 
         heading = dict(label_attrs, font="%s;%s" % (
             skin_font(self.definition.heading_family), self.px(26)))

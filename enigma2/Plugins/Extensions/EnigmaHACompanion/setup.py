@@ -1,6 +1,7 @@
 from Components.ActionMap import ActionMap
 from Components.ConfigList import ConfigListScreen
 from Components.Label import Label
+from Components.Pixmap import Pixmap
 from Components.config import ConfigInteger, ConfigPassword, ConfigSelection, ConfigText, ConfigYesNo, getConfigListEntry
 from Screens.ChoiceBox import ChoiceBox
 from Screens.MessageBox import MessageBox
@@ -73,6 +74,11 @@ class CompanionSetup(Screen, ConfigListScreen):
         ConfigListScreen.__init__(self, [getConfigListEntry(self.t(label), self.fields[key]) for key, label in labels], session=session)
         self["hint"] = Label(self.t("Grün: Speichern   Rot/Exit: Abbrechen\nOK/Gelb: Auswahl/Text   Links/Rechts: Wert ändern"))
         self["key_blue"] = Label("")
+        self.has_update_arrow = self.appearance.has_update_arrow
+        if self.has_update_arrow:
+            self["key_blue_arrow"] = Pixmap()
+            self.onLayoutFinish.append(self.hide_update_arrow)
+            self.hide_update_arrow()
         self["setupActions"] = ActionMap(["SetupActions", "ColorActions"], {
             "save": self.save, "cancel": self.cancel, "ok": self.edit,
             "green": self.save, "red": self.cancel, "yellow": self.edit, "blue": self.request_update,
@@ -89,7 +95,23 @@ class CompanionSetup(Screen, ConfigListScreen):
         if self.closed:
             return
         self.update_available = bool(job)
-        self["key_blue"].setText(self.t("Blau: Update") if self.update_available else "")
+        arrow = self.blue_arrow_component()
+        if self.update_available and arrow is not None and getattr(arrow, "instance", None) is not None:
+            self["key_blue"].setText(self.t("Update"))
+            arrow.show()
+        else:
+            self["key_blue"].setText(self.t("Blau: Update") if self.update_available else "")
+            self.hide_update_arrow()
+
+    def blue_arrow_component(self):
+        if self.has_update_arrow:
+            return self.get("key_blue_arrow")
+        return None
+
+    def hide_update_arrow(self):
+        arrow = self.blue_arrow_component()
+        if arrow is not None and getattr(arrow, "instance", None) is not None:
+            arrow.hide()
 
     def request_update(self):
         if not self.closed and self.update_available:
