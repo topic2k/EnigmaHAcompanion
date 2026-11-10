@@ -24,6 +24,26 @@ in die Installations-ZIPs übernommen.
 `brand/icon.svg` entspricht `source/icon.svg`. Die Schrift und die
 Branding-Übersicht gehören nur zu den Entwicklungsquellen, nicht zum HA-Paket.
 
+## Logoauflösung in Marketplace und HACS
+
+Seit HA 2026.3 können Custom Integrations ihre Bilder direkt im `brand/`-Ordner
+mitliefern. Home Assistant bevorzugt diese lokalen Dateien gegenüber dem externen
+Brandingdienst; eine Einreichung unseres Logos beim Brands-Repository ist dafür
+nicht erforderlich. Siehe die [offizielle Branding-Dokumentation](https://developers.home-assistant.io/docs/core/integration/brand_images).
+
+Die [Marketplace-Update-Entität in HA 2026.11.0](https://github.com/home-assistant/core/blob/2026.11.0/homeassistant/components/marketplace/update.py)
+verwendet `/api/brands/integration/enigmaha_companion/icon.png` und findet damit
+unser mitgeliefertes Icon automatisch. Die API benötigt Authentifizierung;
+das HA-Frontend übernimmt diese. Die Update-Gruppenüberschrift bleibt Marketplace.
+
+[Älteres HACS, etwa 2.0.5](https://github.com/hacs/integration/blob/2.0.5/custom_components/hacs/update.py),
+verweist für das Updatebild dagegen direkt auf `brands.home-assistant.io` und
+verwendet die lokalen Dateien nicht. Für diese Installationen beschreibt die
+[Installationsanleitung](../../docs/Installation.md#projektlogo-in-marketplace-und-hacs)
+eine optionale manuelle `entity_picture`-Anpassung mit einer lokalen Iconkopie.
+Unsere Integration verändert weder HACS-/Marketplace-Entitäten noch die
+HA-Konfiguration und stellt keine eigene Updateanzeige bereit.
+
 ## Farben und Schrift
 
 | Rolle | Heller Hintergrund | Dunkler Hintergrund |

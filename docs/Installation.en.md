@@ -136,6 +136,42 @@ require repair. Ignoring ends an existing job whose installation has not started
 Running or uncertain installations and pending GUI restarts must be resolved or
 completed first. Existing configurations need no migration or setup changes.
 
+### Project icon in Marketplace and HACS
+
+Marketplace on Home Assistant 2026.11 or newer automatically uses the bundled
+project icon from `custom_components/enigmaha_companion/brand/`. The integration
+must be installed and HA restarted after installation. No additional branding
+setup is needed; reload the browser if it still shows an old image. The update
+remains grouped under Marketplace or HACS.
+
+Older HACS still fetches its update entity picture from the external branding
+service instead of using local files. Optionally, customize only its entity
+picture manually:
+
+1. Copy `icon.png` from `/config/custom_components/enigmaha_companion/brand/` to
+   `/config/www/enigmaha-companion.png`. Create the `www` directory if needed.
+   It is publicly served under `/local/`; place only the public icon there,
+   never credentials.
+2. Add the following to `configuration.yaml`, replacing the example entity ID
+   with the actual HACS update entity ID of your installation:
+
+   ```yaml
+   homeassistant:
+     customize:
+       update.enigmaha_companion_update:
+         entity_picture: /local/enigmaha-companion.png
+   ```
+
+   Merge into an existing `homeassistant:` block rather than creating a duplicate.
+   If `customize` already uses `!include`, add only the entity entry to the included
+   file, preserving other customizations.
+3. Check the HA configuration, restart HA and reload the browser.
+
+The entity stays active and installs updates through HACS as before. After
+switching to Marketplace, remove this optional `entity_picture` customization
+to use the automatically provided icon again. Menus and stored settings need
+no migration.
+
 ## Update directly from a version conflict
 
 When the receiver reports a version or protocol conflict and HA runs a newer

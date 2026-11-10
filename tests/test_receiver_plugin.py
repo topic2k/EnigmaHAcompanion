@@ -983,7 +983,10 @@ class ReceiverTests(unittest.TestCase):
                 self.assertEqual(screen.appearance.selection, "auto")
                 screen.start()
                 self.assertIn("Konfiguration nicht lesbar", screen["status"].text)
-                self.assertIs(self.dialogs[-1][1], PLUGIN.CompanionSetup)
+                args, options = self.dialogs[-1]
+                self.assertIs(args[1], PLUGIN.CompanionSetup)
+                self.assertEqual(args[2], PLUGIN.DEFAULTS)
+                self.assertTrue(callable(options["update_check"]))
 
     def test_settings_input_help_uses_desktop_coordinates_above_footer(self):
         setup = PLUGIN.CompanionSetup(self.screen.session, self.screen.config)
@@ -1002,10 +1005,10 @@ class ReceiverTests(unittest.TestCase):
     def test_first_run_settings_wait_for_modal_execution(self):
         active = False
         dialogs = []
-        def open_dialog(*args):
+        def open_dialog(*args, **kwargs):
             if not active:
                 raise RuntimeError("Cannot open a modal dialog during layout")
-            dialogs.append(args)
+            dialogs.append((args, kwargs))
         with patch.object(PLUGIN, "load_settings", return_value=dict(PLUGIN.DEFAULTS)):
             screen = PLUGIN.CompanionScreen(types.SimpleNamespace(openWithCallback=open_dialog))
             self.addCleanup(screen.cleanup)
@@ -1017,7 +1020,8 @@ class ReceiverTests(unittest.TestCase):
             for callback in callbacks:
                 callback()
             self.assertEqual(len(dialogs), 1)
-            self.assertIs(dialogs[0][1], PLUGIN.CompanionSetup)
+            self.assertIs(dialogs[0][0][1], PLUGIN.CompanionSetup)
+            self.assertEqual(dialogs[0][0][2], PLUGIN.DEFAULTS)
             screen.settings_done(None)
             for callback in screen.onFirstExecBegin:
                 callback()
@@ -1206,8 +1210,137 @@ class ReceiverTests(unittest.TestCase):
         self.press("settings")
         self.assertFalse(self.screen.timer.running)
         self.assertEqual(len(self.dialogs), 1)
+        args, kwargs = self.dialogs[-1]
+        self.assertIs(args[1], PLUGIN.CompanionSetup)
+        self.assertEqual(args[2], self.screen.config)
+        self.assertEqual(kwargs["update_check"], self.screen.updater.available_update)
         self.screen.settings_done(None)
         self.assertEqual(len(self.pending), 1)
+
+    def test_manual_plugin_update_is_receiver_only_and_requires_confirmation(self):
+        job = dict(self.update_plan(), local=True)
+        self.screen.client.peer_version = "1.0.0"
+        self.screen.client.get_update = Mock(side_effect=AssertionError("HA must not be queried"))
+        self.screen.updater = types.SimpleNamespace(available_update=Mock(return_value=job),
+            confirm=Mock(), perform=Mock())
+        self.press("settings")
+        args, options = self.dialogs[-1]
+        args[0]("update")
+        self.assertEqual(len(self.pending), 1)
+        self.pending.pop().fire()
+        self.screen.client.get_update.assert_not_called()
+        self.screen.updater.available_update.assert_called_once_with()
+        args, options = self.dialogs[-1]
+        self.assertFalse(options["default"])
+        self.assertIn("Receiver auf Release 2.0.0", args[2])
+        self.assertNotIn("für HA", args[2])
+        self.screen.updater.perform.assert_not_called()
+        args[0](False)
+        self.assertEqual(self.screen["status"].text, "Update abgelehnt.")
+        self.screen.updater.confirm.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+
+    def test_manual_update_does_not_consult_ha_or_prepare_install_without_receiver_release(self):
+        self.screen.client.get_update = Mock(return_value=self.update_plan())
+        self.screen.updater = types.SimpleNamespace(available_update=Mock(return_value=None),
+            confirm=Mock(), perform=Mock())
+        for version in (PLUGIN.VERSION, "1.0.0", "99.0.0"):
+            self.screen.busy = False
+            self.screen.client.peer_version = version
+            self.screen.update_notice = None
+            self.screen.update_plugin()
+            self.pending.pop().fire()
+            self.assertEqual(self.dialogs[-1][0][1], "Receiver ist bereits aktuell.")
+        self.screen.client.get_update.assert_not_called()
+        self.screen.updater.confirm.assert_not_called()
+        self.screen.updater.perform.assert_not_called()
+
+    def test_manual_update_without_configured_ha_installs_only_after_consent(self):
+        del self.screen.client
+        job = dict(self.update_plan(), local=True)
+        self.screen.updater = types.SimpleNamespace(available_update=Mock(return_value=job),
+            confirm=Mock(), perform=Mock())
+        self.screen.update_plugin()
+        self.pending.pop().fire()
+        args, options = self.dialogs[-1]
+        self.assertFalse(options["default"])
+        self.screen.updater.perform.assert_not_called()
+        args[0](True)
+        with patch.dict(sys.modules, {"Components.SystemInfo": types.SimpleNamespace(
+                BoxInfo=types.SimpleNamespace(getItem=lambda key: "openatv"))}):
+            self.pending.pop().fire()
+        self.screen.updater.confirm.assert_called_once_with(job)
+        self.screen.updater.perform.assert_called_once_with(job, None)
+
+    def test_setup_blue_update_is_conditional_async_and_does_not_save_edits(self):
+        pending = []
+        def defer(work):
+            item = Pending(work)
+            pending.append(item)
+            return item
+        for language in ("de", "en"):
+            check = Mock(return_value=dict(self.update_plan(), local=True))
+            setup = PLUGIN.CompanionSetup(self.screen.session, dict(self.screen.config, language=language),
+                                          update_check=check)
+            self.assertEqual(setup["key_blue"].text, "")
+            setup["setupActions"].actions["blue"]()
+            self.assertIsNone(setup.close_result)
+            self.assertEqual(setup["setupActions"].actions["yellow"], setup.edit)
+            with patch.dict(setup.check_update.__globals__, deferToThread=defer):
+                for callback in setup.onFirstExecBegin:
+                    callback()
+            check.assert_not_called()
+            self.assertEqual(setup["key_blue"].text, "")
+            pending.pop().fire()
+            check.assert_called_once_with()
+            self.assertEqual(setup["key_blue"].text, "Blau: Update" if language == "de" else "Blue: Update")
+            setup.fields["token"].value = "unsaved-token"
+            with patch.dict(setup.save.__globals__, save_settings=Mock()) as globals_:
+                setup["setupActions"].actions["blue"]()
+                globals_["save_settings"].assert_not_called()
+            self.assertEqual(setup.close_result, "update")
+            self.assertEqual(self.screen.config["token"], "dummy")
+
+    def test_setup_hides_update_for_no_release_errors_or_closed_dialog(self):
+        for outcome in (None, PLUGIN.UpdateError("invalid_release"), PLUGIN.UpdateError("release_check_failed")):
+            check = Mock(side_effect=outcome) if isinstance(outcome, Exception) else Mock(return_value=outcome)
+            pending = []
+            def defer(work):
+                item = Pending(work)
+                pending.append(item)
+                return item
+            setup = PLUGIN.CompanionSetup(self.screen.session, self.screen.config, update_check=check)
+            with patch.dict(setup.check_update.__globals__, deferToThread=defer):
+                setup.check_update()
+            pending.pop().fire()
+            self.assertEqual(setup["key_blue"].text, "")
+            setup["setupActions"].actions["blue"]()
+            self.assertIsNone(setup.close_result)
+        check = Mock(return_value=dict(self.update_plan(), local=True))
+        setup = PLUGIN.CompanionSetup(self.screen.session, self.screen.config, update_check=check)
+        with patch.dict(setup.check_update.__globals__, deferToThread=defer):
+            setup.check_update()
+        setup.cancel()
+        pending.pop().fire()
+        self.assertEqual(setup["key_blue"].text, "")
+        setup["setupActions"].actions["blue"]()
+        self.assertIsNone(setup.close_result)
+
+    def test_setup_update_label_has_visible_footer_widget_in_both_profiles(self):
+        enigma = types.SimpleNamespace(eLabel=object, eListbox=object)
+        for profile in ("native", "gradient"):
+            with patch.dict(sys.modules, {"enigma": enigma}):
+                setup = PLUGIN.CompanionSetup(self.screen.session, dict(self.screen.config, skin_profile=profile))
+            root = ET.fromstring(setup.skin)
+            label = root.find("./widget[@name='key_blue']")
+            self.assertIsNotNone(label)
+            x, y = map(int, label.attrib["position"].split(","))
+            width, height = map(int, label.attrib["size"].split(","))
+            self.assertGreater(width, 100)
+            self.assertGreater(height, 20)
+            self.assertGreaterEqual(y, setup.appearance.height - setup.appearance.footer)
+            self.assertLessEqual(x + width, setup.appearance.width)
+            self.assertEqual(setup["key_blue"].text, "")
 
     def update_plan(self):
         return {"id": "b" * 32, "release": {"version": "2.0.0"}, "status": "pending", "attempt": 1}

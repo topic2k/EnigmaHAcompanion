@@ -52,6 +52,8 @@ const ENIGMAHA_EN = {
   "Filter zurücksetzen": "Reset filters",
   "Entität auswählen": "Select entity",
   "Nach Name oder Entity-ID suchen. Die Filter oben grenzen die Auswahl ein.": "Search by name or entity ID. The filters above narrow down the selection.",
+  "Entität {entity_id} fehlt. Wähle eine andere Entität aus.": "Entity {entity_id} is missing. Select a replacement entity.",
+  "Ersatzauswahl": "Replacement entity",
   "Entität hinzufügen": "Add entity",
   "Neu laden": "Reload",
   "Speichern": "Save",
@@ -203,6 +205,69 @@ class EnigmaHAPanel extends HTMLElement {
     for (const field of this.shadowRoot.querySelectorAll("ha-input[data-entity-id]")) {
       field.hint = this.entityDescription(field.dataset.entityId);
     }
+    for (const row of this.shadowRoot.querySelectorAll(".row[data-node-id]")) {
+      if (row.entityNode?.type === "entity") this.updateMissingEntityRow(row, row.entityNode);
+    }
+  }
+
+  entityExists(entityId) {
+    return Boolean(this._hass.states?.[entityId] || this._hass.entities?.[entityId]);
+  }
+
+  entityReplacementDefinition() {
+    return {entity: {multiple: false, include_entities: Object.keys(this._hass.states || {}).sort()}};
+  }
+
+  updateMissingEntityRow(row, node) {
+    const missing = !this.entityExists(node.entity_id);
+    row.classList.toggle("missing-entity", missing);
+    const name = row.querySelector(`[data-field="label-${node.id}"]`);
+    if (name) {
+      name.invalid = missing;
+      name.errorMessage = missing ? this.t("Entität {entity_id} fehlt. Wähle eine andere Entität aus.", {entity_id: node.entity_id}) : "";
+    }
+    const oldMessage = row.querySelector(".missing-entity-notice");
+    const oldSelector = row.querySelector(`[data-selector="replacement-${node.id}"]`);
+    if (!missing) {
+      oldMessage?.remove();
+      oldSelector?.remove();
+      return;
+    }
+    if (!oldMessage) {
+      row.querySelector(".entry-content").append(this.el("p",
+        this.t("Entität {entity_id} fehlt. Wähle eine andere Entität aus.", {entity_id: node.entity_id}),
+        {class: "missing-entity-notice"}));
+    }
+    if (!oldSelector) {
+      row.querySelector(".entry-content").append(this.selector("replacement-" + node.id,
+        this.t("Ersatzauswahl"), this.entityReplacementDefinition(), undefined,
+        entityId => this.replaceEntity(node, entityId)));
+    }
+  }
+
+  replaceEntity(node, entityId) {
+    const current = this.path.at(-1);
+    if (this.loading || !current?.children.includes(node) || typeof entityId !== "string"
+        || !/^[a-z_][a-z0-9_]*\.[a-z0-9_]+$/.test(entityId)) return;
+    const state = this._hass.states?.[entityId];
+    if (!state) return;
+    const domain = entityId.split(".")[0];
+    let actions = this.entityActions(entityId);
+    delete node.options;
+    if (["select", "input_select"].includes(domain)) {
+      const options = state.attributes?.options;
+      const valid = Array.isArray(options) && options.length > 0 && options.length <= 500
+        && options.every(option => typeof option === "string" && option.trim() && option.length <= 255
+          && !/[\u0000-\u001f\u007f]/.test(option)) && new Set(options).size === options.length;
+      if (valid) node.options = [...options];
+      else actions = [];
+    }
+    node.entity_id = entityId;
+    node.actions = actions;
+    if (domain === "light") node.brightness_step_pct ??= 10;
+    else delete node.brightness_step_pct;
+    this.markDirty();
+    this.render();
   }
 
   entityActions(entityId) {
@@ -781,6 +846,10 @@ class EnigmaHAPanel extends HTMLElement {
   }
 
   updateEntitySelector() {
+    for (const selector of this.shadowRoot.querySelectorAll('[data-selector^="replacement-"]')) {
+      selector.selector = this.entityReplacementDefinition();
+      selector.hass = this._hass;
+    }
     const selector = this.shadowRoot.querySelector('[data-selector="entity"]');
     if (!selector) return;
     if (this.selectedEntity && !this.matchesFilters(this.selectedEntity)) this.selectedEntity = undefined;
@@ -947,6 +1016,7 @@ class EnigmaHAPanel extends HTMLElement {
       .breadcrumbs ha-button{max-width:100%;--ha-button-height:32px}.breadcrumbs span{padding:4px 8px}
       .breadcrumbs ha-icon{--mdc-icon-size:18px;flex:none}
       ha-sortable{display:block}.entry-list{container-type:inline-size;padding:0;margin:0;list-style:none}.row{display:grid;grid-template-columns:32px 24px minmax(0,1fr) auto;align-items:start;gap:12px;padding:8px 20px;border-top:1px solid var(--divider-color);scroll-margin-block:16px}
+      .row.missing-entity{border-inline-start:4px solid var(--error-color);background:color-mix(in srgb,var(--error-color) 7%,transparent)}.missing-entity-notice{margin:0;color:var(--error-color);font-weight:500;overflow-wrap:anywhere}
       .drag-handle{display:flex;align-items:center;justify-content:center;min-height:40px;margin-top:4px;color:var(--secondary-text-color);cursor:grab;touch-action:none;user-select:none}.drag-handle>*{pointer-events:none}.drag-handle:active{cursor:grabbing}.drag-handle[aria-disabled=true]{opacity:.4;cursor:default;pointer-events:none}
       .row.revealed{animation:entry-reveal 1.6s ease-out}@keyframes entry-reveal{from{box-shadow:inset 4px 0 var(--primary-color);background:rgba(var(--rgb-primary-color),.12)}to{box-shadow:inset 0 0 transparent;background:transparent}}
       @media(prefers-reduced-motion:reduce){.row.revealed{animation:none;box-shadow:inset 3px 0 var(--primary-color)}}
@@ -1035,6 +1105,7 @@ class EnigmaHAPanel extends HTMLElement {
     const sortable = this.sortableList(menuColumn, (oldIndex, newIndex) => this.moveEntry(current, oldIndex, newIndex));
     current.children.forEach((node, index) => {
       const row = this.el("li", null, {class: "row", "data-node-id": node.id});
+      row.entityNode = node;
       const handle = this.el("div", null, {class: "drag-handle", role: "img",
         "aria-label": this.t("Zum Sortieren ziehen"), title: this.t("Zum Sortieren ziehen"), "aria-disabled": String(this.loading)});
       handle.append(this.icon("drag-horizontal-variant"));

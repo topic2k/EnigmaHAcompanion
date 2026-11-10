@@ -43,6 +43,10 @@
     }
   },
   "issues": {
+    "missing_menu_entity": {
+      "title": "Receiver menu entity not found",
+      "description": "The menu entry “{entries}” refers to {entity_id}, which no longer exists. Open the EnigmaHA Companion editor and select a replacement entity. If you do not want to repair the entry, you can ignore this issue in Home Assistant."
+    },
     "protocol_mismatch": {
       "title": "EnigmaHA protocols do not match",
       "description": "HA uses protocol {protocol}. Detected receivers (address: release / protocol): {receivers}. The connection is blocked. Open the repair to install a shared release or resume the existing update job. The issue remains while the receiver is in standby.",

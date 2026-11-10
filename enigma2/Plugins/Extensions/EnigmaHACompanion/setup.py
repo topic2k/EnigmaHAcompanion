@@ -8,6 +8,7 @@ from Screens.Screen import Screen
 from Screens.VirtualKeyBoard import VirtualKeyBoard
 
 from enigma import getDesktop, getFontFaces
+from twisted.internet.threads import deferToThread
 
 from .companion.i18n import LANGUAGE_CHOICES, resolve_language, translate
 from .appearance import Appearance
@@ -17,12 +18,18 @@ from .settings import DEFAULTS, save_settings, validate_settings
 
 
 class CompanionSetup(Screen, ConfigListScreen):
-    def __init__(self, session, values=None):
+    def __init__(self, session, values=None, update_check=None):
         values = values or DEFAULTS
         self.language = resolve_language(values["language"])
         self.appearance = Appearance(getDesktop(0).size(), values["skin_profile"], self.language)
         self.skin = self.appearance.layout(setup=True)
         Screen.__init__(self, session)
+        self.closed = False
+        self.update_check = update_check
+        self.update_available = False
+        self.onClose.append(self.cleanup)
+        if update_check is not None:
+            self.onFirstExecBegin.append(self.check_update)
         for name, text in self.appearance.text_labels.items():
             self[name] = Label(text)
         self.skinName = self.appearance.screen_names(setup=True)
@@ -65,13 +72,31 @@ class CompanionSetup(Screen, ConfigListScreen):
                   ("remember_menu_position", "Menüposition beim Beenden merken")]
         ConfigListScreen.__init__(self, [getConfigListEntry(self.t(label), self.fields[key]) for key, label in labels], session=session)
         self["hint"] = Label(self.t("Grün: Speichern   Rot/Exit: Abbrechen\nOK/Gelb: Auswahl/Text   Links/Rechts: Wert ändern"))
+        self["key_blue"] = Label("")
         self["setupActions"] = ActionMap(["SetupActions", "ColorActions"], {
             "save": self.save, "cancel": self.cancel, "ok": self.edit,
-            "green": self.save, "red": self.cancel, "yellow": self.edit,
+            "green": self.save, "red": self.cancel, "yellow": self.edit, "blue": self.request_update,
         }, -3)
 
     def t(self, message, **values):
         return translate(message, self.language, **values)
+
+    def check_update(self):
+        if not self.closed and self.update_check is not None:
+            deferToThread(self.update_check).addCallbacks(self.update_checked, lambda failure: self.update_checked(None))
+
+    def update_checked(self, job):
+        if self.closed:
+            return
+        self.update_available = bool(job)
+        self["key_blue"].setText(self.t("Blau: Update") if self.update_available else "")
+
+    def request_update(self):
+        if not self.closed and self.update_available:
+            self.close("update")
+
+    def cleanup(self):
+        self.closed = True
 
     def handleInputHelpers(self):
         handler = getattr(ConfigListScreen, "handleInputHelpers", None)

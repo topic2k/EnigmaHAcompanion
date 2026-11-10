@@ -14,6 +14,7 @@ from .const import DOMAIN, VERSION, empty_menu
 from .menus import validate_configuration
 from .updates import UpdateManager
 from .repair_issues import RepairCoordinator
+from .entity_issues import EntityIssueCoordinator
 
 LEGACY_UPDATE_UNIQUE_ID = DOMAIN + "_integration_update"
 
@@ -71,8 +72,10 @@ async def async_setup_entry(hass, entry):
     runtime.updates = UpdateManager(hass, update_store, await update_store.async_load())
     repair_store = Store(hass, 1, DOMAIN + ".repairs")
     runtime.repairs = RepairCoordinator(hass, repair_store, runtime, await repair_store.async_load())
+    runtime.entity_issues = EntityIssueCoordinator(hass, runtime)
     runtime.updates.on_change = runtime.repairs.sync
     hass.data[DOMAIN]["runtime"] = runtime
+    await runtime.entity_issues.async_start()
     async with runtime.updates.lock:
         await runtime.updates.refresh()
     await runtime.repairs.sync()
@@ -90,6 +93,7 @@ async def async_unload_entry(hass, entry):
     if runtime is not None:
         await runtime.updates.close()
         runtime.repairs.close()
+        runtime.entity_issues.close()
         runtime.clear_editor_notifications()
         async with runtime.lock:
             runtime.active = False

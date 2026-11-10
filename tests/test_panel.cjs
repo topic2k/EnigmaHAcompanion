@@ -1121,6 +1121,44 @@ test("entity icons and native field hints follow HA updates without replacing th
   } finally {ui.dom.window.close();}
 });
 
+test("missing entities are highlighted and can be replaced without losing entry identity or access", async () => {
+  const ui = await createPanel();
+  try {
+    const node = {type: "entity", id: "legacy-entry", label: "My old light", entity_id: "light.gone",
+      actions: ["toggle", "dim_up", "dim_down"], brightness_step_pct: 25, access: {mode: "users", users: ["anna"]}};
+    ui.panel.model.root.children.push(node);
+    ui.panel.render();
+    const row = ui.root.querySelector('[data-node-id="legacy-entry"]');
+    assert.ok(row.classList.contains("missing-entity"));
+    assert.match(row.textContent, /light\.gone/);
+    const selector = ui.root.querySelector('[data-selector="replacement-legacy-entry"]');
+    assert.ok(selector.selector.entity.include_entities.includes("light.ceiling"));
+    assert.equal(selector.selector.entity.multiple, false);
+
+    selector.dispatchEvent(new ui.dom.window.CustomEvent("value-changed",
+      {detail: {value: "switch.not_found"}, bubbles: true, composed: true}));
+    assert.equal(node.entity_id, "light.gone");
+    assert.equal(ui.panel.dirty, false);
+
+    ui.panel.hass = {...ui.panel._hass, states: {...ui.panel._hass.states,
+      "switch.new_plug": {entity_id: "switch.new_plug", state: "off", attributes: {friendly_name: "New plug"}}}};
+    selector.dispatchEvent(new ui.dom.window.CustomEvent("value-changed",
+      {detail: {value: "switch.new_plug"}, bubbles: true, composed: true}));
+
+    assert.equal(node.id, "legacy-entry");
+    assert.equal(node.label, "My old light");
+    assert.equal(node.entity_id, "switch.new_plug");
+    assert.deepEqual(node.access, {mode: "users", users: ["anna"]});
+    assert.deepEqual([...node.actions], ["toggle"]);
+    assert.equal("brightness_step_pct" in node, false);
+    assert.equal(ui.panel.dirty, true);
+    await ui.panel.save();
+    assert.equal(ui.saved().menus[0].children[0].id, "legacy-entry");
+    assert.deepEqual(ui.saved().menus[0].children[0].access, {mode: "users", users: ["anna"]});
+    assert.equal(ui.saved().menus[0].children[0].entity_id, "switch.new_plug");
+  } finally {ui.dom.window.close();}
+});
+
 test("saving derives supported receiver actions throughout nested menus without changing the draft on failure", async () => {
   const ui = await createPanel();
   try {

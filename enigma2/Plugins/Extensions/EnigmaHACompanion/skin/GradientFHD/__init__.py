@@ -66,7 +66,9 @@ class GradientProfile(SkinProfile):
              ("key_leftright" if setup else "menu", "Wert ändern" if setup else "Einstellungen", 40, "◀ ▶" if setup else "Menü"),
              ("exit", "Abbrechen" if setup else "Zurück", 40, "Exit")],
         ]
-        if not setup:
+        if setup:
+            rows[0].append(("key_blue", None, 20, "Blau"))
+        else:
             rows[0].append(("key_blue", "Einstellungen", 20, "Blau"))
             rows[1] = [("menu", "Einstellungen", 40, "Menü"),
                        ("key_recall", "Zurück", 40, "Recall"),
@@ -78,6 +80,10 @@ class GradientProfile(SkinProfile):
             y = appearance.height - appearance.footer + appearance.px(5 + 30 * row_index)
             for index, (asset, text, icon_width, fallback) in enumerate(row):
                 x = appearance.margin + index * column
+                if text is None:
+                    element("widget", x, y, column - appearance.px(9), appearance.px(26),
+                            name="key_blue", **dict(attrs, foregroundColor=skin_color("blue", "#003f82e5")))
+                    continue
                 path = (os.path.join(os.path.dirname(__file__), "buttons", "key_recall.png")
                         if asset == "key_recall" else "/usr/share/enigma2/GradientFHD/buttons/%s.png" % asset)
                 width = appearance.px(icon_width)
