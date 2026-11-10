@@ -11,7 +11,7 @@ from threading import Lock
 from uuid import uuid4
 
 from enigmaha_protocol.compatibility import VERSION, valid_receiver_id
-from enigmaha_protocol.releases import PACKAGE, UpdateError, fetch_release, open_public, validate_release, version_tuple
+from enigmaha_protocol.releases import PACKAGE, UpdateError, fetch_latest_release, fetch_release, open_public, validate_release, version_tuple
 
 IDENTITY_PATH = "/etc/enigma2/enigmaha_companion_receiver_id"
 JOURNAL_PATH = "/etc/enigma2/enigmaha_companion_update.json"
@@ -81,6 +81,35 @@ class ReceiverUpdater:
         except OSError:
             raise UpdateError("update_storage_failed") from None
 
+    def available_update(self):
+        """Prepare the latest stable receiver release, or recover its local restart.
+
+        Active coordinated jobs and retargeting a confirmed local job are blocked;
+        a restart-only job has no download metadata and must not go through perform.
+        """
+        if not _INSTALL_LOCK.acquire(blocking=False):
+            raise UpdateError("install_uncertain")
+        try:
+            journal = self.journal()
+            if (journal and journal["status"] in {"confirmed", "installing", "uncertain", "restart_required"}
+                    and journal.get("local") is not True):
+                raise UpdateError("install_uncertain")
+            restart = self.local_restart()
+            if restart is not None:
+                return restart
+            journal = self.journal()
+            resume = journal and journal["status"] == "confirmed"
+            release = validate_release(fetch_latest_release())
+            if resume and journal["version"] != release["version"]:
+                raise UpdateError("install_uncertain")
+            if version_tuple(release["version"]) <= version_tuple(VERSION):
+                return None
+            return {"id": journal["id"] if resume else uuid4().hex,
+                    "attempt": journal["attempt"] if resume else 1,
+                    "release": release, "status": "pending", "local": True}
+        finally:
+            _INSTALL_LOCK.release()
+
     def local_update(self, version):
         """Pin a receiver-only update to the running HA release, without downgrades."""
         if version_tuple(version) <= version_tuple(VERSION):
@@ -122,12 +151,19 @@ class ReceiverUpdater:
                 client.report_update(job, status, error)
 
     def confirm(self, job):
-        journal = self.journal()
-        if journal and journal["status"] in {"installing", "uncertain", "restart_required"}:
-            if journal["id"] == job["id"] and journal["version"] == job["release"]["version"]:
-                return
+        if not _INSTALL_LOCK.acquire(blocking=False):
             raise UpdateError("install_uncertain")
-        self.save(job, "confirmed")
+        try:
+            journal = self.journal()
+            if journal and journal["status"] in {"confirmed", "installing", "uncertain", "restart_required"}:
+                if (journal["id"] == job["id"] and journal["version"] == job["release"]["version"]
+                        and journal["attempt"] == job["attempt"]
+                        and (journal.get("local") is True) == (job.get("local") is True)):
+                    return
+                raise UpdateError("install_uncertain")
+            self.save(job, "confirmed")
+        finally:
+            _INSTALL_LOCK.release()
 
     def acknowledge_running(self, job):
         if job and job["release"]["version"] == VERSION:
@@ -168,6 +204,8 @@ class ReceiverUpdater:
             raise UpdateError("checksum_failed")
 
     def perform(self, job, client):
+        if job.get("local") is True:
+            client = None
         if client is None and job.get("local") is not True:
             raise UpdateError("invalid_package")
         release = validate_release(job["release"])
@@ -178,7 +216,9 @@ class ReceiverUpdater:
             raise UpdateError("install_uncertain")
         try:
             journal = self.journal()
-            if not journal or journal["id"] != job["id"] or journal["version"] != target:
+            if (not journal or journal["id"] != job["id"] or journal["version"] != target
+                    or journal["attempt"] != job["attempt"]
+                    or (journal.get("local") is True) != (job.get("local") is True)):
                 raise UpdateError("install_uncertain")
             if journal["status"] in {"installing", "uncertain", "restart_required"}:
                 if not self.installed(target):
@@ -186,7 +226,7 @@ class ReceiverUpdater:
                 self.save(job, "restart_required")
                 self.report(client, job, "restart_required")
                 return
-            if journal["status"] != "confirmed" or journal["attempt"] != job["attempt"]:
+            if journal["status"] != "confirmed":
                 raise UpdateError("install_uncertain")
             if os.geteuid() != 0:
                 raise UpdateError("permission_denied")
@@ -219,7 +259,10 @@ class ReceiverUpdater:
         except UpdateError as error:
             # The journal written before opkg is authoritative if reporting fails.
             journal = self.journal()
-            if journal and journal["status"] not in {"installing", "uncertain", "restart_required"}:
+            if (journal and journal["id"] == job["id"] and journal["version"] == target
+                    and journal["attempt"] == job["attempt"]
+                    and (journal.get("local") is True) == (job.get("local") is True)
+                    and journal["status"] not in {"installing", "uncertain", "restart_required"}):
                 self.save(job, "failed")
             reported_error = "install_uncertain" if journal and journal["status"] in {"installing", "uncertain"} else error.code
             try:

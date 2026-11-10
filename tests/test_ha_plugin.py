@@ -271,6 +271,23 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
         await self.runtime.async_set_display(display)
         self.assertEqual(self.runtime.menu, after, "Unchanged options do not increment the revision")
 
+    async def test_successful_configuration_and_legacy_saves_sync_entity_issues(self):
+        self.runtime.menu = API.validate_configuration(self.runtime.menu)
+        entity_issues = types.SimpleNamespace(sync=AsyncMock())
+        self.runtime.entity_issues = entity_issues
+        async with await self.request("GET", "/configuration") as response:
+            configuration = await response.json()
+        async with await self.request("PUT", "/configuration", body=configuration) as response:
+            self.assertEqual(response.status, 200)
+        entity_issues.sync.assert_awaited_once_with()
+
+        entity_issues.sync.reset_mock()
+        async with await self.request("GET", "/config") as response:
+            menu = await response.json()
+        async with await self.request("PUT", "/config", body=menu) as response:
+            self.assertEqual(response.status, 200)
+        entity_issues.sync.assert_awaited_once_with()
+
     async def test_appearance_option_failures_do_not_change_live_or_stored_configuration(self):
         self.runtime.menu = API.validate_configuration(self.runtime.menu)
         before = copy.deepcopy(self.runtime.menu)

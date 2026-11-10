@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
 import tarfile
@@ -94,13 +95,31 @@ class PackageTests(unittest.TestCase):
             prefix = "custom_components/enigmaha_companion/"
             self.assertIn("manifest.json", hacs_zip.namelist())
             self.assertIn("enigmaha_protocol/menu.py", hacs_zip.namelist())
-            self.assertEqual(hacs_zip.read("brand/icon.png")[:8], b"\x89PNG\r\n\x1a\n")
             self.assertEqual(set(hacs_zip.namelist()), {
                 name.removeprefix(prefix) for name in manual_zip.namelist()})
             for name in hacs_zip.namelist():
                 self.assertFalse(name.startswith(("/", "custom_components/")))
                 self.assertNotIn("..", name.split("/"))
                 self.assertEqual(hacs_zip.read(name), manual_zip.read(prefix + name))
+
+    def test_ha_packages_ship_all_local_brand_images_unchanged(self):
+        hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+        source = ROOT / "custom_components/enigmaha_companion/brand"
+        for filename, prefix in (
+                (hacs["filename"], ""),
+                ("enigmaha-companion-ha-" + VERSION + ".zip", "custom_components/enigmaha_companion/")):
+            with zipfile.ZipFile(DIST / filename) as archive:
+                for theme in ("", "dark_"):
+                    for suffix, scale in (("", 1), ("@2x", 2)):
+                        for image, dimensions in (("icon", (256, 256)), ("logo", (1166, 128))):
+                            name = theme + image + suffix + ".png"
+                            with self.subTest(package=filename, image=name):
+                                data = archive.read(prefix + "brand/" + name)
+                                self.assertEqual(data, (source / name).read_bytes())
+                                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+                                self.assertEqual(data[8:16], b"\x00\x00\x00\rIHDR")
+                                self.assertEqual(struct.unpack(">II", data[16:24]),
+                                                 tuple(size * scale for size in dimensions))
 
     def test_checksums_cover_only_current_release_assets(self):
         sums = (DIST / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines()
@@ -120,7 +139,7 @@ class PackageTests(unittest.TestCase):
             names = archive.namelist()
             prefix = "custom_components/enigmaha_companion/"
             for filename in ("__init__.py", "manifest.json", "config_flow.py", "api.py", "menus.py", "panel.js",
-                             "icons.py", "update.py", "updates.py", "repairs.py", "repair_issues.py", "enigmaha_protocol/releases.py",
+                             "icons.py", "update.py", "updates.py", "repairs.py", "repair_issues.py", "entity_issues.py", "enigmaha_protocol/releases.py",
                              "translations/de.json", "translations/en.json", "enigmaha_protocol/menu.py", "enigmaha_protocol/icons.py"):
                 self.assertIn(prefix + filename, names)
             self.assertFalse(any("__pycache__" in name or name.endswith(".pyc") for name in names))

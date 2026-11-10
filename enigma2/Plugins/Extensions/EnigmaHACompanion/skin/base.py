@@ -33,6 +33,12 @@ class SkinProfile:
         """Optionally add backgrounds and update label/list attributes in place."""
 
     def footer(self, appearance, element, label_attrs, setup):
+        update_width = appearance.px(200) if setup else 0
         element("widget", appearance.margin, appearance.height - appearance.footer + appearance.px(6),
-                appearance.list_width, appearance.footer - appearance.px(12),
+                appearance.list_width - update_width, appearance.footer - appearance.px(12),
                 name="hint" if setup else "footer", **label_attrs)
+        if setup:
+            element("widget", appearance.margin + appearance.list_width - update_width,
+                    appearance.height - appearance.footer + appearance.px(6),
+                    update_width, appearance.footer - appearance.px(12), name="key_blue",
+                    **dict(label_attrs, foregroundColor="#003f82e5"))

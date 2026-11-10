@@ -386,6 +386,9 @@ class ConfigView(CompanionView):
             except (OSError, HomeAssistantError):
                 return self.reply({"error": "storage_failed"}, 500)
             runtime.menu = validate_configuration(menu)
+        entity_issues = getattr(runtime, "entity_issues", None)
+        if entity_issues is not None:
+            await entity_issues.sync()
         return self.reply(legacy_menu(runtime.menu))
 
 
@@ -415,6 +418,9 @@ class ConfigurationView(CompanionView):
             except (OSError, HomeAssistantError):
                 return self.reply({"error": "storage_failed"}, 500)
             runtime.menu = config
+        entity_issues = getattr(runtime, "entity_issues", None)
+        if entity_issues is not None:
+            await entity_issues.sync()
         return self.reply(config)
 
 

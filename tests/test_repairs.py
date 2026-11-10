@@ -38,14 +38,106 @@ ISSUES = types.SimpleNamespace(
     async_create_issue=lambda hass, domain, issue, **data: hass.issues.update({(domain, issue): data}),
     async_delete_issue=lambda hass, domain, issue: hass.issues.pop((domain, issue), None),
 )
+ENTITY_REGISTRY = types.SimpleNamespace(async_get=lambda hass: hass.registry)
 with patch.dict(sys.modules, {
     "homeassistant.helpers": types.SimpleNamespace(issue_registry=ISSUES),
+    "homeassistant.helpers.entity_registry": ENTITY_REGISTRY,
     "homeassistant.exceptions": types.SimpleNamespace(HomeAssistantError=API.HomeAssistantError),
     "homeassistant.components.repairs": types.SimpleNamespace(RepairsFlow=NativeFlow),
     "probatio": types.SimpleNamespace(Schema=lambda value: value),
 }):
     REPAIRS = importlib.import_module(API.__package__ + ".repairs")
     ISSUES_MODULE = importlib.import_module(API.__package__ + ".repair_issues")
+    ENTITY_ISSUES_MODULE = importlib.import_module(API.__package__ + ".entity_issues")
+
+
+class EntityEventBus:
+    def __init__(self):
+        self.listeners = {}
+        self.once = {}
+
+    def async_listen_once(self, event_type, callback):
+        self.once.setdefault(event_type, []).append(callback)
+        return lambda: self.once[event_type].remove(callback) if callback in self.once.get(event_type, []) else None
+
+    def async_listen(self, event_type, callback):
+        self.listeners.setdefault(event_type, []).append(callback)
+        return lambda: self.listeners[event_type].remove(callback) if callback in self.listeners.get(event_type, []) else None
+
+    async def fire(self, event_type, **data):
+        event = types.SimpleNamespace(data=data)
+        callbacks = self.once.pop(event_type, []) + list(self.listeners.get(event_type, []))
+        for callback in callbacks:
+            await callback(event)
+
+
+class EntityIssueTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.bus = EntityEventBus()
+        self.hass = types.SimpleNamespace(
+            is_running=False, bus=self.bus, states={"light.unavailable": types.SimpleNamespace(state="unavailable")},
+            registry=types.SimpleNamespace(entities={"light.unavailable": object(), "switch.registry_only": object()}),
+            issues={},
+        )
+        self.runtime = types.SimpleNamespace(menu={"menus": [{"type": "menu", "id": "root", "label": "Home",
+            "children": [
+                {"type": "entity", "id": "unavailable", "label": "Still present", "entity_id": "light.unavailable"},
+                {"type": "entity", "id": "registry", "label": "Registry only", "entity_id": "switch.registry_only"},
+                {"type": "menu", "id": "nested", "label": "Nested", "children": [
+                    {"type": "entity", "id": "missing", "label": "Old light", "entity_id": "light.gone"},
+                ]},
+            ]}]})
+        self.coordinator = ENTITY_ISSUES_MODULE.EntityIssueCoordinator(self.hass, self.runtime)
+
+    async def test_waits_until_ha_started_and_ignores_unavailable_or_registry_known_entities(self):
+        await self.coordinator.async_start()
+        self.assertEqual(self.hass.issues, {})
+        await self.bus.fire("homeassistant_started")
+        self.assertEqual(len(self.hass.issues), 1)
+        (domain, issue_id), issue = next(iter(self.hass.issues.items()))
+        self.assertEqual(domain, API.DOMAIN)
+        self.assertTrue(issue_id.startswith(ENTITY_ISSUES_MODULE.MISSING_ENTITY_ISSUE + "_"))
+        self.assertFalse(issue["is_fixable"])
+        self.assertEqual(issue["translation_placeholders"], {"entity_id": "light.gone", "entries": "Old light"})
+        self.assertEqual(self.coordinator.missing, {"light.gone"})
+
+    async def test_registry_and_state_events_clear_or_restore_issues_and_close_cleans_up(self):
+        await self.coordinator.async_start()
+        await self.bus.fire("homeassistant_started")
+        issue_id = next(iter(self.hass.issues))[1]
+        self.hass.registry.entities["light.gone"] = object()
+        await self.bus.fire("entity_registry_updated", action="create", entity_id="light.gone")
+        self.assertNotIn((API.DOMAIN, issue_id), self.hass.issues)
+
+        del self.hass.registry.entities["light.gone"]
+        await self.bus.fire("entity_registry_updated", action="remove", entity_id="light.gone")
+        self.assertIn((API.DOMAIN, issue_id), self.hass.issues)
+        self.hass.states["light.gone"] = types.SimpleNamespace(state="on")
+        await self.bus.fire("state_changed", entity_id="light.gone")
+        self.assertNotIn((API.DOMAIN, issue_id), self.hass.issues)
+
+        self.hass.states.pop("light.gone")
+        await self.coordinator.sync()
+        self.assertIn((API.DOMAIN, issue_id), self.hass.issues)
+        self.runtime.menu["menus"][0]["children"] = []
+        await self.coordinator.sync()
+        self.assertEqual(self.hass.issues, {})
+        self.runtime.menu["menus"][0]["children"] = [
+            {"type": "entity", "id": "missing", "label": "Old light", "entity_id": "light.gone"}]
+        await self.coordinator.sync()
+        issue_id = next(iter(self.hass.issues))[1]
+        self.coordinator.close()
+        self.assertIn((API.DOMAIN, issue_id), self.hass.issues)
+        self.assertEqual(self.coordinator.missing, set())
+        self.assertEqual(self.bus.listeners, {"entity_registry_updated": [], "state_changed": []})
+
+    async def test_startup_clears_a_persistent_issue_when_the_entity_returned_while_ha_was_down(self):
+        issue_id = ENTITY_ISSUES_MODULE._issue_id("light.gone")
+        self.hass.issues[(API.DOMAIN, issue_id)] = {"is_persistent": True}
+        self.hass.states["light.gone"] = types.SimpleNamespace(state="on")
+        await self.coordinator.async_start()
+        await self.bus.fire("homeassistant_started")
+        self.assertNotIn((API.DOMAIN, issue_id), self.hass.issues)
 
 
 class RepairTests(unittest.IsolatedAsyncioTestCase):

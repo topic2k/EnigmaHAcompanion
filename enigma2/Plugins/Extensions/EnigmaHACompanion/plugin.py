@@ -363,6 +363,13 @@ class CompanionScreen(Screen):
     def loaded(self, result, generation):
         if self.closed or generation != self.generation:
             return
+        if isinstance(result, dict) and result.get("no_update") is True:
+            self.busy = False
+            message = self.t("Receiver ist bereits aktuell.")
+            self["status"].setText(message)
+            self.session.open(MessageBox, message, type=MessageBox.TYPE_INFO)
+            self.timer.start(self.config["refresh_seconds"] * 1000, True)
+            return
         if isinstance(result, dict) and "update" in result:
             self.busy, self.online = False, False
             self.update_loaded(result["update"])
@@ -529,7 +536,7 @@ class CompanionScreen(Screen):
             self.run(work, self.t("Update abgelehnt."))
 
     def install_update(self, job, confirmed):
-        client = self.client
+        client = None if job.get("local") else self.client
         def work():
             from Components.SystemInfo import BoxInfo
             if BoxInfo.getItem("distro") != "openatv":
@@ -635,10 +642,23 @@ class CompanionScreen(Screen):
             self["status"].setText(self.t("Bitte laufenden Abruf abwarten; danach Menü erneut drücken."))
             return
         self.timer.stop()
-        self.session.openWithCallback(self.settings_done, CompanionSetup, self.config)
+        self.session.openWithCallback(self.settings_done, CompanionSetup, self.config,
+                                      update_check=self.updater.available_update)
+
+    def update_plugin(self):
+        if self.closed or self.busy:
+            return
+        def work():
+            job = self.updater.available_update()
+            return {"update": job} if job else {"no_update": True}
+        self.update_notice = None
+        self.run(work, self.t("Receiver-Update wird geprüft …"))
 
     def settings_done(self, values):
         if self.closed:
+            return
+        if values == "update":
+            self.update_plugin()
             return
         if values is not None:
             identity_changed = any(values.get(key) != self.config.get(key) for key in ("url", "token"))

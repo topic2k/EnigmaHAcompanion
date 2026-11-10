@@ -148,6 +148,42 @@ wird beim Ignorieren beendet. Laufende oder unklare Installationen und ausstehen
 GUI-Neustarts müssen zuerst geklärt bzw. abgeschlossen werden. Bestehende
 Konfigurationen benötigen keine Migration oder Neueinrichtung.
 
+### Projektlogo in Marketplace und HACS
+
+Marketplace ab Home Assistant 2026.11 verwendet automatisch das mitgelieferte
+Projekticon aus `custom_components/enigmaha_companion/brand/`. Die Integration
+muss installiert und HA nach der Installation neu gestartet sein. Eine zusätzliche
+Branding-Einrichtung ist nicht nötig; bei einer alten Anzeige den Browser neu laden.
+Die Updateanzeige bleibt der Gruppe Marketplace bzw. HACS zugeordnet.
+
+Älteres HACS bezieht das Bild seiner Update-Entität noch vom externen
+Brandingdienst und findet die lokalen Dateien nicht. Optional kannst du dort
+nur das Entitätsbild manuell anpassen:
+
+1. `icon.png` aus `/config/custom_components/enigmaha_companion/brand/` nach
+   `/config/www/enigmaha-companion.png` kopieren. Den Ordner `www` bei Bedarf
+   anlegen. Er wird unter `/local/` öffentlich bereitgestellt; dort nur das
+   öffentliche Icon, keine Zugangsdaten ablegen.
+2. In `configuration.yaml` folgende Anpassung ergänzen. Die Beispiel-Entity-ID
+   durch die tatsächliche HACS-Update-Entität deiner Installation ersetzen:
+
+   ```yaml
+   homeassistant:
+     customize:
+       update.enigmaha_companion_update:
+         entity_picture: /local/enigmaha-companion.png
+   ```
+
+   Einen vorhandenen `homeassistant:`-Block ergänzen, nicht doppelt anlegen.
+   Falls `customize` bereits per `!include` ausgelagert ist, nur den Entitätseintrag
+   in die eingebundene Datei übernehmen und andere Anpassungen erhalten.
+3. Die HA-Konfiguration prüfen, HA neu starten und den Browser neu laden.
+
+Die Entität bleibt aktiv und installiert Updates unverändert über HACS. Nach
+dem Wechsel zu Marketplace kann diese optionale `entity_picture`-Anpassung
+entfernt werden, damit wieder das automatisch bereitgestellte Icon verwendet
+wird. Menüs und gespeicherte Einstellungen benötigen keine Migration.
+
 ## Update direkt bei einem Versionskonflikt
 
 Meldet der Receiver einen Versions- oder Protokollkonflikt und läuft HA mit

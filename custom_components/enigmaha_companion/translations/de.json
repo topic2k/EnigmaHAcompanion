@@ -43,6 +43,10 @@
     }
   },
   "issues": {
+    "missing_menu_entity": {
+      "title": "Entität im Receiver-Menü nicht gefunden",
+      "description": "Der Menüeintrag „{entries}“ verweist auf {entity_id}, das nicht mehr vorhanden ist. Öffne den EnigmaHA Companion-Editor und wähle eine Ersatzentität aus. Falls du den Eintrag nicht reparieren möchtest, kannst du diesen Hinweis in Home Assistant ignorieren."
+    },
     "protocol_mismatch": {
       "title": "EnigmaHA-Protokolle passen nicht zusammen",
       "description": "HA verwendet Protokoll {protocol}. Erkannte Receiver (Adresse: Release / Protokoll): {receivers}. Die Verbindung ist gesperrt. Öffne die Reparatur, um einen gemeinsamen Release zu installieren oder den begonnenen Updateauftrag fortzusetzen. Der Hinweis bleibt bei Receiver-Standby bestehen.",
