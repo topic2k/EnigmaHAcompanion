@@ -37,6 +37,18 @@ class Label:
         self.text = text
 
 
+class Pixmap:
+    def __init__(self):
+        self.instance = object()
+        self.visible = True
+
+    def hide(self):
+        self.visible = False
+
+    def show(self):
+        self.visible = True
+
+
 class MenuList:
     def __init__(self, rows, **kwargs):
         self.rows, self.index = rows, 0
@@ -132,7 +144,7 @@ def load_receiver():
     package.__path__ = [str(BUNDLE)]
     sys.modules[package.__name__] = package
     fake = {}
-    for name in ("Components", "Components.ActionMap", "Components.Label", "Components.MenuList",
+    for name in ("Components", "Components.ActionMap", "Components.Label", "Components.Pixmap", "Components.MenuList",
                  "Components.MultiContent", "Components.ConfigList", "Components.config", "Plugins",
                  "Plugins.Plugin", "Screens", "Screens.Screen", "Screens.MessageBox",
                  "Screens.VirtualKeyBoard", "Screens.ChoiceBox", "enigma", "twisted", "twisted.internet", "twisted.internet.threads",
@@ -140,6 +152,7 @@ def load_receiver():
         fake[name] = types.ModuleType(name)
     fake["Components.ActionMap"].ActionMap = lambda contexts, actions, priority: types.SimpleNamespace(actions=actions)
     fake["Components.Label"].Label = Label
+    fake["Components.Pixmap"].Pixmap = Pixmap
     fake["Components.MenuList"].MenuList = MenuList
     fake["Components.MultiContent"].MultiContentEntryText = lambda **kwargs: kwargs
     fake["Components.MultiContent"].MultiContentEntryPixmapAlphaBlend = lambda **kwargs: dict(kwargs, kind="pixmap")
@@ -1325,6 +1338,42 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(setup["key_blue"].text, "")
         setup["setupActions"].actions["blue"]()
         self.assertIsNone(setup.close_result)
+
+    def test_gradient_setup_shows_blue_arrow_with_update_and_hides_it_again(self):
+        appearance = PLUGIN.CompanionSetup.__init__.__globals__["Appearance"]
+        package = appearance.__module__.rsplit(".", 1)[0]
+        gradient = sys.modules[package + ".skin.GradientFHD"]
+        job = dict(self.update_plan(), local=True)
+        for language in ("de", "en"):
+            with self.subTest(language=language), patch.object(gradient.os.path, "isfile", return_value=True), patch.dict(
+                    sys.modules, {"enigma": types.SimpleNamespace(eLabel=object, eListbox=object)}):
+                setup = PLUGIN.CompanionSetup(
+                    self.screen.session,
+                    dict(self.screen.config, language=language, skin_profile="gradient"),
+                    update_check=Mock())
+            arrow = setup["key_blue_arrow"]
+            self.assertFalse(arrow.visible)
+            self.assertEqual(setup["key_blue"].text, "")
+            setup.update_checked(job)
+            self.assertTrue(arrow.visible)
+            self.assertEqual(setup["key_blue"].text, "Update")
+            setup.update_checked(None)
+            self.assertFalse(arrow.visible)
+            self.assertEqual(setup["key_blue"].text, "")
+
+    def test_gradient_setup_without_blue_asset_keeps_text_fallback(self):
+        appearance = PLUGIN.CompanionSetup.__init__.__globals__["Appearance"]
+        package = appearance.__module__.rsplit(".", 1)[0]
+        gradient = sys.modules[package + ".skin.GradientFHD"]
+        with patch.object(gradient.os.path, "isfile", return_value=False), patch.dict(
+                sys.modules, {"enigma": types.SimpleNamespace(eLabel=object, eListbox=object)}):
+            setup = PLUGIN.CompanionSetup(
+                self.screen.session,
+                dict(self.screen.config, skin_profile="gradient"),
+                update_check=Mock())
+        self.assertNotIn("key_blue_arrow", setup)
+        setup.update_checked(dict(self.update_plan(), local=True))
+        self.assertEqual(setup["key_blue"].text, "Blau: Update")
 
     def test_setup_update_label_has_visible_footer_widget_in_both_profiles(self):
         enigma = types.SimpleNamespace(eLabel=object, eListbox=object)

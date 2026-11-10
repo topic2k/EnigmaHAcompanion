@@ -31,6 +31,8 @@ class GradientProfile(SkinProfile):
     def decorate(self, appearance, root, element, label_attrs, list_attrs):
         import enigma
         color = skin_color
+        blue_arrow = "/usr/share/enigma2/GradientFHD/buttons/key_blue.png"
+        appearance.blue_arrow_path = blue_arrow if os.path.isfile(blue_arrow) else None
         bg = color("gradient_BGO", "#16152131")
         bottom = color("gradient_BGU", "#16000000")
         accent = color("gradient_BGLM", "#001b5a91")
@@ -81,6 +83,16 @@ class GradientProfile(SkinProfile):
             for index, (asset, text, icon_width, fallback) in enumerate(row):
                 x = appearance.margin + index * column
                 if text is None:
+                    if setup and appearance.blue_arrow_path:
+                        width = appearance.px(icon_width)
+                        height = appearance.px(20)
+                        element("widget", x, y + (appearance.px(26) - height) // 2, width, height,
+                                name="key_blue_arrow", pixmap=appearance.blue_arrow_path,
+                                alphatest="blend", scale="1")
+                        text_x = x + width + appearance.px(5)
+                        element("widget", text_x, y, column - width - appearance.px(14),
+                                appearance.px(26), name="key_blue", **attrs)
+                        continue
                     element("widget", x, y, column - appearance.px(9), appearance.px(26),
                             name="key_blue", **dict(attrs, foregroundColor=skin_color("blue", "#003f82e5")))
                     continue

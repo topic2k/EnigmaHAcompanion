@@ -207,6 +207,22 @@ class AppearanceTests(unittest.TestCase):
                     self.assertTrue(Path(recall.get("pixmap")).is_file())
                 self.assertEqual("key_blue" in assets, not setup)
 
+    def test_gradient_setup_uses_blue_arrow_and_neutral_update_label(self):
+        with self.environment(), patch.object(GRADIENT.os.path, "isfile", return_value=True):
+            appearance = self.layout()
+            root = ET.fromstring(appearance.layout(setup=True))
+            arrow = root.find("widget[@name='key_blue_arrow']")
+            label = root.find("widget[@name='key_blue']")
+            self.assertIsNotNone(arrow)
+            self.assertEqual(Path(arrow.get("pixmap")).name, "key_blue.png")
+            self.assertEqual(arrow.get("size"), "%s,%s" % (appearance.px(20), appearance.px(20)))
+            self.assertIsNotNone(label)
+            self.assertEqual(label.get("foregroundColor"), "#00dbe1e4")
+            arrow_x, _ = map(int, arrow.get("position").split(","))
+            label_x, _ = map(int, label.get("position").split(","))
+            self.assertGreater(label_x, arrow_x)
+            self.assertTrue(appearance.has_update_arrow)
+
     def test_missing_button_assets_keep_readable_action_labels(self):
         with self.environment(), patch.object(GRADIENT.os.path, "isfile", return_value=False):
             appearance = self.layout()
