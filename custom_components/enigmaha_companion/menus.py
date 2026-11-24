@@ -112,13 +112,14 @@ def legacy_menu(value):
             return None
         node.pop("access", None)
         node.pop("brightness_step_pct", None)
+        node.pop("confirm", None)
         if node["type"] == "entity":
             node["actions"] = [action for action in node["actions"] if action == "toggle"]
     return _document(config, root)
 
 
 def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=None,
-                  select=False, get_options=None):
+                  select=False, get_options=None, confirm=False):
     """Use the same projection for menus, states, commands and admin previews."""
     config = validate_configuration(value)
 
@@ -154,6 +155,10 @@ def receiver_menu(value, user_id, can_read, can_control, dimming=False, can_dim=
             else:
                 node.pop("brightness_step_pct", None)
                 node["actions"] = [action for action in node["actions"] if action == "toggle"]
+            # Older receivers reject unknown fields; confirmation is negotiated.
+            if not (confirm and node["actions"] and any(
+                    action in {"toggle", SELECT_ACTION} for action in node["actions"])):
+                node.pop("confirm", None)
         else:
             had_children = bool(node["children"])
             node["children"] = [child for child in (visible(child) for child in node["children"]) if child is not None]
