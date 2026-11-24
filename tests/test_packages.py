@@ -162,10 +162,11 @@ class PackageTests(unittest.TestCase):
             self.assertIn("License: GPL-2.0-or-later\n", control)
             dependencies = next(line[len("Depends: "):] for line in control.splitlines()
                                 if line.startswith("Depends: ")).split(", ")
-            # OpenEmbedded: urllib/http -> netclient, ssl/_ssl/tempfile -> io.
+            # OpenEmbedded: urllib/http -> netclient, ssl/_ssl/tempfile -> io,
+            # compileall/py_compile for postinst -> compile.
             self.assertEqual(set(dependencies), {
                 "enigma2", "python3-core (>= 3.13)", "python3-json", "python3-netclient",
-                "python3-io", "python3-twisted-core",
+                "python3-io", "python3-compile", "python3-twisted-core",
             })
             self.assertTrue({"python3-urllib", "python3-ssl"}.isdisjoint(dependencies))
         with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as archive:

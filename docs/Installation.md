@@ -326,7 +326,7 @@ Das Plugin erscheint auch im Erweiterungsmenü, sofern das Image dieses anzeigt.
 
 Fehlende Abhängigkeiten aus dem Feed des jeweiligen Images installieren.
 Das IPK benötigt `enigma2`, `python3-core (>= 3.13)`, `python3-json`,
-`python3-netclient`, `python3-io` und `python3-twisted-core`.
+`python3-netclient`, `python3-io`, `python3-compile` und `python3-twisted-core`.
 Keine Abhängigkeiten mit `--force-depends` übergehen.
 
 ### Alternative: manuelles TAR-Paket
@@ -568,6 +568,12 @@ in den Release-Informationen. Vor Änderungen die Konfiguration sichern.
 - **Schrift fehlt:** `Regular` oder eine auf dem Receiver registrierte Schrift wählen.
 - **Plugin fehlt im Menü:** Python-Version und Abhängigkeiten prüfen; Enigma2-Startlog
   auf Importfehler prüfen. Keine Tokens mitsenden.
+- **IPK bleibt halb installiert (`No module named 'py_compile'`):** Releases bis
+  1.5.1 deklarieren `python3-compile` noch nicht. Fehlt das Paket im Image, bricht
+  das Installationsskript ab und `opkg` meldet den Status `install ok unpacked`.
+  `opkg install python3-compile` und danach
+  `opkg configure enigma2-plugin-extensions-enigmahacompanion` ausführen und die
+  GUI neu starten.
 - **IPK entfernen:** `opkg remove enigma2-plugin-extensions-enigmahacompanion`,
   danach GUI neu starten.
 - **Manuelle Receiver-Installation entfernen:** Nur den oben genannten Plugin-Ordner

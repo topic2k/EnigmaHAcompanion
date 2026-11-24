@@ -223,7 +223,9 @@ field retains the original protocol repair.
 The IPK's `postinst` recompiles the plugin's Python files with checked source
 hashes at all optimization levels. Reproducible tar timestamps alone cannot
 invalidate cached bytecode when a source change keeps the same file size:
-the next GUI start can otherwise load the previous release.
+the next GUI start can otherwise load the previous release. OpenEmbedded ships
+`compileall` and `py_compile` only in `python3-compile`, so the IPK declares it
+as a dependency.
 
 ### Testing guidance
 
