@@ -70,6 +70,21 @@ class MenuTests(unittest.TestCase):
         with self.assertRaises(ProtocolError):
             validate_menu(self.menu)
 
+    def test_confirm_is_optional_true_on_switchable_entities_only(self):
+        self.light["confirm"] = True
+        self.assertIs(validate_menu(self.menu)["root"]["children"][0]["children"][0]["confirm"], True)
+        self.assertEqual(self.plan(), {"domain": "light", "service": "toggle",
+                                       "data": {"entity_id": "light.wohnzimmer"}})
+        for value in (False, 1, "true", None):
+            with self.subTest(value=value), self.assertRaises(ProtocolError):
+                self.light["confirm"] = value
+                validate_menu(self.menu)
+        self.light.update(confirm=True, entity_id="sensor.temperature", actions=[])
+        with self.assertRaises(ProtocolError):
+            validate_menu(self.menu)
+        self.light.update(entity_id="select.mode", actions=["select_option"], options=["A", "B"])
+        self.assertIs(validate_menu(self.menu)["root"]["children"][0]["children"][0]["confirm"], True)
+
     def test_dimming_actions_use_configured_step_and_direction(self):
         self.light["actions"] = ["toggle", "dim_up", "dim_down"]
         self.light["brightness_step_pct"] = 17
