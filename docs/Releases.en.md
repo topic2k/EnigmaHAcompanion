@@ -71,6 +71,11 @@ publishes only the `v<Version>` tag for that tested commit and uploads the teste
 packages. If the branch changed during the build, it stops; rerun against the
 updated branch. Afterwards, update the local branch with `git pull --ff-only`.
 
+Before the release job runs, a separate job without repository write access checks
+the tested packages against `SHA256SUMS.txt` again and creates signed GitHub
+artifact attestations (SLSA build provenance) for all five files. It needs only
+`id-token: write` and `attestations: write`.
+
 Assets are first uploaded to a draft. The release is published only after all
 uploads succeed. Existing tags/releases are not overwritten. Prereleases are
 not marked Latest.
@@ -87,6 +92,30 @@ Users add the repository once as a HACS custom **Integration** and install a
 published release. The development branch is hidden because
 the build bundles the shared protocol. Enable beta versions in HACS to see
 prereleases. Inclusion in HACS's default catalog is a separate process.
+
+## Verify release files
+
+`SHA256SUMS.txt` is part of the same release as the packages. Checksums detect
+damaged or mixed-up downloads but do not prove where the files came from on their
+own: anyone able to replace the packages could replace the checksum file as well.
+Attestations therefore add provenance. They confirm that a file with exactly this
+content was built by this repository's release workflow.
+
+In the folder containing the downloaded files, run with the
+[GitHub CLI](https://cli.github.com/):
+
+```console
+sha256sum --check --ignore-missing SHA256SUMS.txt
+gh attestation verify enigma2-plugin-extensions-enigmahacompanion_<Version>_all.ipk --repo topic2k/EnigmaHAcompanion
+```
+
+`gh attestation verify` works for every release file, including `SHA256SUMS.txt`.
+Add `--signer-workflow topic2k/EnigmaHAcompanion/.github/workflows/release.yml`
+to also pin the producing workflow. Attestations are also listed at
+<https://github.com/topic2k/EnigmaHAcompanion/attestations>.
+Releases published before this step was added have no attestations. During
+updates, the receiver still checks size, SHA-256 and package metadata; it does
+not check attestations.
 
 ## Troubleshooting
 

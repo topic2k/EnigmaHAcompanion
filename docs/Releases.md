@@ -78,6 +78,11 @@ sich der Branch während des Builds geändert, bricht der Workflow ab; anschlie�
 mit dem aktuellen Branch erneut starten. Nach einem Release den lokalen Branch mit
 `git pull --ff-only` aktualisieren.
 
+Vor dem Release-Job prüft ein eigener Job ohne Schreibrecht auf das Repository die
+getesteten Pakete erneut gegen `SHA256SUMS.txt` und erzeugt für alle fünf Dateien
+signierte GitHub-Artefaktattestierungen (SLSA-Build-Provenienz). Er benötigt dafür
+nur `id-token: write` und `attestations: write`.
+
 Alle Dateien werden zunächst an einen Release-Entwurf gehängt;
 erst nach vollständigem Upload wird dieser veröffentlicht. Bestehende Tags oder
 Releases werden nicht überschrieben. Ein Vorabrelease wird nicht als „Latest“ markiert.
@@ -97,6 +102,31 @@ hinzu und installieren einen veröffentlichten Release.
 Der Entwicklungsbranch wird ausgeblendet, da der Build das gemeinsame Protokoll
 einbindet. Für Vorabversionen in HACS die Anzeige von Betaversionen aktivieren.
 Eine Aufnahme in den HACS-Standardkatalog ist ein separater Vorgang.
+
+## Release-Dateien prüfen
+
+`SHA256SUMS.txt` liegt im selben Release wie die Pakete. Die Prüfsummen erkennen
+beschädigte oder vertauschte Downloads, belegen aber allein nicht, woher die Dateien
+stammen: Wer die Pakete ersetzen kann, kann auch die Prüfsummendatei ersetzen.
+Die Attestierungen ergänzen deshalb die Herkunft. Sie bestätigen, dass eine Datei
+mit genau diesem Inhalt vom Release-Workflow dieses Repositories gebaut wurde.
+
+Im Ordner mit den heruntergeladenen Dateien und der
+[GitHub CLI](https://cli.github.com/) ausführen:
+
+```console
+sha256sum --check --ignore-missing SHA256SUMS.txt
+gh attestation verify enigma2-plugin-extensions-enigmahacompanion_<Version>_all.ipk --repo topic2k/EnigmaHAcompanion
+```
+
+`gh attestation verify` funktioniert für jede Release-Datei, einschließlich
+`SHA256SUMS.txt`. Mit
+`--signer-workflow topic2k/EnigmaHAcompanion/.github/workflows/release.yml`
+lässt sich zusätzlich der erzeugende Workflow festlegen. Die Attestierungen stehen
+auch unter <https://github.com/topic2k/EnigmaHAcompanion/attestations>.
+Releases vor Einführung dieses Schritts haben keine Attestierungen. Der Receiver prüft beim
+Update weiterhin Größe, SHA-256 und Paketmetadaten; Attestierungen werden dort
+nicht geprüft.
 
 ## Fehlerbehebung
 
