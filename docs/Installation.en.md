@@ -298,8 +298,8 @@ Restart the GUI and open **Plugins → EnigmaHA Companion**. The plugin also
 appears in the extensions menu where supported by the image.
 
 Install missing dependencies from the image's feed. The IPK requires `enigma2`,
-`python3-core (>= 3.13)`, `python3-json`, `python3-netclient`, `python3-io`, and
-`python3-twisted-core`. Do not bypass dependencies with `--force-depends`.
+`python3-core (>= 3.13)`, `python3-json`, `python3-netclient`, `python3-io`,
+`python3-compile`, and `python3-twisted-core`. Do not bypass dependencies with `--force-depends`.
 
 ### Alternative: manual TAR package
 
@@ -524,6 +524,11 @@ the editor and receiver start in German. Existing menus and credentials remain.
 - **Missing font:** Choose `Regular` or a registered receiver font.
 - **Plugin missing:** Check Python and dependencies; inspect Enigma2 startup logs
   for import errors. Do not include tokens in reports.
+- **IPK stays half-installed (`No module named 'py_compile'`):** Releases up to
+  1.5.1 do not declare `python3-compile` yet. If the image lacks it, the install
+  script fails and `opkg` reports the status `install ok unpacked`. Run
+  `opkg install python3-compile`, then
+  `opkg configure enigma2-plugin-extensions-enigmahacompanion`, and restart the GUI.
 - **Remove IPK:** Run `opkg remove enigma2-plugin-extensions-enigmahacompanion`,
   then restart the GUI.
 - **Remove manual receiver installation:** Remove only the plugin folder named

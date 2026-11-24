@@ -261,7 +261,8 @@ Das IPK kompiliert im `postinst` die Python-Dateien des Plugins mit geprüften
 Quellcode-Hashes für alle Optimierungsstufen neu. Die reproduzierbaren
 Tar-Zeitstempel allein reichen zur Cacheprüfung nicht: Bei gleicher Dateigröße
 kann sonst Bytecode des vorherigen Releases nach einem GUI-Neustart gültig
-erscheinen.
+erscheinen. `compileall` und `py_compile` liefert OpenEmbedded nur im Paket
+`python3-compile`; das IPK deklariert es deshalb als Abhängigkeit.
 
 ### Prüfhinweise
 
