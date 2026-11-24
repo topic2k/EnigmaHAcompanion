@@ -12,9 +12,10 @@ stehen in der [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen)
 Receiver-Anfragen an `/menu`, `/states` und `/actions` senden
 `X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
 und `X-EnigmaHA-Protocol: 1`. Receiver mit Dimm-Unterstützung senden zusätzlich
-`X-EnigmaHA-Dimming: 1`, Receiver mit Select-Unterstützung `X-EnigmaHA-Select: 1`.
+`X-EnigmaHA-Dimming: 1`, Receiver mit Select-Unterstützung `X-EnigmaHA-Select: 1`
+und Receiver mit Rückfrage-Unterstützung `X-EnigmaHA-Confirm: 1`.
 Ohne den jeweiligen optionalen Header bleiben Antwortfelder und Aktionen im bisherigen
-Format; ältere Receiver erhalten keine Select-Aktionen oder Optionslisten.
+Format; ältere Receiver erhalten keine Select-Aktionen, Optionslisten oder `confirm`.
 HA prüft die Header nach der Authentifizierung und vor dem Abruf bzw. Schalten.
 Antworten der Companion-Views enthalten `X-EnigmaHA-Component: homeassistant`
 und die eigene `X-EnigmaHA-Version` sowie `X-EnigmaHA-Protocol`. Der Receiver
@@ -120,6 +121,12 @@ Die maßgebliche Validierung liegt in `protocol/enigmaha_protocol/menu.py`.
 - Ausgehandelte Entitätseinträge mit `select_option` liefern `options` als Liste
   von 1–500 eindeutigen, nicht leeren Zeichenfolgen (jeweils höchstens 255 Zeichen).
   Dieses Laufzeitfeld gehört nicht in die gespeicherte HA-Konfiguration.
+- Optionales `confirm: true` an Einträgen für `light`, `switch`, `input_boolean`,
+  `select` und `input_select`. Andere Werte sind Fehler; ohne Feld gilt keine
+  Rückfrage. HA liefert es nur mit `X-EnigmaHA-Confirm: 1` und nur, solange der
+  Eintrag für den Benutzer eine `toggle`- oder `select_option`-Aktion hat. Der
+  Receiver fragt dann vor diesen Aktionen lokal nach; Dimmaktionen und die
+  serverseitige Prüfung bleiben unverändert.
 - `children` bestimmt die Reihenfolge; Menü- und Entitätseinträge dürfen gemischt sein.
 - Alle IDs sind dokumentweit eindeutig, 1–64 ASCII-Buchstaben, Ziffern, `_` oder `-`.
 - Labels enthalten 1–120 Zeichen und keine Steuerzeichen. Maximal 500 Knoten

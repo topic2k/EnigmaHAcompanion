@@ -706,6 +706,52 @@ class ReceiverTests(unittest.TestCase):
         self.assertEqual(self.commands, [])
         self.assertEqual(self.dialogs, [])
 
+    def test_confirmed_entries_ask_before_toggle_and_decline_sends_nothing(self):
+        self.menu["root"]["children"][0]["children"][0]["confirm"] = True
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.press("ok")
+        self.assertEqual(self.screen.nav.selection["id"], "ceiling")
+        self.press("ok")
+        (callback, box, prompt), options = self.dialogs.pop()
+        self.assertIs(box, PLUGIN.MessageBox)
+        self.assertEqual(options, {"type": PLUGIN.MessageBox.TYPE_YESNO, "default": False})
+        self.assertEqual(prompt, "„Deckenlicht“ einschalten?")
+        self.assertEqual(self.pending, [])
+        self.assertTrue(self.screen.busy)
+        self.press("ok")
+        self.assertEqual(self.dialogs, [], "A second OK must not stack another confirmation")
+        callback(False)
+        self.assertEqual((self.pending, self.commands), ([], []))
+        self.assertFalse(self.screen.busy)
+        self.assertEqual(self.screen["status"].text, "Aktion abgebrochen.")
+
+        self.press("ok")
+        (callback, _box, _prompt), _options = self.dialogs.pop()
+        callback(True)
+        self.assertEqual(len(self.pending), 1)
+        self.pending.pop().fire()
+        self.assertEqual(self.commands, [{"schema_version": 1, "revision": self.menu["revision"],
+                                          "entry_id": "ceiling", "action": "toggle"}])
+
+        self.press("ok")
+        (callback, _box, _prompt), _options = self.dialogs.pop()
+        self.screen.generation += 1  # Settings changed or screen reloaded meanwhile.
+        callback(True)
+        self.assertEqual(self.pending, [])
+        self.assertEqual(len(self.commands), 1)
+
+    def test_confirmed_select_names_the_chosen_option(self):
+        self.install_select_menu()
+        self.menu["root"]["children"][0]["children"][0]["confirm"] = True
+        self.screen.loaded((self.menu, self.states), self.screen.generation)
+        self.press("optionUp")
+        self.press("ok")
+        (callback, _box, prompt), _options = self.dialogs.pop()
+        self.assertEqual(prompt, "„Deckenlicht“ auf „Heizen“ setzen?")
+        callback(True)
+        self.pending.pop().fire()
+        self.assertEqual(self.commands[-1]["option"], "Heizen")
+
     def test_green_keeps_submenu_and_toggle_behavior_for_other_entries(self):
         mapping = next(key.attrib["mapto"] for key in ET.parse(BUNDLE / "keymap.xml").findall(".//key")
                        if key.attrib["id"] == "KEY_GREEN")

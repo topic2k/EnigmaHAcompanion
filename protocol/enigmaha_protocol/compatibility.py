@@ -10,6 +10,7 @@ VERSION_HEADER = "X-EnigmaHA-Version"
 RECEIVER_HEADER = "X-EnigmaHA-Receiver-ID"
 DIMMING_HEADER = "X-EnigmaHA-Dimming"
 SELECT_HEADER = "X-EnigmaHA-Select"
+CONFIRM_HEADER = "X-EnigmaHA-Confirm"
 
 
 def valid_receiver_id(value):

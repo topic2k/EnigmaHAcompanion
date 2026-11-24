@@ -103,6 +103,13 @@ werden; beim Blättern bleibt die Vorschau kursiv sichtbar, bis sie mit OK best�
 oder verworfen wird. Andere Entitäten dienen der Anzeige. Der angemeldete
 Receiver-Benutzer benötigt passende HA-Lese- und Steuerungsberechtigungen.
 
+Für schaltbare Einträge kann **Am Receiver vor dem Schalten nachfragen**
+aktiviert werden. Der Receiver fragt dann vor dem Umschalten oder Setzen einer
+Auswahl mit Ja/Nein nach; vorausgewählt ist **Nein**. Das gilt auch für
+OpenATV-Hotkeys, nicht für das Dimmen. Die Option ist standardmäßig aus;
+bestehende Menüs bleiben unverändert. Ältere Receiver-Versionen schalten weiterhin
+ohne Nachfrage.
+
 Über **Menüs verwalten** können gemeinsame und persönliche Menüs angelegt werden.
 **Freigabe** begrenzt ganze Menüs, Untermenüs und einzelne Einträge auf ausgewählte
 HA-Benutzer. Maßgeblich ist der Benutzer des Receiver-Tokens. Die
@@ -520,7 +527,8 @@ Hotkey-Einstellungen erneut öffnen. Die zuletzt geladene Liste wird lokal unter
 Tastenbelegungen nach einem GUI-Neustart sofort verfügbar sind. Die Datei ist an
 HA-Adresse und Token gebunden, enthält aber keine Zugangsdaten. Nach einem
 Tokenwechsel die Hotkey-Einstellungen einmal öffnen. Vor jedem Schaltbefehl
-werden der aktuelle Menüeintrag und die HA-Berechtigungen geprüft. Bei
+werden der aktuelle Menüeintrag und die HA-Berechtigungen geprüft. Ist für den
+Eintrag die Nachfrage aktiviert, schaltet die Taste erst nach Bestätigung. Bei
 Verbindungsproblemen erscheint eine Fehlermeldung; Schaltbefehle werden nicht
 automatisch wiederholt.
 

@@ -229,8 +229,37 @@ class CompanionScreen(Screen):
             if not is_select:
                 self["status"].setText(self.t("Dieser Eintrag ist nur lesbar oder nicht verfügbar."))
             return
-        self.execute_action(command, self.t("Auswahl wird gesetzt …") if is_select
-                            else self.t("Schaltbefehl wird gesendet …"))
+        message = self.t("Auswahl wird gesetzt …") if is_select else self.t("Schaltbefehl wird gesendet …")
+        if self.nav.selection.get("confirm"):
+            self.confirm_action(self.nav.selection, command, message)
+            return
+        self.execute_action(command, message)
+
+    def confirm_action(self, node, command, message):
+        """Ask locally before sending; declining never contacts Home Assistant."""
+        if command["action"] == SELECT_ACTION:
+            prompt = self.t("„{label}“ auf „{option}“ setzen?", label=safe_text(node["label"]),
+                            option=safe_text(command["option"]))
+        elif self.states.get(node["entity_id"], {}).get("state") == "on":
+            prompt = self.t("„{label}“ ausschalten?", label=safe_text(node["label"]))
+        else:
+            prompt = self.t("„{label}“ einschalten?", label=safe_text(node["label"]))
+        self.timer.stop()
+        self.busy = True
+        generation = self.generation
+        self.session.openWithCallback(
+            lambda answer: self.action_confirmed(answer, command, message, generation),
+            MessageBox, prompt, type=MessageBox.TYPE_YESNO, default=False)
+
+    def action_confirmed(self, answer, command, message, generation):
+        if self.closed or generation != self.generation:
+            return
+        self.busy = False
+        if answer:
+            self.execute_action(command, message)
+            return
+        self["status"].setText(self.t("Aktion abgebrochen."))
+        self.timer.start(self.config["refresh_seconds"] * 1000, True)
 
     def green(self):
         selection = self.nav.selection if self.nav else None

@@ -44,6 +44,7 @@ const ENIGMAHA_EN = {
   "Eingabeauswahl": "Input select",
   "Dimm-Schrittweite (%)": "Dimming step (%)",
   "Schrittweite zwischen 1 und 100 Prozent": "Step size from 1 to 100 percent",
+  "Am Receiver vor dem Schalten nachfragen": "Ask for confirmation on the receiver before switching",
   "Sensor": "Sensor",
   "Binärsensor": "Binary sensor",
   "Entitätstyp": "Entity type",
@@ -280,11 +281,16 @@ class EnigmaHAPanel extends HTMLElement {
   menuForSave() {
     // Actions remain part of the receiver protocol, but are derived from the
     // supported entity domains instead of being an editor preference.
-    const prepare = node => node.type === "menu"
-      ? {...node, children: node.children.map(prepare)}
-      : {...node,
+    const prepare = node => {
+      if (node.type === "menu") return {...node, children: node.children.map(prepare)};
+      const {confirm, ...entry} = node;
+      const actions = this.entityActions(node.entity_id);
+      return {...entry,
         ...(node.entity_id.split(".")[0] === "light" ? {brightness_step_pct: node.brightness_step_pct ?? 10} : {}),
-        actions: this.entityActions(node.entity_id)};
+        // Confirmation is optional and only meaningful for switchable entries.
+        ...(confirm === true && actions.length ? {confirm: true} : {}),
+        actions};
+    };
     return {...this.configuration, revision: this.model.revision, display: {...this.model.display},
       menus: this.configuration.menus.map(node => prepare(node.id === this.model.root?.id ? this.model.root : node))};
   }
@@ -1129,6 +1135,14 @@ class EnigmaHAPanel extends HTMLElement {
               if (step >= 1 && step <= 100) node.brightness_step_pct = step;
             }, {type: "number", min: 1, max: 100, step: 1});
           content.lastChild.hint = this.t("Schrittweite zwischen 1 und 100 Prozent");
+        }
+        if (this.entityActions(node.entity_id).length) {
+          content.append(this.selector("confirm-" + node.id, this.t("Am Receiver vor dem Schalten nachfragen"),
+            {boolean: {}}, node.confirm === true, value => {
+              if (value === true) node.confirm = true;
+              else delete node.confirm;
+              this.markDirty();
+            }));
         }
       }
       const move = offset => this.moveEntry(current, index, index + offset);

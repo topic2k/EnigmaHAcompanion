@@ -13,7 +13,8 @@ from companion.client import API_PATH, ClientError, CompanionClient, MAX_RESPONS
 from companion.navigation import Navigator
 from enigmaha_protocol import ActionError, prepare_action
 from enigmaha_protocol.compatibility import (COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER,
-                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER)
+                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER,
+                                             CONFIRM_HEADER)
 from enigmaha_protocol.menu import index_nodes
 from enigmaha_protocol.releases import asset_url, ipk_name
 
@@ -167,6 +168,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(headers[PROTOCOL_HEADER.lower()], str(PROTOCOL_VERSION))
         self.assertEqual(headers[DIMMING_HEADER.lower()], "1")
         self.assertEqual(headers[SELECT_HEADER.lower()], "1")
+        self.assertEqual(headers[CONFIRM_HEADER.lower()], "1")
 
     def test_select_menu_options_and_command_are_validated_end_to_end(self):
         node = self.server.menu["root"]["children"][0]["children"][0]

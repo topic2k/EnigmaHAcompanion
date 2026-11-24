@@ -17,7 +17,7 @@ from .enigmaha_protocol import ActionError, ProtocolError, prepare_action, valid
 from .enigmaha_protocol.menu import index_nodes, validate_display, validate_select_options
 from .enigmaha_protocol.compatibility import (
     COMPONENT_HEADER, VERSION_HEADER, RECEIVER_HEADER, VERSION, PROTOCOL_HEADER, PROTOCOL_VERSION, DIMMING_HEADER,
-    SELECT_HEADER, peer_status, protocol_version, valid_version, valid_receiver_id,
+    SELECT_HEADER, CONFIRM_HEADER, peer_status, protocol_version, valid_version, valid_receiver_id,
 )
 from .enigmaha_protocol.releases import UpdateError
 from .icons import IconResolver
@@ -125,11 +125,11 @@ class CompanionRuntime:
         return status
 
 
-def filtered_menu(menu, user, dimming=False, can_dim=None, select=False, get_options=None):
+def filtered_menu(menu, user, dimming=False, can_dim=None, select=False, get_options=None, confirm=False):
     return receiver_menu(menu, user.id,
                          lambda entity: user.permissions.check_entity(entity, POLICY_READ),
                          lambda entity: user.permissions.check_entity(entity, POLICY_CONTROL),
-                         dimming, can_dim, select, get_options)
+                         dimming, can_dim, select, get_options, confirm)
 
 
 def dimming_requested(request):
@@ -138,6 +138,10 @@ def dimming_requested(request):
 
 def select_requested(request):
     return request.headers.get(SELECT_HEADER) == "1"
+
+
+def confirm_requested(request):
+    return request.headers.get(CONFIRM_HEADER) == "1"
 
 
 def current_select_options(state):
@@ -229,7 +233,8 @@ class MenuView(CompanionView):
         select = select_requested(request)
         return self.reply(filtered_menu(runtime.menu, user, dimming,
                           lambda entity: dimmable_light(self.hass.states.get(entity)), select,
-                          lambda entity: current_select_options(self.hass.states.get(entity))))
+                          lambda entity: current_select_options(self.hass.states.get(entity)),
+                          confirm_requested(request)))
 
 
 class InfoView(CompanionView):
@@ -370,11 +375,12 @@ class ConfigView(CompanionView):
             previous_nodes = index_nodes({"root": previous})
             for node in index_nodes(menu).values():
                 old = previous_nodes.get(node["id"])
-                if (node["type"] == "entity" and "brightness_step_pct" not in node
-                        and old is not None and old["type"] == "entity"
-                        and old["entity_id"] == node["entity_id"]
-                        and "brightness_step_pct" in old):
-                    node["brightness_step_pct"] = old["brightness_step_pct"]
+                for field in ("brightness_step_pct", "confirm"):
+                    if (node["type"] == "entity" and field not in node
+                            and old is not None and old["type"] == "entity"
+                            and old["entity_id"] == node["entity_id"]
+                            and field in old):
+                        node[field] = old[field]
             menu["revision"] += 1
             try:
                 validate_menu(menu)

@@ -87,7 +87,7 @@ def validate_menu(document):
             pending.extend((child, depth + 1) for child in node["children"])
         elif kind == "entity":
             _keys(node, ["type", "id", "label", "entity_id", "actions"],
-                  ["brightness_step_pct", "options"], "entity node")
+                  ["brightness_step_pct", "options", "confirm"], "entity node")
             entity_id = node["entity_id"]
             if not isinstance(entity_id, str) or len(entity_id) > 255 or not ENTITY.fullmatch(entity_id):
                 raise ProtocolError("invalid entity_id")
@@ -108,6 +108,9 @@ def validate_menu(document):
                 raise ProtocolError("domain does not support dimming")
             if SELECT_ACTION in actions and (domain not in SELECT_DOMAINS or actions != [SELECT_ACTION]):
                 raise ProtocolError("domain does not support select_option")
+            if "confirm" in node and (node["confirm"] is not True
+                                      or domain not in TOGGLE_DOMAINS | SELECT_DOMAINS):
+                raise ProtocolError("confirm must be true on a switchable entity")
             if "options" in node:
                 if domain not in SELECT_DOMAINS or SELECT_ACTION not in actions:
                     raise ProtocolError("options only allowed for select entities")

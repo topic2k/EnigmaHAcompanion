@@ -17,7 +17,7 @@ BUNDLE = ROOT / "dist/unpacked/homeassistant/custom_components/enigmaha_companio
 sys.path[:0] = [str(ROOT / "protocol"), str(ROOT / "enigma2")]
 from companion.client import CompanionClient, ClientError
 from enigmaha_protocol.compatibility import (COMPONENT_HEADER, VERSION_HEADER, VERSION, PROTOCOL_HEADER,
-                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER)
+                                             PROTOCOL_VERSION, DIMMING_HEADER, SELECT_HEADER, CONFIRM_HEADER)
 
 
 def load_api():
@@ -526,6 +526,45 @@ class HAPluginTests(unittest.IsolatedAsyncioTestCase):
             saved = await response.json()
         self.assertNotIn("brightness_step_pct", saved["root"]["children"][0]["children"][0])
         self.assertEqual(self.runtime.menu["menus"][0]["children"][0]["children"][0]["brightness_step_pct"], 25)
+
+    async def test_confirmation_is_negotiated_and_limited_to_actionable_entries(self):
+        configuration = API.validate_configuration(self.menu)
+        configuration["menus"][0]["children"][0]["children"][0]["confirm"] = True
+        self.runtime.menu = API.validate_configuration(configuration)
+        async with await self.request("GET", "/menu", "receiver") as response:
+            self.assertEqual(response.status, 200)
+            self.assertNotIn("confirm", (await response.json())["root"]["children"][0]["children"][0])
+        headers = {COMPONENT_HEADER: "receiver", VERSION_HEADER: VERSION,
+                   PROTOCOL_HEADER: str(PROTOCOL_VERSION), CONFIRM_HEADER: "1"}
+        async with await self.request("GET", "/menu", "receiver", peer_headers=headers) as response:
+            node = (await response.json())["root"]["children"][0]["children"][0]
+        self.assertIs(node["confirm"], True)
+        self.assertEqual(node["actions"], ["toggle"])
+        async with await self.request("GET", "/menu", "reader", peer_headers=headers) as response:
+            node = (await response.json())["root"]["children"][0]["children"][0]
+        self.assertEqual(node["actions"], [])
+        self.assertNotIn("confirm", node)
+        # The flag only affects the receiver UI; actions remain server-checked as before.
+        async with await self.request("POST", "/actions", "receiver", self.command(), headers) as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.calls, [("light", "toggle", {"entity_id": "light.wohnzimmer"}, "receiver-id")])
+
+    async def test_legacy_menu_editor_preserves_confirmation(self):
+        configuration = API.validate_configuration(self.menu)
+        configuration["menus"][0]["children"][0]["children"][0]["confirm"] = True
+        self.runtime.menu = API.validate_configuration(configuration)
+        async with await self.request("GET", "/config") as response:
+            legacy = await response.json()
+        self.assertNotIn("confirm", legacy["root"]["children"][0]["children"][0])
+        async with await self.request("PUT", "/config", body=legacy) as response:
+            self.assertEqual(response.status, 200)
+        self.assertIs(self.runtime.menu["menus"][0]["children"][0]["children"][0]["confirm"], True)
+        async with await self.request("GET", "/configuration") as response:
+            configuration = await response.json()
+        self.assertIs(configuration["menus"][0]["children"][0]["children"][0]["confirm"], True)
+        configuration["menus"][0]["children"][0]["children"][0]["confirm"] = False
+        async with await self.request("PUT", "/configuration", body=configuration) as response:
+            self.assertEqual(response.status, 400)
 
     async def test_receiver_reports_changed_ha_protocol_without_sending_an_action(self):
         client = CompanionClient(self.url, "receiver")

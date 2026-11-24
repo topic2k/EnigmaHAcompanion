@@ -129,6 +129,11 @@ ENGLISH = {
     "Ungültige Schriftfamilie": "Invalid font family",
     "Ungültiger Zahlenwert": "Invalid numeric value",
     "Schriftgröße: 0 oder 16–64": "Font size: 0 or 16–64",
+    "„{label}“ einschalten?": "Turn on “{label}”?",
+    "„{label}“ ausschalten?": "Turn off “{label}”?",
+    "„{label}“ umschalten?": "Toggle “{label}”?",
+    "„{label}“ auf „{option}“ setzen?": "Set “{label}” to “{option}”?",
+    "Aktion abgebrochen.": "Action cancelled.",
     "Ja": "Yes",
     "Nein": "No"
 }

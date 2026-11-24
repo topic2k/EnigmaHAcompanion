@@ -311,12 +311,28 @@ class Hotkeys:
             if (not node or node["type"] != "entity" or node["entity_id"] != entity_id
                     or "toggle" not in node["actions"] or not self.current(identity)):
                 raise ClientError("hotkey_changed")
+            command = {"schema_version": menu["schema_version"], "revision": menu["revision"],
+                       "entry_id": entry_id, "action": "toggle"}
+            if node.get("confirm"):
+                return client, command, node["label"]
             # No automatic retry: an uncertain response must not toggle twice.
-            client.execute({"schema_version": menu["schema_version"], "revision": menu["revision"],
-                            "entry_id": entry_id, "action": "toggle"})
+            client.execute(command)
 
         def done(result):
+            if result is not None and not self.closed:
+                client, command, label = result
+                session.openWithCallback(lambda answer: confirmed(answer, client, command), MessageBox,
+                    translate("„{label}“ umschalten?", config["language"], label=" ".join(label.split())),
+                    type=MessageBox.TYPE_YESNO, default=False)
+                return
             self.switching = False
+
+        def confirmed(answer, client, command):
+            # The revision in the command lets HA reject a menu changed meanwhile.
+            if not answer or self.closed or not self.current(identity):
+                done(None)
+                return
+            deferToThread(lambda: client.execute(command)).addCallbacks(lambda result: done(None), failed)
 
         def failed(failure):
             done(None)
