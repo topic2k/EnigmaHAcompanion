@@ -370,6 +370,33 @@ test("light entries expose a bounded dimming step and persist the selected value
   } finally {ui.dom.window.close();}
 });
 
+test("switchable entries offer an optional receiver confirmation that is saved only when enabled", async () => {
+  const ui = await createPanel();
+  try {
+    ui.select("entity", "light.ceiling");
+    ui.button("Entität hinzufügen").click();
+    ui.select("entity", "sensor.temp");
+    ui.button("Entität hinzufügen").click();
+    const [light, sensor] = ui.panel.model.root.children;
+    assert.equal(ui.root.querySelector(`[data-selector="confirm-${sensor.id}"]`), null);
+    const toggle = ui.root.querySelector(`[data-selector="confirm-${light.id}"]`);
+    assert.equal(JSON.stringify(toggle.selector), JSON.stringify({boolean: {}}));
+    assert.equal(toggle.value, false);
+    assert.equal(toggle.label, "Am Receiver vor dem Schalten nachfragen");
+    ui.select("confirm-" + light.id, true);
+    assert.equal(light.confirm, true);
+    assert.equal(ui.panel.dirty, true);
+    sensor.confirm = true;
+    await ui.panel.save();
+    assert.equal(ui.saved().menus[0].children[0].confirm, true);
+    assert.equal("confirm" in ui.saved().menus[0].children[1], false);
+    ui.select("confirm-" + light.id, false);
+    assert.equal("confirm" in ui.panel.model.root.children[0], false);
+    await ui.panel.save();
+    assert.equal("confirm" in ui.saved().menus[0].children[0], false);
+  } finally {ui.dom.window.close();}
+});
+
 test("refresh preserves both scroll positions and submenu navigation resets the list", async () => {
   const ui = await createPanel();
   try {
@@ -1014,7 +1041,8 @@ test("account-edit precedes deletion on entity and submenu rows and both submenu
       const buttons = row.querySelector(".entry-actions").children;
       assert.equal(buttons[buttons.length - 2].firstElementChild.icon, "mdi:account-edit");
       assert.equal(buttons[buttons.length - 1].firstElementChild.icon, "mdi:delete-outline");
-      assert.equal(row.querySelector("ha-selector, details"), null);
+      // Access rules live in the dialog; only the optional confirmation switch is inline.
+      assert.equal(row.querySelector('ha-selector:not([data-selector^="confirm-"]), details'), null);
     }
     const submenu = ui.panel.model.root.children.find(node => node.type === "menu");
     ui.root.querySelector(`[data-access-node="${submenu.id}"]`).click();
