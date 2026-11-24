@@ -43,6 +43,61 @@ Der zum Release gehörende Quellcode einschließlich Build- und
 Installationsskripten steht unter dem zugehörigen Tag `v<Version>` im Repository
 bereit. Diese Quellen zusammen mit den Paketen zugänglich halten.
 
+## Release aus den Quellen nachbauen
+
+`tools/build.py` benötigt nur die Python-Standardbibliothek und baut alle Pakete
+aus den Quellen des Tags `v<Version>`:
+
+- **HA-Pakete:** `custom_components/enigmaha_companion/` und eine Kopie von
+  `protocol/enigmaha_protocol/` als Unterpaket `enigmaha_protocol/`. Die
+  Integration importiert es bereits relativ (`from .enigmaha_protocol …`).
+- **Receiver-Pakete:** `enigma2/Plugins/Extensions/EnigmaHACompanion/`, darunter
+  `enigma2/companion/` als `companion/` und eine zweite Kopie des Protokolls als
+  `enigmaha_protocol/`. Nur in den `companion`-Modulen ersetzt der Build
+  `from enigmaha_protocol` durch `from ..enigmaha_protocol`, damit sie unterhalb
+  des Plugin-Ordners laufen. Im Quellbaum finden Tests das Protokoll über
+  `protocol/` im `sys.path`.
+- Beide Pakete erhalten `LICENSE` und `NOTICE`; `__pycache__` und `.pyc`-Dateien
+  werden ausgelassen. `dist/unpacked/` enthält die erzeugten Paketbäume.
+
+Nachbau und Vergleich mit einem veröffentlichten Release, hier 1.5.1:
+
+```console
+git clone --branch v1.5.1 https://github.com/topic2k/EnigmaHAcompanion.git
+cd EnigmaHAcompanion
+python3 tools/build.py
+mkdir ../release && cd ../release
+for file in SHA256SUMS.txt enigmaha_companion.zip enigmaha-companion-ha-1.5.1.zip \
+    enigma2-plugin-extensions-enigmahacompanion_1.5.1_all.ipk enigmaha-companion-enigma2-1.5.1.tar.gz; do
+  curl -LO "https://github.com/topic2k/EnigmaHAcompanion/releases/download/v1.5.1/$file"
+done
+cd ../EnigmaHAcompanion/dist
+sha256sum --check ../../release/SHA256SUMS.txt
+```
+
+IPK und TAR sind beim Nachbau bytegleich: Die Tar-Archive verwenden sortierte
+Pfade, Zeitstempel 0, Benutzer und Gruppe 0 sowie gzip ohne Zeitstempel. Die
+ZIP-Dateien enthalten dagegen die Uhrzeit des Builds und haben deshalb andere
+Prüfsummen; `sha256sum` meldet sie als `FAILED`. Ihren Inhalt vergleicht man entpackt mit den veröffentlichten Dateien:
+
+```console
+mkdir -p ../../zip-release ../../zip-local
+unzip -q ../../release/enigmaha_companion.zip -d ../../zip-release
+unzip -q enigmaha_companion.zip -d ../../zip-local
+diff -r ../../zip-release ../../zip-local
+```
+
+Ein IPK ist ein `ar`-Archiv mit `debian-binary`, `control.tar.gz` (Metadaten und
+`postinst`) und `data.tar.gz` (Plugin-Dateien):
+
+```console
+mkdir ../../ipk && cd ../../ipk
+ar x ../release/enigma2-plugin-extensions-enigmahacompanion_1.5.1_all.ipk
+tar -xzf control.tar.gz && cat control postinst
+mkdir data && tar -xzf data.tar.gz -C data
+diff -r data/usr ../EnigmaHAcompanion/dist/unpacked/enigma2/usr
+```
+
 ## Release starten
 
 1. Einen Arbeitsbranch erstellen und `python tools/release_version.py --bump patch`

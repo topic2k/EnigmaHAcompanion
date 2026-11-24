@@ -48,6 +48,8 @@ Der Build muss vor den Pakettests laufen. Er erzeugt unter `dist/` die beiden
 HA-ZIPs, das Receiver-IPK, ein alternatives TAR-Paket, Prüfsummen und die entpackten
 Paketbäume unter `dist/unpacked/`. Für lokale Installationen diese Pakete verwenden:
 Die Quellordner allein enthalten noch nicht die eingebundenen gemeinsamen Module.
+Wie der Build sie einbindet und wie sich ein Release nachbauen lässt, beschreibt
+die [Release-Anleitung](Releases.md#release-aus-den-quellen-nachbauen).
 
 Optional dürfen die Frontend-Abhängigkeiten unter `.work/node_modules/` liegen.
 Dazu `package.json` und `package-lock.json` nach `.work/` kopieren und
