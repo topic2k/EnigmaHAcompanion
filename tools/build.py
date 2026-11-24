@@ -6,10 +6,12 @@ import gzip
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import tarfile
+import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +40,27 @@ def tar_bytes(files):
             info.uid = info.gid = 0
             archive.addfile(info, io.BytesIO(data))
     return gzip.compress(result.getvalue(), mtime=0)
+
+
+def source_date_epoch():
+    """Return SOURCE_DATE_EPOCH (reproducible-builds.org) or None if unset."""
+    value = os.environ.get("SOURCE_DATE_EPOCH")
+    if value is None:
+        return None
+    if not re.fullmatch(r"[0-9]{1,12}", value):
+        raise ValueError("SOURCE_DATE_EPOCH must be a non-negative integer")
+    return int(value)
+
+
+def zip_write(archive, file, name, epoch):
+    if epoch is None:
+        archive.write(file, name)
+        return
+    # Fixed timestamp and permissions instead of the build time; ZIP starts in 1980.
+    info = zipfile.ZipInfo(name, time.gmtime(max(epoch, 315532800))[:6])
+    info.create_system = 3
+    info.external_attr = 0o100644 << 16
+    archive.writestr(info, file.read_bytes(), zipfile.ZIP_DEFLATED)
 
 
 def ar_bytes(members):
@@ -71,6 +94,7 @@ def build(output):
     output = output.resolve()
     if output != (ROOT / "dist").resolve():
         raise ValueError("build output must be the project's dist directory")
+    epoch = source_date_epoch()
     output.mkdir(parents=True, exist_ok=True)
     bundle = output / "unpacked"
     # A dedicated generated directory; never delete arbitrary caller paths.
@@ -93,7 +117,7 @@ def build(output):
     with zipfile.ZipFile(ha_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for file in sorted((bundle / "homeassistant").rglob("*")):
             if file.is_file():
-                archive.write(file, file.relative_to(bundle / "homeassistant").as_posix())
+                zip_write(archive, file, file.relative_to(bundle / "homeassistant").as_posix(), epoch)
     # HACS extracts release ZIPs directly into custom_components/<domain>.
     # Unlike the manual-install ZIP, this archive must not have a folder prefix.
     hacs_manifest = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
@@ -103,7 +127,7 @@ def build(output):
     with zipfile.ZipFile(hacs_zip, "w", zipfile.ZIP_DEFLATED) as archive:
         for file in sorted(ha.rglob("*")):
             if file.is_file():
-                archive.write(file, file.relative_to(ha).as_posix())
+                zip_write(archive, file, file.relative_to(ha).as_posix(), epoch)
     files = [(file.relative_to(bundle / "enigma2").as_posix(), file.read_bytes(), 0o644)
              for file in sorted(receiver.rglob("*")) if file.is_file()]
     data = tar_bytes(files)

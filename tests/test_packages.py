@@ -10,6 +10,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -188,6 +189,38 @@ class PackageTests(unittest.TestCase):
             for node in ast.walk(tree):
                 if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("enigmaha_protocol"):
                     self.assertGreater(node.level, 0, str(file))
+
+    def test_source_date_epoch_makes_zip_entries_independent_of_file_metadata(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("eha_build_test", ROOT / "tools/build.py")
+        build = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(build)
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.py"
+            source.write_bytes(b"VALUE = 1\n")
+            archives = []
+            for mtime, mode in ((1_000_000_000, 0o644), (1_900_000_000, 0o664)):
+                os.utime(source, (mtime, mtime))
+                source.chmod(mode)
+                result = io.BytesIO()
+                with zipfile.ZipFile(result, "w", zipfile.ZIP_DEFLATED) as archive:
+                    build.zip_write(archive, source, "pkg/source.py", 1_700_000_000)
+                archives.append(result.getvalue())
+            self.assertEqual(archives[0], archives[1])
+            info = zipfile.ZipFile(io.BytesIO(archives[0])).getinfo("pkg/source.py")
+            self.assertEqual(info.date_time, (2023, 11, 14, 22, 13, 20))
+            self.assertEqual(info.external_attr >> 16, 0o100644)
+            self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
+        for value, expected in ((None, None), ("0", 0), ("1700000000", 1_700_000_000)):
+            with self.subTest(value=value), unittest.mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("SOURCE_DATE_EPOCH", None)
+                if value is not None:
+                    os.environ["SOURCE_DATE_EPOCH"] = value
+                self.assertEqual(build.source_date_epoch(), expected)
+        for value in ("", "-1", "1.5", "now"):
+            with self.subTest(value=value), unittest.mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": value}):
+                with self.assertRaises(ValueError):
+                    build.source_date_epoch()
 
     def test_ipk_postinst_refreshes_same_size_same_timestamp_bytecode(self):
         members = read_ar((DIST / ("enigma2-plugin-extensions-enigmahacompanion_" + VERSION + "_all.ipk")).read_bytes())

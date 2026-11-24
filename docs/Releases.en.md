@@ -83,6 +83,16 @@ unzip -q enigmaha_companion.zip -d ../../zip-local
 diff -r ../../zip-release ../../zip-local
 ```
 
+If `SOURCE_DATE_EPOCH` is set, the build uses that time and permissions `0644`
+for all ZIP entries. The release workflow sets it to the commit time. Releases
+built this way rebuild byte for byte, including the ZIPs:
+
+```console
+SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" python3 tools/build.py
+```
+
+Without the variable, the previous behavior is unchanged.
+
 An IPK is an `ar` archive containing `debian-binary`, `control.tar.gz` (metadata
 and `postinst`) and `data.tar.gz` (plugin files):
 
