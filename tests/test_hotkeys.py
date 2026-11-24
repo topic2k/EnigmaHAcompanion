@@ -162,6 +162,40 @@ class HotkeyTests(unittest.TestCase):
         self.refresh()
         self.assertFalse(self.registry.items)
 
+    def test_confirmed_entry_asks_before_toggling_through_a_hotkey(self):
+        self.menu["root"]["children"][0]["children"][0]["confirm"] = True
+        action = self.action()
+        answers = []
+        self.session.openWithCallback = lambda callback, *args, **kwargs: answers.append((callback, args, kwargs))
+        action(self.session)
+        self.pending.pop().fire()
+        self.client.execute.assert_not_called()
+        callback, args, kwargs = answers.pop()
+        self.assertEqual(args, (HOTKEYS.MessageBox, "„Deckenlicht“ umschalten?"))
+        self.assertEqual(kwargs, {"type": HOTKEYS.MessageBox.TYPE_YESNO, "default": False})
+        action(self.session)  # Key repeat while the question is open.
+        self.assertEqual((self.pending, answers), ([], []))
+        callback(False)
+        self.assertFalse(self.manager.switching)
+        self.client.execute.assert_not_called()
+
+        action(self.session)
+        self.pending.pop().fire()
+        callback, _args, _kwargs = answers.pop()
+        callback(True)
+        self.pending.pop().fire()
+        self.client.execute.assert_called_once_with({"schema_version": 1, "revision": self.menu["revision"],
+                                                     "entry_id": "ceiling", "action": "toggle"})
+        self.assertFalse(self.manager.switching)
+
+        action(self.session)
+        self.pending.pop().fire()
+        callback, _args, _kwargs = answers.pop()
+        self.config["token"] = "replacement"
+        callback(True)
+        self.assertEqual(self.pending, [])
+        self.assertEqual(self.client.execute.call_count, 1)
+
     def test_network_failure_keeps_bindings_and_never_retries_an_uncertain_toggle(self):
         action = self.action()
         bindings = set(button_functions(self.registry))
