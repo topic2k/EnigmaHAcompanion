@@ -18,7 +18,8 @@ ein zusätzlicher Server oder MQTT-Broker ist nicht erforderlich.
 - Der Receiver erreicht die HA-Adresse im Netzwerk.
 - Ein langlebiger HA-Zugriffstoken eines aktiven Benutzers mit Lese- und
   Steuerungsrechten auf die ausgewählten Entitäten. Für den Receiver genügt ein
-  normaler Benutzer; der Menüeditor erfordert einen Administrator.
+  normaler Benutzer; der Menüeditor erfordert einen Administrator. Empfohlen ist
+  ein [eigener Receiver-Benutzer](#eigenen-receiver-benutzer-verwenden).
 
 Die [Entwicklerdokumentation](Entwicklung.md#updateablauf-und-grenzen) beschreibt
 den Updateablauf und seine Grenzen.
@@ -282,6 +283,44 @@ Zum Entziehen des Receiver-Zugriffs den zugehörigen Token dort löschen.
 Siehe auch [HA-Benutzerprofil und Sicherheit](https://www.home-assistant.io/docs/authentication/)
 und [HA-Zugriffstoken](https://developers.home-assistant.io/docs/auth_api/#long-lived-access-token).
 
+### Eigenen Receiver-Benutzer verwenden
+
+Der Receiver-Token ist ein normaler langlebiger HA-Zugriffstoken. Er gilt nicht
+nur für EnigmaHA Companion, sondern für die gesamte REST- und WebSocket-API von
+Home Assistant mit allen Rechten seines Benutzers. Die Menüfreigaben begrenzen,
+was der Receiver anzeigt und schaltet, nicht aber, was mit dem Token selbst
+möglich ist. Normale HA-Benutzer dürfen standardmäßig alle Entitäten lesen und
+steuern.
+
+Empfohlene Einrichtung:
+
+- Für die Receiver einen eigenen HA-Benutzer anlegen, z. B. **EnigmaHA Receiver**;
+  Receiver mit unterschiedlichen Menüs erhalten jeweils einen eigenen Benutzer.
+  Unter **Einstellungen › Personen** eine Person hinzufügen, **Anmeldung erlauben**
+  aktivieren, **Administrator** ausgeschaltet lassen und **Nur lokaler Zugriff**
+  einschalten. Danach als dieser Benutzer anmelden und den Token wie oben erstellen.
+- Keinen Token eines Administrators verwenden. Ein solcher Token erlaubt auch
+  die Verwaltung von Benutzern, Integrationen und der Menükonfiguration.
+- Diesem Benutzer über die [Freigaben](Benutzermenues.md) nur die benötigten
+  Menüs, Untermenüs und Einträge freigeben.
+- Für jeden Receiver einen eigenen Token mit erkennbarem Namen erstellen, damit
+  sich ein einzelner Receiver gezielt sperren lässt.
+
+**Nur lokaler Zugriff** weist Anfragen mit diesem Token ab, die nicht aus dem
+lokalen Netzwerk kommen; auch Zugriffe über Home Assistant Cloud werden abgewiesen.
+Hinter einem Reverse Proxy hängt die erkannte Adresse von dessen Konfiguration ab.
+
+Wer einen Receiver-Token erlangt, etwa aus einer Einstellungssicherung des
+Receivers, kann bis zu dessen Löschung mit den Rechten des Benutzers Zustände
+lesen und Entitäten steuern. In diesem Fall als Benutzer des Tokens anmelden,
+den Token unter **Profil › Sicherheit › Langlebige Zugriffstoken** löschen und
+am Receiver einen neuen Token eintragen. Ein Administrator kann zusätzlich den
+Benutzer unter **Einstellungen › Personen** deaktivieren; damit werden alle seine
+Tokens abgewiesen.
+
+Bestehende Receiver mit dem Token eines Administrators funktionieren unverändert. Zum Umstellen den neuen Benutzer anlegen, ihm die
+Menüs freigeben, den neuen Token am Receiver eintragen und den alten Token löschen.
+
 ## 3. Receiver-Plugin installieren
 
 Das IPK `enigma2-plugin-extensions-enigmahacompanion_<Version>_all.ipk` aus
@@ -447,6 +486,10 @@ Dateirechte setzen. Das Plugin speichert die Datei selbst mit diesen Rechten.
 
 Den Token nicht in Logs, Screenshots oder das Repository übernehmen. Bei Eingabe
 über die Bildschirmtastatur ist der Text auf dem Fernseher sichtbar.
+Die Datei enthält den Token im Klartext. Einstellungssicherungen von
+`/etc/enigma2/`, die in Git-Repositories, Cloudordnern oder anderen geteilten
+Orten landen, sollten diese Datei ausschließen oder wie ein Passwort geschützt
+werden.
 HTTPS prüft Zertifikate; die Prüfung lässt sich nicht abschalten.
 HTTP überträgt auch den Token unverschlüsselt.
 

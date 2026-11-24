@@ -17,7 +17,8 @@ project-specific modules; no additional server or MQTT broker is required.
 - Network access from the receiver to the HA address.
 - A long-lived HA access token belonging to an active user with read and control
   permissions for the selected entities. A regular user is sufficient for the
-  receiver; the menu editor requires an administrator.
+  receiver; the menu editor requires an administrator. A
+  [dedicated receiver user](#use-a-dedicated-receiver-user) is recommended.
 
 See [update implementation and limitations](Development.en.md#update-implementation-and-limitations).
 
@@ -261,6 +262,43 @@ If you lose the token, create a new one. To revoke receiver access, delete the
 corresponding token in HA. See [HA authentication](https://www.home-assistant.io/docs/authentication/)
 and [long-lived tokens](https://developers.home-assistant.io/docs/auth_api/#long-lived-access-token).
 
+### Use a dedicated receiver user
+
+The receiver token is a regular long-lived HA access token. It is valid not only
+for EnigmaHA Companion but for the entire Home Assistant REST and WebSocket API,
+with all permissions of its user. Menu access rules limit what the receiver
+displays and controls, not what the token itself can do. By default, regular
+HA users can read and control all entities.
+
+Recommended setup:
+
+- Create a dedicated HA user for receivers, such as **EnigmaHA Receiver**; use a
+  separate user for each group of receivers with different menus. Under
+  **Settings › People**, add a person, enable **Allow login**, leave
+  **Administrator** disabled and enable **Local access only**. Then sign in as
+  that user and create the token as described above.
+- Do not use an administrator's token. It also allows managing users,
+  integrations and the menu configuration.
+- Use [access rules](User-menus.en.md) to share only the required menus,
+  submenus and entries with this user.
+- Create a separate, recognizably named token for each receiver so you can
+  revoke a single receiver.
+
+**Local access only** rejects requests with this token that do not come from the
+local network, including requests through Home Assistant Cloud. Behind a reverse
+proxy, the detected address depends on the proxy configuration.
+
+Anyone who obtains a receiver token, for example from a receiver settings
+backup, can read states and control entities with the user's permissions until
+the token is deleted. If this happens, sign in as the token's user, delete the
+token under **Profile › Security › Long-lived access tokens**, and enter a new
+token on the receiver. An administrator can also deactivate the user under
+**Settings › People**; all of its tokens are then rejected.
+
+Existing receivers using an administrator's token keep working. To
+switch, create the new user, share the menus with it, enter its new token on the
+receiver and delete the old token.
+
 ## 3. Install the receiver plugin
 
 Download `enigma2-plugin-extensions-enigmahacompanion_<Version>_all.ipk` from
@@ -413,8 +451,11 @@ with `chmod 600 /etc/enigma2/enigmaha_companion.json`; the plugin saves it with
 these permissions itself.
 
 Keep tokens out of logs, screenshots and the repository. Tokens entered through
-the on-screen keyboard are visible on the TV. HTTPS verifies certificates;
-verification cannot be disabled. HTTP transmits the token without encryption.
+the on-screen keyboard are visible on the TV. The file stores the token in plain
+text. Exclude it from `/etc/enigma2/` settings backups that end up in Git
+repositories, cloud folders or other shared locations, or protect those backups
+like a password. HTTPS verifies certificates; verification cannot be disabled.
+HTTP transmits the token without encryption.
 
 ## Remote keys
 
