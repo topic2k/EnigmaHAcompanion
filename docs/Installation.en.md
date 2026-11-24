@@ -96,6 +96,12 @@ Lights, switches and `input_boolean` helpers are configured as toggleable.
 `select` and `input_select` entities support option selection; other entities are
 read-only. While browsing, the preview stays italic until confirmed with OK or
 discarded. The receiver user needs the matching HA read and control permissions.
+
+For switchable entries, you can enable **Ask for confirmation on the receiver
+before switching**. The receiver then asks yes/no before toggling or setting a
+selection; **No** is preselected. This also applies to OpenATV hotkeys, but not
+to dimming. The option is off by default and existing menus remain unchanged.
+Older receiver versions keep switching without asking.
 Your own menu and entity names are never automatically translated.
 
 Use **Manage menus** to create shared and personal menus. **Access** restricts
@@ -482,7 +488,7 @@ The most recently loaded list is stored locally in
 immediately after a GUI restart. The file is bound to the HA address and token
 without containing either credential. Open Hotkey Settings once after changing
 the token. Each command checks the current menu entry and HA permissions.
-Connection problems show an error; toggle commands are never retried automatically.
+Entries with confirmation enabled switch only after you confirm. Connection problems show an error; toggle commands are never retried automatically.
 
 Renaming, moving and reordering an existing entry preserves its binding. Removed,
 unshared or retargeted entries no longer switch. Assign the key again after

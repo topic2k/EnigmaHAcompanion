@@ -12,8 +12,10 @@ Receiver requests to `/menu`, `/states` and `/actions` send
 `X-EnigmaHA-Component: receiver`, `X-EnigmaHA-Version: MAJOR.MINOR.PATCH`
 and `X-EnigmaHA-Protocol: 1`. Receivers that support dimming also send
 `X-EnigmaHA-Dimming: 1`; receivers that support select entities send
-`X-EnigmaHA-Select: 1`. Without an optional header, responses and actions retain
-their previous format; older receivers receive no select actions or option lists.
+`X-EnigmaHA-Select: 1`; receivers that support confirmation prompts send
+`X-EnigmaHA-Confirm: 1`. Without an optional header, responses and actions retain
+their previous format; older receivers receive no select actions, option lists or
+`confirm`.
 HA checks these headers after authentication and before reading data or executing
 an action. Companion view responses include `X-EnigmaHA-Component: homeassistant`
 and the local `X-EnigmaHA-Version` and `X-EnigmaHA-Protocol`. The receiver checks
@@ -113,6 +115,12 @@ of the still-running HA process. Repair issues clear only after observed complet
 - Negotiated entity entries with `select_option` include `options`, a list of
   1–500 unique, non-empty strings (up to 255 characters each). This runtime field
   is not stored in HA configuration.
+- Optional `confirm: true` on `light`, `switch`, `input_boolean`, `select` and
+  `input_select` entries. Other values are errors; without the field, no
+  confirmation is requested. HA sends it only with `X-EnigmaHA-Confirm: 1` and
+  only while the entry has a `toggle` or `select_option` action for the user.
+  The receiver then asks locally before these actions; dimming and server-side
+  checks are unchanged.
 - `children` defines ordering and may mix menus and entities.
 - IDs are unique throughout the document: 1–64 ASCII letters, digits, `_` or `-`.
 - Labels contain 1–120 characters without control characters. The limit is
