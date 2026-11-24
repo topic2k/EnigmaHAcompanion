@@ -110,12 +110,13 @@ def build(output):
     receiver_tar = output / ("enigmaha-companion-enigma2-" + VERSION + ".tar.gz")
     receiver_tar.write_bytes(data)
     # OpenEmbedded splits urllib/http into netclient and ssl/_ssl/tempfile into io.
+    # compileall/py_compile (used by postinst) are only in python3-compile.
     # Python module names are not necessarily installable package names.
     control = ("Package: enigma2-plugin-extensions-enigmahacompanion\nVersion: " + VERSION + "\n"
                "Architecture: all\nMaintainer: EnigmaHA Companion contributors\n"
                "Section: extra\nPriority: optional\n"
                "License: GPL-2.0-or-later\n"
-               "Depends: enigma2, python3-core (>= 3.13), python3-json, python3-netclient, python3-io, python3-twisted-core\n"
+               "Depends: enigma2, python3-core (>= 3.13), python3-json, python3-netclient, python3-io, python3-compile, python3-twisted-core\n"
                "Description: Home Assistant text menu for Enigma2 receivers\n")
     # Payload timestamps are reproducible (zero). A same-size source change can
     # otherwise reuse the previous release's timestamp-based bytecode after a
