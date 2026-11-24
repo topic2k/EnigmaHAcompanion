@@ -43,7 +43,9 @@ npm test
 Build before running package and receiver tests. `dist/` contains both HA ZIPs,
 the receiver IPK, an alternative TAR, checksums and unpacked package trees under
 `dist/unpacked/`. Use these packages for installations: source folders alone do
-not contain the bundled protocol modules.
+not contain the bundled protocol modules. See
+[reproduce a release from source](Releases.en.md#reproduce-a-release-from-source)
+for how the build bundles them and how to rebuild a release.
 
 Frontend dependencies may also be installed under `.work/node_modules/`.
 Copy `package.json` and `package-lock.json` to `.work/`, then run

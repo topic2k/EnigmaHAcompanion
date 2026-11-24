@@ -38,6 +38,72 @@ The matching `v<version>` repository tag provides the release's corresponding
 source, including build and installation scripts. Keep this source accessible
 alongside the packages.
 
+## Reproduce a release from source
+
+`tools/build.py` needs only the Python standard library and builds all packages
+from the sources of the `v<Version>` tag:
+
+- **HA packages:** `custom_components/enigmaha_companion/` plus a copy of
+  `protocol/enigmaha_protocol/` as the `enigmaha_protocol/` subpackage. The
+  integration already imports it relatively (`from .enigmaha_protocol …`).
+- **Receiver packages:** `enigma2/Plugins/Extensions/EnigmaHACompanion/` with
+  `enigma2/companion/` as `companion/` and a second copy of the protocol as
+  `enigmaha_protocol/`. Only in the `companion` modules does the build replace
+  `from enigmaha_protocol` with `from ..enigmaha_protocol` so they work below the
+  plugin directory. In the source tree, tests find the protocol through
+  `protocol/` on `sys.path`.
+- Both packages include `LICENSE` and `NOTICE`; `__pycache__` and `.pyc` files
+  are skipped. `dist/unpacked/` contains the generated package trees.
+
+Rebuild and compare with a published release, here 1.5.1:
+
+```console
+git clone --branch v1.5.1 https://github.com/topic2k/EnigmaHAcompanion.git
+cd EnigmaHAcompanion
+python3 tools/build.py
+mkdir ../release && cd ../release
+for file in SHA256SUMS.txt enigmaha_companion.zip enigmaha-companion-ha-1.5.1.zip \
+    enigma2-plugin-extensions-enigmahacompanion_1.5.1_all.ipk enigmaha-companion-enigma2-1.5.1.tar.gz; do
+  curl -LO "https://github.com/topic2k/EnigmaHAcompanion/releases/download/v1.5.1/$file"
+done
+cd ../EnigmaHAcompanion/dist
+sha256sum --check ../../release/SHA256SUMS.txt
+```
+
+The IPK and TAR rebuild byte for byte: the tar archives use sorted paths,
+timestamp 0, user and group 0, and gzip without a timestamp. The ZIP files,
+however, contain the build time and therefore have different checksums;
+`sha256sum` reports them as `FAILED`. Compare
+their contents unpacked against the published files:
+
+```console
+mkdir -p ../../zip-release ../../zip-local
+unzip -q ../../release/enigmaha_companion.zip -d ../../zip-release
+unzip -q enigmaha_companion.zip -d ../../zip-local
+diff -r ../../zip-release ../../zip-local
+```
+
+If `SOURCE_DATE_EPOCH` is set, the build uses that time and permissions `0644`
+for all ZIP entries. The release workflow sets it to the commit time. Releases
+built this way rebuild byte for byte, including the ZIPs:
+
+```console
+SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" python3 tools/build.py
+```
+
+Without the variable, the previous behavior is unchanged.
+
+An IPK is an `ar` archive containing `debian-binary`, `control.tar.gz` (metadata
+and `postinst`) and `data.tar.gz` (plugin files):
+
+```console
+mkdir ../../ipk && cd ../../ipk
+ar x ../release/enigma2-plugin-extensions-enigmahacompanion_1.5.1_all.ipk
+tar -xzf control.tar.gz && cat control postinst
+mkdir data && tar -xzf data.tar.gz -C data
+diff -r data/usr ../EnigmaHAcompanion/dist/unpacked/enigma2/usr
+```
+
 ## Start a release
 
 1. Create a working branch and run `python tools/release_version.py --bump patch`

@@ -47,7 +47,8 @@ jobs:
           EXPLICIT_VERSION: ${{ inputs.version }}
         run: python tools/release_version.py --version "$EXPLICIT_VERSION"
       - name: Build HA and receiver packages
-        run: python tools/build.py
+        # Commit time instead of build time in ZIP entries allows byte-identical rebuilds.
+        run: SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" python tools/build.py
       - name: Record tested source tree
         id: source
         run: |
